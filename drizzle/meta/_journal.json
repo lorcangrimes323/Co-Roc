@@ -29,6 +29,13 @@
       "when": 1785252960435,
       "tag": "0003_redundant_living_lightning",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1785255546290,
+      "tag": "0004_acoustic_silver_sable",
+      "breakpoints": true
     }
   ]
 }

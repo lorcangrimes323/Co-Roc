@@ -60,15 +60,23 @@ test("enforces team roles and keeps projects isolated", async () => {
   assert.match(workspace, /Team & projects/);
 });
 
-test("separates demo data from live autosave and recovers local drafts", async () => {
-  const [home, demo, missionControl, portal] = await Promise.all([
+test("uses site accounts, separates demo data and recovers local drafts", async () => {
+  const [home, demo, missionControl, portal, authRoute, accountAuth] = await Promise.all([
     source("app/page.tsx"),
     source("app/demo/page.tsx"),
     source("app/mission-control.tsx"),
     source("app/access-portal.tsx"),
+    source("app/api/auth/route.ts"),
+    source("app/account-auth.ts"),
   ]);
   assert.match(home, /AccessPortal/);
-  assert.match(portal, /chatGPTSignInPath/);
+  assert.match(portal, /Create account/);
+  assert.match(portal, /\/api\/auth/);
+  assert.doesNotMatch(portal, /QPL|LOCAL ROLE CHECK/);
+  assert.match(authRoute, /verifyPassword/);
+  assert.match(authRoute, /Too many sign-in attempts/);
+  assert.match(accountAuth, /PBKDF2/);
+  assert.match(accountAuth, /HttpOnly; SameSite=Lax/);
   assert.match(demo, /mode="demo"/);
   assert.match(missionControl, /rocket-draft:/);
   assert.match(missionControl, /Recovered/);

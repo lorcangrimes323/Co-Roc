@@ -69,8 +69,13 @@ export function WorkspaceApp({ user }: { user: WorkspaceIdentity }) {
     await submitAction({ action: "create-team", teamName: form.get("teamName"), projectName: form.get("projectName") });
   }
 
+  async function signOut() {
+    await fetch("/api/auth", { method: "DELETE" });
+    window.location.assign("/");
+  }
+
   if (!session) return <main className="workspace-gate"><div className="gate-loader"><span />Connecting to the engineering workspace…</div></main>;
-  if (!session.authenticated) return <main className="workspace-gate"><div className="gate-card"><h1>Session expired</h1><a className="primary-button" href="/signin-with-chatgpt?return_to=%2F">Sign in again</a></div></main>;
+  if (!session.authenticated) return <main className="workspace-gate"><div className="gate-card"><h1>Session expired</h1><a className="primary-button" href="/">Sign in again</a></div></main>;
   if (!workspace) {
     return (
       <main className="workspace-gate">
@@ -121,7 +126,7 @@ export function WorkspaceApp({ user }: { user: WorkspaceIdentity }) {
             </section>
             {!!workspace.team.events?.length && <section className="team-section"><h3>Access audit</h3><div className="team-event-list">{workspace.team.events.slice(0, 6).map((event) => <div key={event.id}><span>{event.summary}</span><small>{event.actorName} · {new Date(event.createdAt.replace(" ", "T") + (event.createdAt.includes("Z") ? "" : "Z")).toLocaleString()}</small></div>)}</div></section>}
             {message && <p className="form-message">{message}</p>}
-            <footer className="team-modal-footer"><span>Signed in as {user.email}</span>{user.preview ? <a href="/">Exit local role</a> : <a href="/signout-with-chatgpt?return_to=%2F">Sign out</a>}</footer>
+            <footer className="team-modal-footer"><span>Signed in as {user.email}</span>{user.preview ? <a href="/">Exit local role</a> : <button type="button" onClick={() => void signOut()}>Sign out</button>}</footer>
           </section>
         </div>
       )}

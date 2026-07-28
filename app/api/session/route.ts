@@ -51,7 +51,7 @@ async function recordTeamEvent(DB: D1Database, input: { teamId: string; action: 
 
 export async function GET(request: Request) {
   const user = await getRequestUser(request);
-  if (!user) return Response.json({ authenticated: false, signInPath: "/signin-with-chatgpt?return_to=%2F" });
+  if (!user) return Response.json({ authenticated: false, signInPath: "/" });
   await ensureAccessSchema();
   await ensureLocalPreviewWorkspace(user);
   const { DB } = getAccessEnvironment();

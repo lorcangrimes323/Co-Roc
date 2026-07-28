@@ -1,4 +1,4 @@
-import { getChatGPTUser } from "../chatgpt-auth";
+import { getAccountUserFromCookieHeader } from "../account-auth";
 
 export type RequestUser = {
   displayName: string;
@@ -9,8 +9,8 @@ export type RequestUser = {
 };
 
 export async function getRequestUser(request: Request): Promise<RequestUser | null> {
-  const authenticated = await getChatGPTUser();
-  if (authenticated) return { ...authenticated, preview: false, previewRole: null };
+  const authenticated = await getAccountUserFromCookieHeader(request.headers.get("cookie"));
+  if (authenticated) return { displayName: authenticated.displayName, email: authenticated.email, fullName: authenticated.displayName, preview: false, previewRole: null };
 
   const url = new URL(request.url);
   if (url.hostname !== "localhost" && url.hostname !== "127.0.0.1") return null;
