@@ -21,6 +21,13 @@ test("keeps OpenRocket geometry and live edits traceable", async () => {
   assert.match(missionControl, /baseVersion/);
   assert.match(missionControl, /Wall thickness/);
   assert.match(missionControl, /rollDegrees/);
+  assert.match(missionControl, /onRoll=\{changeRoll\}/);
+  assert.match(missionControl, /Longitudinal roll control/);
+
+  const sectionView = await source("app/rocket-section-view.tsx");
+  assert.match(sectionView, /event\.ctrlKey/);
+  assert.match(sectionView, /CTRL \+ WHEEL TO ROLL/);
+  assert.match(sectionView, /fin\.rotation \+ rollRadians/);
 
   assert.match(openRocket, /archiveEntries/);
   assert.match(openRocket, /export function encodeOpenRocket/);

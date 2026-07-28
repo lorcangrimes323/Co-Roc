@@ -119,11 +119,12 @@ function railButtonPath(
   context: CanvasRenderingContext2D,
   component: OpenRocketComponent,
   centreX: number,
+  rollRadians: number,
   sx: (value: number) => number,
   sy: (value: number) => number,
 ) {
   const rail = component.railButton!;
-  const direction = -Math.cos(rail.angle);
+  const direction = -Math.cos(rail.angle + rollRadians);
   const outerHalf = rail.outerDiameter / 2;
   const innerHalf = Math.min(outerHalf, rail.innerDiameter / 2);
   const baseTop = rail.baseHeight;
@@ -150,9 +151,11 @@ export const RocketSectionView = forwardRef<RocketSectionHandle, {
   model: OpenRocketModel | null;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
+  rollDegrees: number;
+  onRoll: (deltaDegrees: number) => void;
   accent: string;
   themeKey: string;
-}>(function RocketSectionView({ model, selectedId, onSelect, accent, themeKey }, ref) {
+}>(function RocketSectionView({ model, selectedId, onSelect, rollDegrees, onRoll, accent, themeKey }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const zoomRef = useRef(1);
   const panRef = useRef({ x: 0, y: 0 });
@@ -201,6 +204,8 @@ export const RocketSectionView = forwardRef<RocketSectionHandle, {
       const originY = rect.height * 0.53 + panRef.current.y;
       const sx = (value: number) => originX + value * scale;
       const sy = (value: number) => originY + value * scale;
+      const rollRadians = rollDegrees * Math.PI / 180;
+      const projectedY = (component: OpenRocketComponent) => component.y * Math.cos(rollRadians) + component.z * Math.sin(rollRadians);
       const hits: HitRegion[] = [];
 
       context.font = "10px ui-monospace, SFMono-Regular, Menlo, monospace";
@@ -228,19 +233,20 @@ export const RocketSectionView = forwardRef<RocketSectionHandle, {
       const regular = activeModel.components.filter((component) => !component.fin);
       const ordered = [...regular.filter((component) => component.external), ...regular.filter((component) => !component.external)];
       for (const component of ordered) {
+        const projection = { ...component, y: projectedY(component) };
         const radius = Math.max(component.foreRadius, component.aftRadius, 0.006);
         const width = Math.max(3, component.length * scale);
         const selected = component.id === selectedId;
         if (component.railButton) {
           const rail = component.railButton;
-          const direction = -Math.cos(rail.angle);
-          const baseY = component.y + direction * rail.mountingRadius;
-          const outerY = component.y + direction * (rail.mountingRadius + rail.height + rail.screwHeight);
+          const direction = -Math.cos(rail.angle + rollRadians);
+          const baseY = projection.y + direction * rail.mountingRadius;
+          const outerY = projection.y + direction * (rail.mountingRadius + rail.height + rail.screwHeight);
           const top = Math.min(sy(baseY), sy(outerY)) - 5;
           const height = Math.max(10, Math.abs(sy(outerY) - sy(baseY)) + 10);
           const centres = railButtonCentres(component);
           for (const centre of centres) {
-            railButtonPath(context, component, centre, sx, sy);
+            railButtonPath(context, projection, centre, rollRadians, sx, sy);
             context.fillStyle = selected ? "rgba(201,35,53,.16)" : (darkTheme ? "rgba(190,186,188,.28)" : "rgba(45,43,44,.16)");
             context.strokeStyle = selected ? accent : (darkTheme ? "#b0abad" : "#343234");
             context.lineWidth = selected ? 2.2 : 1.25;
@@ -262,43 +268,51 @@ export const RocketSectionView = forwardRef<RocketSectionHandle, {
           }
           continue;
         }
-        componentPath(context, component, sx, sy);
+        componentPath(context, projection, sx, sy);
         const palette = colours(component);
         context.fillStyle = component.external ? (selected ? "rgba(201,35,53,.08)" : "rgba(40,39,40,.035)") : palette.fill;
         context.strokeStyle = selected ? accent : palette.stroke;
         context.lineWidth = selected ? 2.4 : component.external ? 1.45 : 1;
         context.fill(hasWall(component) ? "evenodd" : "nonzero");
         context.stroke();
-        hits.push({ id: component.id, x: sx(component.x), y: sy(component.y) - radius * scale - 7, width, height: radius * scale * 2 + 14 });
+        hits.push({ id: component.id, x: sx(component.x), y: sy(projection.y) - radius * scale - 7, width, height: radius * scale * 2 + 14 });
 
         const labelMainBody = component.external && component.parentId === null && width > 65;
         if (labelMainBody || selected) {
           context.fillStyle = selected ? accent : (darkTheme ? "#928b8c" : "#676164");
           context.font = selected ? "600 10px ui-monospace, SFMono-Regular, Menlo, monospace" : "9px ui-monospace, SFMono-Regular, Menlo, monospace";
-          context.fillText(component.name.toUpperCase(), sx(component.x) + 7, sy(component.y + radius) + 7);
+          context.fillText(component.name.toUpperCase(), sx(component.x) + 7, sy(projection.y + radius) + 7);
         }
       }
 
       for (const component of activeModel.components.filter((item) => item.fin)) {
         const fin = component.fin!;
         const rootRadius = Math.max(component.foreRadius, component.aftRadius);
+        const centreY = projectedY(component);
         const selected = component.id === selectedId;
         context.strokeStyle = selected ? accent : "#464244";
         context.fillStyle = selected ? "rgba(201,35,53,.14)" : "rgba(62,59,61,.07)";
         context.lineWidth = selected ? 2.4 : 1.4;
-        for (const direction of [-1, 1]) {
+        const projectedExtents: number[] = [];
+        const finCount = Math.max(1, Math.round(fin.count));
+        for (let finIndex = 0; finIndex < finCount; finIndex += 1) {
+          const angle = fin.rotation + rollRadians + finIndex * Math.PI * 2 / finCount;
+          const direction = -Math.cos(angle);
+          const radialY = (radius: number) => centreY + direction * radius;
           context.beginPath();
           if (component.kind === "freeformfinset" && fin.points.length > 2) {
             fin.points.forEach((point, index) => {
               const px = sx(component.x + point.x);
-              const py = sy(direction * (rootRadius + point.y));
+              const py = sy(radialY(rootRadius + point.y));
+              projectedExtents.push(radialY(rootRadius + point.y));
               if (index === 0) context.moveTo(px, py); else context.lineTo(px, py);
             });
           } else {
-            context.moveTo(sx(component.x), sy(direction * rootRadius));
-            context.lineTo(sx(component.x + fin.sweep), sy(direction * (rootRadius + fin.span)));
-            context.lineTo(sx(component.x + fin.sweep + fin.tip), sy(direction * (rootRadius + fin.span)));
-            context.lineTo(sx(component.x + fin.root), sy(direction * rootRadius));
+            context.moveTo(sx(component.x), sy(radialY(rootRadius)));
+            context.lineTo(sx(component.x + fin.sweep), sy(radialY(rootRadius + fin.span)));
+            context.lineTo(sx(component.x + fin.sweep + fin.tip), sy(radialY(rootRadius + fin.span)));
+            context.lineTo(sx(component.x + fin.root), sy(radialY(rootRadius)));
+            projectedExtents.push(radialY(rootRadius), radialY(rootRadius + fin.span));
           }
           context.closePath();
           context.fill();
@@ -307,9 +321,9 @@ export const RocketSectionView = forwardRef<RocketSectionHandle, {
         hits.push({
           id: component.id,
           x: sx(component.x),
-          y: sy(-rootRadius - fin.span) - 7,
+          y: sy(Math.min(...projectedExtents)) - 7,
           width: Math.max(fin.root, fin.sweep + fin.tip) * scale,
-          height: (rootRadius + fin.span) * scale * 2 + 14,
+          height: Math.max(10, (Math.max(...projectedExtents) - Math.min(...projectedExtents)) * scale + 14),
         });
       }
 
@@ -331,6 +345,10 @@ export const RocketSectionView = forwardRef<RocketSectionHandle, {
 
     function wheel(event: WheelEvent) {
       event.preventDefault();
+      if (event.ctrlKey) {
+        onRoll(event.deltaY < 0 ? -5 : 5);
+        return;
+      }
       changeZoom(event.deltaY < 0 ? 1.1 : 1 / 1.1);
     }
     function pointerDown(event: PointerEvent) {
@@ -372,12 +390,12 @@ export const RocketSectionView = forwardRef<RocketSectionHandle, {
       canvas.removeEventListener("pointerup", pointerUp);
       drawRef.current = () => undefined;
     };
-  }, [accent, model, onSelect, selectedId, themeKey]);
+  }, [accent, model, onRoll, onSelect, rollDegrees, selectedId, themeKey]);
 
   return (
     <div className="rocket-section">
       <canvas ref={canvasRef} aria-label="OpenRocket component section" />
-      <div className="section-hint">WHEEL TO ZOOM · DRAG TO PAN · CLICK EMPTY SPACE TO DESELECT</div>
+      <div className="section-hint">WHEEL TO ZOOM · CTRL + WHEEL TO ROLL · DRAG TO PAN · CLICK EMPTY SPACE TO DESELECT</div>
     </div>
   );
 });

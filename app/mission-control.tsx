@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RocketViewer, RocketViewerHandle } from "./rocket-viewer";
 import { RocketSectionHandle, RocketSectionView } from "./rocket-section-view";
 import {
@@ -380,6 +380,9 @@ export function MissionControl({
   const [accent, setAccent] = useState("#c92335");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [rollDegrees, setRollDegrees] = useState(0);
+  const changeRoll = useCallback((deltaDegrees: number) => {
+    setRollDegrees((value) => (value + deltaDegrees + 360) % 360);
+  }, []);
   const [workspaceVersion, setWorkspaceVersion] = useState<number | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("loading");
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
@@ -1094,12 +1097,12 @@ export function MissionControl({
               <button className={`view-tab ${viewMode === "components" ? "view-tab-active" : ""}`} type="button" onClick={() => setViewMode("components")}>COMPONENTS</button>
               <button className={`view-tab ${viewMode === "3d" ? "view-tab-active" : ""}`} type="button" onClick={() => setViewMode("3d")}>3D ASSEMBLY</button>
             </div>
-            {viewMode === "3d" && <div className="roll-control" aria-label="Longitudinal roll control">
-              <button type="button" aria-label="Roll left 15 degrees" onClick={() => setRollDegrees((value) => (value - 15 + 360) % 360)}>↶</button>
+            <div className={`roll-control ${viewMode === "components" ? "roll-control-compact" : ""}`} aria-label="Longitudinal roll control">
+              <button type="button" aria-label="Roll left 15 degrees" onClick={() => changeRoll(-15)}>↶</button>
               <label>ROLL <input type="range" min="0" max="360" step="1" value={rollDegrees} onChange={(event) => setRollDegrees(Number(event.target.value))} /></label>
               <output>{rollDegrees}°</output>
-              <button type="button" aria-label="Roll right 15 degrees" onClick={() => setRollDegrees((value) => (value + 15) % 360)}>↷</button>
-            </div>}
+              <button type="button" aria-label="Roll right 15 degrees" onClick={() => changeRoll(15)}>↷</button>
+            </div>
             <div className="model-controls">
               <button type="button" aria-label="Zoom out" onClick={() => activeView()?.zoomOut()}>−</button>
               <span>{viewMode === "components" ? "2D" : "3D"}</span>
@@ -1111,7 +1114,7 @@ export function MissionControl({
           <div className="model-stage">
             <div className="rocket-wrap">
               {viewMode === "components" ? (
-                <RocketSectionView ref={sectionRef} model={orkModel} selectedId={selectedId} onSelect={setSelectedId} accent={accent} themeKey={themeMode} />
+                <RocketSectionView ref={sectionRef} model={orkModel} selectedId={selectedId} onSelect={setSelectedId} rollDegrees={rollDegrees} onRoll={changeRoll} accent={accent} themeKey={themeMode} />
               ) : (
                 <RocketViewer ref={viewerRef} model={orkModel} selectedId={selectedId} onSelect={setSelectedId} accent={accent} themeKey={themeMode} rollDegrees={rollDegrees} />
               )}

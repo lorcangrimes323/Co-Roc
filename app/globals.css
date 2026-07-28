@@ -317,6 +317,9 @@ button { color: inherit; }
 .roll-control label { display: flex; align-items: center; gap: 7px; padding-left: 8px; color: var(--muted); font: 9px var(--font-geist-mono); letter-spacing: .07em; }
 .roll-control input { width: 96px; accent-color: var(--cyan); cursor: ew-resize; }
 .roll-control output { width: 40px; color: var(--text); text-align: center; font: 9px var(--font-geist-mono); }
+.roll-control-compact label { padding: 0 4px 0 8px; }
+.roll-control-compact input { display: none; }
+.roll-control-compact output { width: 34px; }
 .model-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; background: var(--ink-2); }
 .model-stage::before { display: none; }
 .axis-label { position: absolute; top: 16px; left: 18px; color: var(--faint); font: 8px var(--font-geist-mono); letter-spacing: .08em; }
