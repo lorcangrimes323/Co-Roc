@@ -1,15 +1,18 @@
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { revisions } from "../../../db/schema";
-import { getChatGPTUser } from "../../chatgpt-auth";
+import { ensureOrkSchema } from "../../../db/ork-store";
+import { orkSnapshots, orkWorkspaces, revisions } from "../../../db/schema";
+import { requireProjectAccess } from "../access";
 
-export async function GET() {
-  const user = await getChatGPTUser();
-  if (!user) return Response.json({ revisions: [] });
+export async function GET(request: Request) {
+  const result = await requireProjectAccess(request, "view");
+  if (!result.ok) return result.response;
+  const projectId = result.access.project.id;
 
   const rows = await getDb()
     .select()
     .from(revisions)
+    .where(eq(revisions.projectId, projectId))
     .orderBy(desc(revisions.id))
     .limit(20);
 
@@ -17,10 +20,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await getChatGPTUser();
-  if (!user) {
-    return Response.json({ error: "Sign in is required to create a revision." }, { status: 401 });
-  }
+  const result = await requireProjectAccess(request, "createRevision");
+  if (!result.ok) return result.response;
+  const { user, project } = result.access;
 
   const payload = (await request.json()) as {
     title?: string;
@@ -35,10 +37,12 @@ export async function POST(request: Request) {
     return Response.json({ error: "Revision details are incomplete." }, { status: 400 });
   }
 
-  const [revision] = await getDb()
+  await ensureOrkSchema();
+  const db = getDb();
+  const [revision] = await db
     .insert(revisions)
     .values({
-      projectId: "banshee-mk2",
+      projectId: project.id,
       title,
       componentId,
       componentCode,
@@ -47,5 +51,18 @@ export async function POST(request: Request) {
     })
     .returning();
 
-  return Response.json({ revision }, { status: 201 });
+  const [workspace] = await db.select().from(orkWorkspaces).where(eq(orkWorkspaces.projectId, project.id)).limit(1);
+  if (workspace) {
+    await db.insert(orkSnapshots).values({
+      projectId: workspace.projectId,
+      version: workspace.version,
+      title,
+      objectKey: workspace.currentObjectKey,
+      sha256: workspace.sha256,
+      authorName: user.displayName,
+      authorEmail: user.email,
+    }).onConflictDoNothing();
+  }
+
+  return Response.json({ revision, snapshotVersion: workspace?.version ?? null }, { status: 201 });
 }

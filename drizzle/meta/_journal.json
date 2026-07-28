@@ -8,6 +8,27 @@
       "when": 1785235905371,
       "tag": "0000_daily_tinkerer",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1785250205101,
+      "tag": "0001_outstanding_alex_wilder",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1785252747617,
+      "tag": "0002_adorable_skaar",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1785252960435,
+      "tag": "0003_redundant_living_lightning",
+      "breakpoints": true
     }
   ]
 }

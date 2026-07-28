@@ -1,8 +1,113 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { RocketViewer, RocketViewerHandle } from "./rocket-viewer";
+import { RocketSectionHandle, RocketSectionView } from "./rocket-section-view";
+import {
+  OpenRocketEditableField,
+  OpenRocketModel,
+  applyOpenRocketEdit,
+  encodeOpenRocket,
+  encodeOpenRocketAsync,
+  parseOpenRocket,
+} from "../lib/openrocket";
+import type { ActiveWorkspace, WorkspaceIdentity, WorkspaceTeam } from "./workspace-types";
 
 type ComponentStatus = "verified" | "review" | "draft";
+type ThemeMode = "light" | "dark" | "system";
+type SaveState = "loading" | "saved" | "draft" | "saving" | "conflict" | "offline";
+
+type PendingChange = {
+  id: string;
+  componentId: string;
+  componentCode: string;
+  field: OpenRocketEditableField;
+  previousValue: string;
+  nextValue: string;
+};
+
+type AuditChange = {
+  id: number;
+  version: number;
+  componentId: string;
+  componentCode: string;
+  field: string;
+  previousValue: string;
+  nextValue: string;
+  authorName: string;
+  authorEmail: string;
+  createdAt: string;
+};
+
+type EngineeringArtifact = {
+  id: number;
+  category: "drawing" | "document" | "test-evidence" | "photo" | "video";
+  title: string;
+  revision: string;
+  status: "current" | "superseded";
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  orkVersion: number | null;
+  supersedesId: number | null;
+  uploadedByName: string;
+  createdAt: string;
+};
+
+type EngineeringTest = {
+  id: number;
+  title: string;
+  requirement: string;
+  status: "required" | "complete";
+  ownerName: string;
+  completionNotes: string | null;
+  completedByName: string | null;
+  completedAt: string | null;
+  orkVersion: number | null;
+  createdAt: string;
+};
+
+type EngineeringComment = {
+  id: number;
+  body: string;
+  mentions: string[];
+  orkVersion: number | null;
+  authorName: string;
+  createdAt: string;
+};
+
+type EngineeringEvent = {
+  id: number;
+  action: string;
+  summary: string;
+  entityType: string;
+  orkVersion: number | null;
+  authorName: string;
+  createdAt: string;
+};
+
+type ComponentRecord = {
+  artifacts: EngineeringArtifact[];
+  tests: EngineeringTest[];
+  comments: EngineeringComment[];
+  events: EngineeringEvent[];
+};
+
+const emptyComponentRecord = (): ComponentRecord => ({ artifacts: [], tests: [], comments: [], events: [] });
+function personInitials(name: string) {
+  return name.split(/\s+/).filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+}
+
+function recordDate(value: string | null) {
+  if (!value) return "Not recorded";
+  const parsed = new Date(value.includes("T") ? value : `${value.replace(" ", "T")}Z`);
+  return Number.isNaN(parsed.valueOf()) ? value : parsed.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+}
+
+function recordSize(bytes: number) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 type RocketComponent = {
   id: string;
@@ -13,6 +118,7 @@ type RocketComponent = {
   depth: number;
   length: number;
   diameter: number;
+  wallThickness?: number;
   mass: number;
   material: string;
   documents: { name: string; meta: string; state: "current" | "review" }[];
@@ -32,13 +138,13 @@ type Activity = {
 const initialComponents: RocketComponent[] = [
   {
     id: "vehicle",
-    name: "BANSHEE Mk II",
-    code: "LV-002",
+    name: "L4C final",
+    code: "L4C-MK2",
     type: "Launch vehicle",
     status: "review",
     depth: 0,
-    length: 3780,
-    diameter: 157,
+    length: 2060,
+    diameter: 90,
     mass: 23.84,
     material: "Mixed assembly",
     documents: [
@@ -48,15 +154,15 @@ const initialComponents: RocketComponent[] = [
   },
   {
     id: "nose",
-    name: "Nose assembly",
-    code: "NAS-100",
-    type: "Nose cone",
+    name: "Nose Cone",
+    code: "NC-250",
+    type: "Haack nose cone",
     status: "verified",
     depth: 1,
-    length: 620,
-    diameter: 157,
-    mass: 1.28,
-    material: "CFRP / Rohacell",
+    length: 250,
+    diameter: 90,
+    mass: 0.4,
+    material: "Fiberglass",
     documents: [
       { name: "NAS-100 drawing.pdf", meta: "REV D · 1.8 MB", state: "current" },
       { name: "Laminate schedule.pdf", meta: "REV B · 642 KB", state: "current" },
@@ -64,15 +170,15 @@ const initialComponents: RocketComponent[] = [
   },
   {
     id: "payload",
-    name: "Payload bay",
-    code: "PAY-210",
+    name: "Forward Body",
+    code: "FB-600",
     type: "Body tube",
     status: "verified",
     depth: 1,
-    length: 540,
-    diameter: 157,
-    mass: 2.41,
-    material: "T700 / Epoxy",
+    length: 600,
+    diameter: 90,
+    mass: 0.784,
+    material: "Fiberglass",
     documents: [
       { name: "Payload ICD.pdf", meta: "REV C · 980 KB", state: "current" },
       { name: "Tube inspection.csv", meta: "LOT 24-07 · 42 KB", state: "current" },
@@ -80,15 +186,15 @@ const initialComponents: RocketComponent[] = [
   },
   {
     id: "avionics",
-    name: "Avionics bay",
-    code: "AVN-320",
-    type: "Assembly",
+    name: "Avionics Coupler",
+    code: "AC-150",
+    type: "Switchband body tube",
     status: "review",
     depth: 1,
-    length: 410,
-    diameter: 157,
-    mass: 3.12,
-    material: "CFRP / Aluminium",
+    length: 150,
+    diameter: 90,
+    mass: 0.208,
+    material: "Fiberglass",
     documents: [
       { name: "Avionics bay CAD.step", meta: "REV E · 8.1 MB", state: "current" },
       { name: "CATS Vega integration.pdf", meta: "REV A · 1.2 MB", state: "review" },
@@ -96,15 +202,15 @@ const initialComponents: RocketComponent[] = [
   },
   {
     id: "airframe",
-    name: "Main airframe",
-    code: "STR-410",
-    type: "Composite tube",
+    name: "Lower Body",
+    code: "LB-950",
+    type: "Body tube",
     status: "review",
     depth: 1,
-    length: 1080,
-    diameter: 157,
-    mass: 4.86,
-    material: "T700 / Epoxy",
+    length: 950,
+    diameter: 90,
+    mass: 1.248,
+    material: "Fiberglass",
     documents: [
       { name: "STR-410 laminate.pdf", meta: "REV F · 724 KB", state: "current" },
       { name: "Compression test.pdf", meta: "TEST 017 · 3.6 MB", state: "current" },
@@ -113,15 +219,15 @@ const initialComponents: RocketComponent[] = [
   },
   {
     id: "motor",
-    name: "Motor section",
-    code: "MTR-500",
-    type: "Motor mount",
+    name: "Aft Transition",
+    code: "TR-110",
+    type: "Conical transition",
     status: "verified",
     depth: 1,
-    length: 810,
-    diameter: 157,
-    mass: 8.93,
-    material: "G12 / Aluminium",
+    length: 110,
+    diameter: 79.6,
+    mass: 0.46,
+    material: "Aluminum",
     documents: [
       { name: "Motor interface.pdf", meta: "REV C · 2.1 MB", state: "current" },
       { name: "Fastener schedule.csv", meta: "REV B · 28 KB", state: "current" },
@@ -129,15 +235,15 @@ const initialComponents: RocketComponent[] = [
   },
   {
     id: "fins",
-    name: "Fin set",
-    code: "AER-540",
-    type: "Freeform fin set",
+    name: "Trapezoidal Fin Set",
+    code: "FIN-3X",
+    type: "3-fin trapezoidal set",
     status: "draft",
     depth: 2,
-    length: 365,
-    diameter: 8,
-    mass: 1.74,
-    material: "CFRP sandwich",
+    length: 200,
+    diameter: 4,
+    mass: 0,
+    material: "Fiberglass",
     documents: [
       { name: "Fin structural model.pdf", meta: "REV B · 4.7 MB", state: "review" },
       { name: "Core material cert.pdf", meta: "LOT 511 · 340 KB", state: "current" },
@@ -145,15 +251,15 @@ const initialComponents: RocketComponent[] = [
   },
   {
     id: "recovery",
-    name: "Recovery system",
-    code: "REC-600",
-    type: "Recovery assembly",
+    name: "Camera Pod",
+    code: "POD-130",
+    type: "External Haack pod",
     status: "verified",
     depth: 1,
-    length: 320,
-    diameter: 144,
-    mass: 1.5,
-    material: "Nylon / Kevlar",
+    length: 130,
+    diameter: 45,
+    mass: 0,
+    material: "Fiberglass",
     documents: [
       { name: "Recovery concept.pdf", meta: "REV D · 1.1 MB", state: "current" },
       { name: "Ground test 06.mp4", meta: "VERIFIED · 84 MB", state: "current" },
@@ -200,6 +306,43 @@ const collaborators = [
   { initials: "OR", name: "Oscar Reid", colour: "amber" },
 ];
 
+const componentPrefixes: Record<string, string> = {
+  nosecone: "NC", bodytube: "BT", transition: "TR", trapezoidfinset: "FIN",
+  freeformfinset: "FIN", ellipticalfinset: "FIN", innertube: "IT", tubecoupler: "TC",
+  bulkhead: "BH", centeringring: "CR", engineblock: "EB", masscomponent: "MAS",
+  parachute: "PAR", shockcord: "SC", railbutton: "RB", motor: "MTR",
+};
+
+function workspaceComponents(model: OpenRocketModel): RocketComponent[] {
+  const counters = new Map<string, number>();
+  const vehicle: RocketComponent = {
+    id: "vehicle", name: model.name, code: "ORK", type: `${model.stages.length}-stage OpenRocket vehicle`,
+    status: "verified", depth: 0, length: Math.round(model.length * 1000),
+    diameter: Math.round(model.maxRadius * 2 * 1000), mass: 0, material: "Mixed assembly", documents: [],
+  };
+  return [vehicle, ...model.components.map((component) => {
+    const prefix = componentPrefixes[component.kind] ?? component.kind.slice(0, 3).toUpperCase();
+    const count = (counters.get(prefix) ?? 0) + 1;
+    counters.set(prefix, count);
+    return {
+      id: component.id,
+      name: component.name,
+      code: `${prefix}-${String(count).padStart(3, "0")}`,
+      type: component.kind.replaceAll("set", " set").replaceAll("tube", " tube"),
+      status: "verified" as const,
+      depth: Math.min(4, component.depth + 1),
+      length: Math.round(component.length * 1000),
+      diameter: Math.round(Math.max(component.foreRadius, component.aftRadius) * 2000),
+      wallThickness: ["nosecone", "bodytube", "transition", "innertube", "tubecoupler", "launchlug"].includes(component.kind)
+        ? Math.round(component.thickness * 10000) / 10
+        : undefined,
+      mass: component.mass,
+      material: component.material,
+      documents: [],
+    };
+  })];
+}
+
 function StatusDot({ status }: { status: ComponentStatus }) {
   return <span className={`status-dot status-${status}`} aria-label={status} />;
 }
@@ -210,29 +353,258 @@ function Icon({ children }: { children: React.ReactNode }) {
 
 export function MissionControl({
   user,
+  mode,
+  workspace,
+  teams,
+  onProjectChange,
+  onManageTeam,
 }: {
-  user: { name: string; email: string; preview: boolean };
+  user: WorkspaceIdentity;
+  mode: "live" | "demo";
+  workspace: ActiveWorkspace;
+  teams: WorkspaceTeam[];
+  onProjectChange?: (projectId: string) => void;
+  onManageTeam?: () => void;
 }) {
-  const [components, setComponents] = useState(initialComponents);
-  const [selectedId, setSelectedId] = useState("airframe");
-  const [activePanel, setActivePanel] = useState<"properties" | "documents" | "activity">("properties");
+  const placeholderComponent: RocketComponent = { ...initialComponents[0], name: workspace.project.name, code: "PROJECT", length: 0, diameter: 0, mass: 0, documents: [] };
+  const [components, setComponents] = useState(mode === "demo" ? initialComponents : [placeholderComponent]);
+  const [selectedId, setSelectedId] = useState<string | null>(mode === "demo" ? "airframe" : "vehicle");
+  const [activePanel, setActivePanel] = useState<"properties" | "records" | "tests" | "comments">("records");
   const [activity, setActivity] = useState(initialActivity);
   const [notice, setNotice] = useState("Workspace synchronised");
   const [revisionOpen, setRevisionOpen] = useState(false);
   const [revisionName, setRevisionName] = useState("STR-410 mass update");
+  const [orkModel, setOrkModel] = useState<OpenRocketModel | null>(null);
+  const [viewMode, setViewMode] = useState<"components" | "3d">("components");
+  const [themeMode, setThemeMode] = useState<ThemeMode>("light");
+  const [accent, setAccent] = useState("#c92335");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [rollDegrees, setRollDegrees] = useState(0);
+  const [workspaceVersion, setWorkspaceVersion] = useState<number | null>(null);
+  const [saveState, setSaveState] = useState<SaveState>("loading");
+  const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
+  const [auditChanges, setAuditChanges] = useState<AuditChange[]>([]);
+  const [lastSavedBy, setLastSavedBy] = useState<string>("");
+  const [conflictMessage, setConflictMessage] = useState("");
+  const [componentRecord, setComponentRecord] = useState<ComponentRecord>(emptyComponentRecord);
+  const [recordLoading, setRecordLoading] = useState(false);
+  const [uploadCategory, setUploadCategory] = useState<EngineeringArtifact["category"]>("drawing");
+  const [uploadRevision, setUploadRevision] = useState("A");
+  const [recordTitle, setRecordTitle] = useState("");
+  const [testTitle, setTestTitle] = useState("");
+  const [testRequirement, setTestRequirement] = useState("");
+  const [commentDraft, setCommentDraft] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const documentInput = useRef<HTMLInputElement>(null);
+  const viewerRef = useRef<RocketViewerHandle>(null);
+  const sectionRef = useRef<RocketSectionHandle>(null);
+  const workspaceVersionRef = useRef<number | null>(null);
+  const pendingChangesRef = useRef<PendingChange[]>([]);
+  const orkModelRef = useRef<OpenRocketModel | null>(null);
+  const can = (permission: WorkspaceTeam["permissions"][number]) => mode === "demo" ? permission === "view" || permission === "editOrk" : workspace.team.permissions.includes(permission);
+  const availableProjects = teams.flatMap((team) => team.projects.map((project) => ({ ...project, teamName: team.name })));
+  const visibleMembers = workspace.team.members.slice(0, 3);
+
+  useEffect(() => {
+    const savedTheme = window.localStorage.getItem("rocket-theme");
+    const savedAccent = window.localStorage.getItem("rocket-accent");
+    if (savedTheme === "light" || savedTheme === "dark" || savedTheme === "system") setThemeMode(savedTheme);
+    if (savedAccent && /^#[0-9a-f]{6}$/i.test(savedAccent)) setAccent(savedAccent);
+  }, []);
+
+  useEffect(() => {
+    if (mode !== "live") return;
+    const poll = window.setInterval(async () => {
+      const version = workspaceVersionRef.current;
+      if (version === null || pendingChangesRef.current.length) return;
+      try {
+        const response = await fetch(`/api/ork?afterVersion=${version}`, { headers: collaborationHeaders(), cache: "no-store" });
+        if (response.status === 204 || !response.ok) return;
+        const nextVersion = Number(response.headers.get("x-ork-version"));
+        const sourceName = decodeURIComponent(response.headers.get("x-ork-source-name") || orkModelRef.current?.sourceName || "shared-working.ork");
+        const model = await parseOpenRocket(await response.arrayBuffer(), sourceName);
+        loadModel(model, true);
+        setWorkspaceVersion(nextVersion);
+        setLastSavedBy(decodeURIComponent(response.headers.get("x-ork-updated-by") || "Teammate"));
+        setSaveState("saved");
+        setNotice(`Live update received · version ${nextVersion}`);
+        await refreshHistory();
+      } catch { /* retain the last known-good working copy */ }
+    }, 2500);
+    return () => window.clearInterval(poll);
+  }, [mode, workspace.project.id]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const applyTheme = () => {
+      document.documentElement.dataset.theme = themeMode === "system" ? (media.matches ? "dark" : "light") : themeMode;
+      document.documentElement.style.setProperty("--accent", accent);
+    };
+    applyTheme();
+    window.localStorage.setItem("rocket-theme", themeMode);
+    window.localStorage.setItem("rocket-accent", accent);
+    media.addEventListener("change", applyTheme);
+    return () => media.removeEventListener("change", applyTheme);
+  }, [accent, themeMode]);
+
+  useEffect(() => { workspaceVersionRef.current = workspaceVersion; }, [workspaceVersion]);
+  useEffect(() => { pendingChangesRef.current = pendingChanges; }, [pendingChanges]);
+  useEffect(() => { orkModelRef.current = orkModel; }, [orkModel]);
+  useEffect(() => {
+    if (mode !== "live") return;
+    const key = `rocket-draft:${workspace.project.id}`;
+    if (!pendingChanges.length) { window.localStorage.removeItem(key); return; }
+    window.localStorage.setItem(key, JSON.stringify({ baseVersion: workspaceVersion, changes: pendingChanges, updatedAt: new Date().toISOString() }));
+  }, [mode, pendingChanges, workspace.project.id, workspaceVersion]);
+
+  function collaborationHeaders() {
+    return {
+      "x-project-id": workspace.project.id,
+      ...(user.preview ? {
+        "x-local-preview-name": user.name,
+        "x-local-preview-email": user.email,
+        "x-local-preview-role": user.previewRole ?? "lead",
+      } : {}),
+    };
+  }
+
+  async function refreshHistory() {
+    if (mode !== "live") return;
+    try {
+      const response = await fetch("/api/ork/history", { headers: collaborationHeaders(), cache: "no-store" });
+      if (!response.ok) return;
+      const payload = await response.json() as { changes?: AuditChange[] };
+      setAuditChanges(payload.changes ?? []);
+    } catch { /* live history is non-blocking */ }
+  }
+
+  function activeView() {
+    return viewMode === "components" ? sectionRef.current : viewerRef.current;
+  }
 
   const selected = useMemo(
     () => components.find((component) => component.id === selectedId) ?? components[0],
     [components, selectedId],
   );
 
+  async function refreshComponentRecord(componentId: string) {
+    if (mode !== "live") { setComponentRecord(emptyComponentRecord()); return; }
+    setRecordLoading(true);
+    try {
+      const response = await fetch(`/api/component-records?componentId=${encodeURIComponent(componentId)}`, {
+        headers: collaborationHeaders(),
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error("Record unavailable");
+      setComponentRecord(await response.json() as ComponentRecord);
+    } catch {
+      setComponentRecord(emptyComponentRecord());
+      setNotice("The component record could not be loaded");
+    } finally {
+      setRecordLoading(false);
+    }
+  }
+
   useEffect(() => {
-    if (user.preview) return;
+    if (!selectedId) return;
+    void refreshComponentRecord(selected.id);
+  }, [selected.id, selectedId]);
+
+  function loadModel(model: OpenRocketModel, preserveSelection = false) {
+    const parsed = workspaceComponents(model);
+    setOrkModel(model);
+    setComponents(parsed);
+    const primary = model.components
+      .filter((component) => component.external && component.kind === "bodytube")
+      .sort((a, b) => b.length - a.length)[0]
+      ?? model.components.find((component) => component.external)
+      ?? model.components[0];
+    setSelectedId((current) => preserveSelection && current && parsed.some((component) => component.id === current)
+      ? current
+      : primary?.id ?? "vehicle");
+    setNotice(`${model.sourceName} rebuilt · ${model.components.length} components`);
+  }
+
+  function restoreLocalDraft(model: OpenRocketModel, version: number) {
+    if (mode !== "live") return false;
+    const key = `rocket-draft:${workspace.project.id}`;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(key) || "null") as { baseVersion?: number; changes?: PendingChange[] } | null;
+      if (!saved?.changes?.length) return false;
+      if (saved.baseVersion !== version) {
+        setConflictMessage("A recoverable local draft was based on an older shared version. Reloading will keep the shared file authoritative.");
+        setSaveState("conflict");
+        return false;
+      }
+      let recovered = model;
+      for (const change of saved.changes) recovered = applyOpenRocketEdit(recovered, change.componentId, change.field, change.nextValue);
+      loadModel(recovered);
+      setPendingChanges(saved.changes);
+      pendingChangesRef.current = saved.changes;
+      setSaveState("draft");
+      setNotice(`Recovered ${saved.changes.length} unsaved local change${saved.changes.length === 1 ? "" : "s"}`);
+      return true;
+    } catch {
+      window.localStorage.removeItem(key);
+      return false;
+    }
+  }
+
+  useEffect(() => {
+    let active = true;
+    async function openWorkspace() {
+      try {
+        if (mode === "demo") {
+          const response = await fetch("/models/banshee-mk2.ork");
+          if (!response.ok) throw new Error("Demo model unavailable");
+          const model = await parseOpenRocket(await response.arrayBuffer(), "L4C configuration Banshee Mk2.ork");
+          if (!active) return;
+          loadModel(model);
+          setWorkspaceVersion(0);
+          setLastSavedBy("Demo dataset");
+          setSaveState("saved");
+          setNotice("Demo workspace; changes stay in this browser session");
+          return;
+        }
+        const shared = await fetch("/api/ork", { headers: collaborationHeaders(), cache: "no-store" });
+        if (shared.ok) {
+          const sourceName = decodeURIComponent(shared.headers.get("x-ork-source-name") || "shared-working.ork");
+          const model = await parseOpenRocket(await shared.arrayBuffer(), sourceName);
+          if (!active) return;
+          const version = Number(shared.headers.get("x-ork-version"));
+          loadModel(model);
+          setWorkspaceVersion(version);
+          setLastSavedBy(decodeURIComponent(shared.headers.get("x-ork-updated-by") || ""));
+          if (!restoreLocalDraft(model, version)) setSaveState("saved");
+          await refreshHistory();
+          return;
+        }
+
+        if (shared.status === 404) {
+          setComponents([placeholderComponent]);
+          setSelectedId("vehicle");
+          setWorkspaceVersion(0);
+          setSaveState("saved");
+          setNotice("No OpenRocket file yet; import an .ork file to initialise this project");
+          return;
+        }
+        throw new Error("Workspace unavailable");
+      } catch {
+        if (active) {
+          setSaveState("offline");
+          setNotice("Import an OpenRocket file to rebuild its geometry");
+        }
+      }
+    }
+    void openWorkspace();
+    return () => { active = false; };
+  }, [mode, workspace.project.id]);
+
+  useEffect(() => {
+    if (mode !== "live" || !selectedId) return;
 
     let active = true;
-    fetch(`/api/documents?componentId=${encodeURIComponent(selected.id)}`)
+    fetch(`/api/documents?componentId=${encodeURIComponent(selected.id)}`, { headers: collaborationHeaders() })
       .then((response) => response.ok ? response.json() : { documents: [] })
       .then((payload: { documents?: Array<{ fileName: string; sizeBytes: number; state: string }> }) => {
         if (!active || !payload.documents?.length) return;
@@ -250,60 +622,315 @@ export function MissionControl({
       .catch(() => undefined);
 
     return () => { active = false; };
-  }, [selected.id, user.preview]);
+  }, [selected.id, selectedId, mode]);
 
   function updateSelected<K extends keyof RocketComponent>(key: K, value: RocketComponent[K]) {
+    const editableFields = new Set<keyof RocketComponent>(["name", "length", "diameter", "wallThickness", "mass", "material"]);
+    const previousValue = selected[key];
     setComponents((items) =>
       items.map((component) =>
         component.id === selected.id ? { ...component, [key]: value, status: "draft" } : component,
       ),
     );
+    if (editableFields.has(key) && orkModelRef.current?.components.some((component) => component.id === selected.id)) {
+      try {
+        const field = key as OpenRocketEditableField;
+        const edited = applyOpenRocketEdit(orkModelRef.current, selected.id, field, value as string | number);
+        orkModelRef.current = edited;
+        setOrkModel(edited);
+        if (mode === "demo") {
+          setSaveState("draft");
+          setNotice(`${selected.code} changed locally; demo data is not saved`);
+          return;
+        }
+        setPendingChanges((items) => {
+          const existing = items.find((change) => change.componentId === selected.id && change.field === field);
+          const next = existing
+            ? items.map((change) => change === existing ? { ...change, nextValue: String(value) } : change)
+            : [...items, {
+              id: crypto.randomUUID(),
+              componentId: selected.id,
+              componentCode: selected.code,
+              field,
+              previousValue: String(previousValue ?? ""),
+              nextValue: String(value ?? ""),
+            }];
+          pendingChangesRef.current = next;
+          return next;
+        });
+        setSaveState("draft");
+        setConflictMessage("");
+      } catch (error) {
+        setNotice(error instanceof Error ? error.message : "The OpenRocket edit could not be applied");
+        return;
+      }
+    }
     setNotice(`${selected.code} has unsaved changes`);
   }
 
-  function importOrk(event: ChangeEvent<HTMLInputElement>) {
+  useEffect(() => {
+    if (mode !== "live" || !can("editOrk")) return;
+    if (!pendingChanges.length || !orkModel || workspaceVersion === null || saveState === "conflict" || saveState === "saving") return;
+    const batch = pendingChanges;
+    const timer = window.setTimeout(async () => {
+      setSaveState("saving");
+      try {
+        const bytes = await encodeOpenRocketAsync(orkModel);
+        const form = new FormData();
+        form.set("file", new File([bytes], orkModel.sourceName, { type: "application/zip" }));
+        form.set("baseVersion", String(workspaceVersion));
+        form.set("changes", JSON.stringify(batch.map(({ id: _id, ...change }) => change)));
+        const response = await fetch("/api/ork", { method: "PUT", headers: collaborationHeaders(), body: form });
+        const payload = await response.json() as { error?: string; workspace?: { version: number; updatedByName: string } };
+        if (response.status === 409) {
+          setSaveState("conflict");
+          setConflictMessage(payload.error || "A teammate saved a newer working copy.");
+          setNotice("Save paused · shared-file conflict requires review");
+          return;
+        }
+        if (!response.ok || !payload.workspace) throw new Error(payload.error || "Autosave failed");
+        const savedIds = new Set(batch.map((change) => change.id));
+        setPendingChanges((items) => {
+          const remaining = items.filter((change) => !savedIds.has(change.id));
+          pendingChangesRef.current = remaining;
+          setSaveState(remaining.length ? "draft" : "saved");
+          return remaining;
+        });
+        setWorkspaceVersion(payload.workspace.version);
+        window.localStorage.removeItem(`rocket-draft:${workspace.project.id}`);
+        setLastSavedBy(payload.workspace.updatedByName);
+        setNotice(`Shared .ork saved · version ${payload.workspace.version}`);
+        await refreshHistory();
+      } catch {
+        setSaveState("offline");
+        setNotice("Working locally · live save will retry after the connection returns");
+      }
+    }, saveState === "offline" ? 5000 : 1500);
+    return () => window.clearTimeout(timer);
+  }, [orkModel, pendingChanges, saveState, workspaceVersion, mode]);
+
+  async function importOrk(event: ChangeEvent<HTMLInputElement>) {
+    if (!can("editOrk")) { setNotice("Your role cannot replace the live OpenRocket file"); event.target.value = ""; return; }
     const file = event.target.files?.[0];
     if (!file) return;
     if (!file.name.toLowerCase().endsWith(".ork")) {
       setNotice("Choose a valid OpenRocket .ork file");
       return;
     }
-    setNotice(`${file.name} staged for component comparison`);
-    event.target.value = "";
+    setNotice(`Reading ${file.name}…`);
+    try {
+      const buffer = await file.arrayBuffer();
+      const model = await parseOpenRocket(buffer, file.name);
+      if (mode === "demo") {
+        loadModel(model);
+        setWorkspaceVersion(0);
+        setSaveState("draft");
+        setNotice(`${file.name} loaded locally; demo data is not saved`);
+        return;
+      }
+      const form = new FormData();
+      form.set("file", new File([buffer], file.name, { type: "application/zip" }));
+      form.set("baseVersion", String(workspaceVersionRef.current ?? 0));
+      const response = await fetch("/api/ork", { method: "POST", headers: collaborationHeaders(), body: form });
+      const payload = await response.json() as { error?: string; workspace?: { version: number; updatedByName: string } };
+      if (response.status === 409) {
+        setSaveState("conflict");
+        setConflictMessage(payload.error || "The shared file changed before import completed.");
+        return;
+      }
+      if (!response.ok || !payload.workspace) throw new Error(payload.error || "The shared file could not be replaced");
+      loadModel(model);
+      setPendingChanges([]);
+      pendingChangesRef.current = [];
+      window.localStorage.removeItem(`rocket-draft:${workspace.project.id}`);
+      setWorkspaceVersion(payload.workspace.version);
+      setLastSavedBy(payload.workspace.updatedByName);
+      setSaveState("saved");
+      await refreshHistory();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "The OpenRocket file could not be read");
+    } finally {
+      event.target.value = "";
+    }
+  }
+
+  async function downloadWorkingOrk() {
+    try {
+      if (mode === "demo" && orkModel) {
+        const url = URL.createObjectURL(new Blob([encodeOpenRocket(orkModel)], { type: "application/zip" }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = orkModel.sourceName;
+        link.click();
+        URL.revokeObjectURL(url);
+        setNotice("Downloaded the local demo working copy");
+        return;
+      }
+      const response = await fetch("/api/ork?download=1", { headers: collaborationHeaders(), cache: "no-store" });
+      if (!response.ok) throw new Error("Download unavailable");
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${orkModel?.sourceName.replace(/\.ork$/i, "") || "shared-working"}-v${workspaceVersion ?? 0}.ork`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setNotice(`Downloaded controlled working copy · version ${workspaceVersion ?? "—"}`);
+    } catch {
+      setNotice("The controlled .ork could not be downloaded");
+    }
+  }
+
+  async function reloadSharedOrk() {
+    try {
+      if (mode === "demo") {
+        const response = await fetch("/models/banshee-mk2.ork");
+        if (!response.ok) throw new Error("Demo model unavailable");
+        const model = await parseOpenRocket(await response.arrayBuffer(), "L4C configuration Banshee Mk2.ork");
+        loadModel(model);
+        setWorkspaceVersion(0);
+        setSaveState("saved");
+        setNotice("Demo model reset");
+        return;
+      }
+      const response = await fetch("/api/ork", { headers: collaborationHeaders(), cache: "no-store" });
+      if (!response.ok) throw new Error("Shared file unavailable");
+      const sourceName = decodeURIComponent(response.headers.get("x-ork-source-name") || "shared-working.ork");
+      const model = await parseOpenRocket(await response.arrayBuffer(), sourceName);
+      loadModel(model, true);
+      setWorkspaceVersion(Number(response.headers.get("x-ork-version")));
+      setLastSavedBy(decodeURIComponent(response.headers.get("x-ork-updated-by") || "Teammate"));
+      setPendingChanges([]);
+      pendingChangesRef.current = [];
+      window.localStorage.removeItem(`rocket-draft:${workspace.project.id}`);
+      setConflictMessage("");
+      setSaveState("saved");
+      setNotice("Reloaded the authoritative shared .ork");
+      await refreshHistory();
+    } catch {
+      setNotice("The authoritative shared .ork could not be reloaded");
+    }
   }
 
   async function attachDocument(event: ChangeEvent<HTMLInputElement>) {
+    if (!can("uploadEvidence")) { setNotice("Your role cannot upload engineering evidence"); return; }
     const file = event.target.files?.[0];
     if (!file) return;
-    const newDocument = {
-      name: file.name,
-      meta: `NEW · ${Math.max(1, Math.round(file.size / 1024))} KB`,
-      state: "review" as const,
-    };
-    setComponents((items) =>
-      items.map((component) =>
-        component.id === selected.id
-          ? { ...component, documents: [newDocument, ...component.documents], status: "review" }
-          : component,
-      ),
-    );
-    setNotice(`${file.name} linked to ${selected.code}`);
-    if (!user.preview) {
-      const form = new FormData();
-      form.set("componentId", selected.id);
-      form.set("file", file);
-      try {
-        const response = await fetch("/api/documents", { method: "POST", body: form });
-        if (!response.ok) throw new Error("Upload failed");
-        setNotice(`${file.name} securely linked to ${selected.code}`);
-      } catch {
-        setNotice(`${file.name} is visible locally but could not be uploaded`);
-      }
+    const form = new FormData();
+    form.set("componentId", selected.id);
+    form.set("componentCode", selected.code);
+    form.set("category", uploadCategory);
+    form.set("revision", uploadRevision.trim() || "A");
+    form.set("title", recordTitle.trim());
+    if (workspaceVersion) form.set("orkVersion", String(workspaceVersion));
+    form.set("file", file);
+    setNotice(`Uploading ${file.name} to ${selected.code}…`);
+    try {
+      const response = await fetch("/api/component-records", {
+        method: "POST",
+        headers: collaborationHeaders(),
+        body: form,
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Upload failed");
+      await refreshComponentRecord(selected.id);
+      setRecordTitle("");
+      setComponents((items) => items.map((component) => component.id === selected.id ? { ...component, status: "review" } : component));
+      setNotice(`${file.name} added to ${selected.code} at ORK V${workspaceVersion ?? "—"}`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : `${file.name} could not be uploaded`);
     }
     event.target.value = "";
   }
 
+  async function createRequiredTest() {
+    if (!can("createTest")) { setNotice("Only a team lead can issue a test requirement"); return; }
+    if (!testTitle.trim() || !testRequirement.trim()) {
+      setNotice("Add a test title and a measurable acceptance requirement");
+      return;
+    }
+    try {
+      const response = await fetch("/api/component-records", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...collaborationHeaders() },
+        body: JSON.stringify({
+          action: "create-test",
+          componentId: selected.id,
+          componentCode: selected.code,
+          orkVersion: workspaceVersion,
+          title: testTitle,
+          requirement: testRequirement,
+        }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Test could not be created");
+      setTestTitle("");
+      setTestRequirement("");
+      await refreshComponentRecord(selected.id);
+      setNotice(`Required test added to ${selected.code}`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Test could not be created");
+    }
+  }
+
+  async function completeRequiredTest(test: EngineeringTest) {
+    if (!can("completeTest")) { setNotice("Your role cannot complete test requirements"); return; }
+    try {
+      const response = await fetch("/api/component-records", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...collaborationHeaders() },
+        body: JSON.stringify({
+          action: "complete-test",
+          componentId: selected.id,
+          componentCode: selected.code,
+          orkVersion: workspaceVersion,
+          testId: test.id,
+          completionNotes: `Completion confirmed by ${user.name}. Supporting evidence can be linked from Records.`,
+        }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Test could not be completed");
+      await refreshComponentRecord(selected.id);
+      setNotice(`${test.title} marked complete`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Test could not be completed");
+    }
+  }
+
+  function insertMention(name: string) {
+    setCommentDraft((current) => `${current}${current && !current.endsWith(" ") ? " " : ""}@${name} `);
+  }
+
+  async function postComment() {
+    if (!can("comment")) { setNotice("Your role cannot post to the part record"); return; }
+    if (!commentDraft.trim()) return;
+    try {
+      const response = await fetch("/api/component-records", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...collaborationHeaders() },
+        body: JSON.stringify({
+          action: "add-comment",
+          componentId: selected.id,
+          componentCode: selected.code,
+          orkVersion: workspaceVersion,
+          body: commentDraft,
+        }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Comment could not be posted");
+      setCommentDraft("");
+      await refreshComponentRecord(selected.id);
+      setNotice(`Comment posted to ${selected.code}`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Comment could not be posted");
+    }
+  }
+
   async function createRevision() {
+    if (!can("createRevision")) { setNotice("Your role cannot create controlled revisions"); return; }
+    if (pendingChangesRef.current.length || saveState === "saving") {
+      setNotice("Wait for the shared .ork to finish saving before creating a revision");
+      return;
+    }
     const label = revisionName.trim() || `${selected.code} update`;
     const newEntry: Activity = {
       id: Date.now(),
@@ -323,24 +950,20 @@ export function MissionControl({
     );
     setRevisionOpen(false);
     setNotice(`Revision 29 created · ${label}`);
-    if (!user.preview) {
-      try {
-        const response = await fetch("/api/revisions", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ title: label, componentId: selected.id, componentCode: selected.code }),
-        });
-        if (!response.ok) throw new Error("Revision could not be saved");
-        setNotice(`Revision saved · ${label}`);
-      } catch {
-        setNotice(`Revision is visible locally but could not be synchronised`);
-      }
+    try {
+      const response = await fetch("/api/revisions", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...collaborationHeaders() },
+        body: JSON.stringify({ title: label, componentId: selected.id, componentCode: selected.code }),
+      });
+      if (!response.ok) throw new Error("Revision could not be saved");
+      const payload = await response.json() as { snapshotVersion?: number | null };
+      setNotice(`Immutable revision saved · working version ${payload.snapshotVersion ?? workspaceVersion ?? "—"}`);
+      await refreshHistory();
+    } catch {
+      setNotice(`Revision could not be synchronised`);
     }
   }
-
-  const totalMass = components
-    .filter((component) => component.depth === 1)
-    .reduce((sum, component) => sum + component.mass, 0);
 
   return (
     <main className="app-shell">
@@ -353,24 +976,24 @@ export function MissionControl({
         </div>
 
         <div className="project-switcher">
-          <span className="project-kicker">ACTIVE VEHICLE</span>
-          <button className="project-name" type="button">
-            BANSHEE Mk II <span>⌄</span>
-          </button>
+          <span className="project-kicker">{workspace.team.name} / ACTIVE PROJECT</span>
+          {availableProjects.length > 1 ? <select className="project-name project-select" value={workspace.project.id} onChange={(event) => onProjectChange?.(event.target.value)}>{availableProjects.map((project) => <option key={project.id} value={project.id}>{project.teamName} · {project.name}</option>)}</select> : <button className="project-name" type="button" onClick={onManageTeam}>{workspace.project.name} <span>⌄</span></button>}
         </div>
 
         <div className="topbar-actions">
-          <div className="sync-state"><span className="pulse-dot" />LIVE</div>
-          <div className="avatar-stack" aria-label="3 collaborators online">
-            {collaborators.map((person) => (
-              <span key={person.initials} className={`avatar avatar-${person.colour}`} title={person.name}>
-                {person.initials}
+          <div className={`sync-state sync-${saveState}`}><span className="pulse-dot" />{
+            mode === "demo" ? (saveState === "draft" ? "DEMO · LOCAL CHANGES" : "DEMO") : saveState === "saving" ? "SAVING" : saveState === "draft" ? "DRAFT" : saveState === "conflict" ? "CONFLICT" : saveState === "offline" ? "OFFLINE" : saveState === "loading" ? "CONNECTING" : `LIVE · V${workspaceVersion ?? "—"}`
+          }</div>
+          <div className="avatar-stack" aria-label="Team members">
+            {(visibleMembers.length ? visibleMembers : collaborators).map((person, index) => (
+              <span key={"email" in person ? person.email : person.initials} className={`avatar avatar-${["amber", "violet", "cyan"][index % 3]}`} title={"displayName" in person ? person.displayName : person.name}>
+                {"displayName" in person ? personInitials(person.displayName) : person.initials}
               </span>
             ))}
           </div>
-          <button className="user-menu" type="button" title={user.email}>
+          <button className="user-menu" type="button" title={mode === "demo" ? "Exit demo" : user.email} onClick={mode === "demo" ? () => { window.location.href = "/"; } : onManageTeam}>
             <span>{user.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</span>
-            <span className="user-name">{user.name}</span>
+            <span className="user-name">{user.name}<small>{mode === "demo" ? "DEMO" : workspace.team.role}</small></span>
           </button>
         </div>
       </header>
@@ -381,32 +1004,53 @@ export function MissionControl({
         <button className="rail-button" type="button" aria-label="Revisions"><Icon>↺</Icon></button>
         <button className="rail-button" type="button" aria-label="Flight data"><Icon>⌁</Icon></button>
         <div className="rail-spacer" />
-        <button className="rail-button" type="button" aria-label="Settings"><Icon>⚙</Icon></button>
+        <button className={`rail-button ${settingsOpen ? "rail-settings-active" : ""}`} type="button" aria-label="Theme settings" aria-expanded={settingsOpen} onClick={() => setSettingsOpen((open) => !open)}><Icon>⚙</Icon></button>
       </aside>
+
+      {settingsOpen && (
+        <section className="theme-panel" aria-label="Theme settings">
+          <div className="theme-panel-heading"><div><span>APPEARANCE</span><h2>Workspace theme</h2></div><button type="button" aria-label="Close theme settings" onClick={() => setSettingsOpen(false)}>×</button></div>
+          <label>MODE</label>
+          <div className="theme-modes">
+            {(["light", "dark", "system"] as ThemeMode[]).map((mode) => (
+              <button key={mode} type="button" className={themeMode === mode ? "theme-mode-active" : ""} onClick={() => setThemeMode(mode)}>{mode}</button>
+            ))}
+          </div>
+          <label htmlFor="accent-colour">ACCENT COLOUR</label>
+          <div className="accent-picker"><input id="accent-colour" type="color" value={accent} onChange={(event) => setAccent(event.target.value)} /><code>{accent.toUpperCase()}</code></div>
+          <div className="accent-presets" aria-label="Accent presets">
+            {["#c92335", "#e5484d", "#b42318", "#111111"].map((colour) => <button key={colour} type="button" aria-label={`Use ${colour}`} style={{ backgroundColor: colour }} onClick={() => setAccent(colour)} />)}
+          </div>
+          <p>Theme choices are stored in this browser.</p>
+        </section>
+      )}
 
       <section className="workspace-header">
         <div>
-          <div className="breadcrumbs">VEHICLES / BANSHEE MK II / <strong>CONFIGURATION</strong></div>
+          <div className="breadcrumbs">{workspace.team.name.toUpperCase()} / {workspace.project.name.toUpperCase()} / <strong>CONFIGURATION</strong></div>
           <div className="workspace-title-row">
-            <h1>BANSHEE Mk II</h1>
-            <span className="revision-badge"><span /> FLIGHT-02 · DRAFT</span>
+            <h1>{orkModel?.name || workspace.project.name}</h1>
+            <span className="revision-badge"><span /> {mode === "demo" ? "DEMO · LOCAL" : `WORKING · V${workspaceVersion ?? "—"}`}</span>
           </div>
         </div>
         <div className="workspace-actions">
           <input ref={fileInput} className="visually-hidden" type="file" accept=".ork" onChange={importOrk} />
-          <button className="button button-secondary" type="button" onClick={() => fileInput.current?.click()}>
+          <button className="button button-secondary" type="button" onClick={() => fileInput.current?.click()} disabled={!can("editOrk")}>
             <span>⇧</span> Import .ORK
           </button>
-          <button className="button button-primary" type="button" onClick={() => setRevisionOpen(true)}>
+          <button className="button button-secondary" type="button" onClick={downloadWorkingOrk} disabled={workspaceVersion === null}>
+            <span>↓</span> Download .ORK
+          </button>
+          <button className="button button-primary" type="button" onClick={() => setRevisionOpen(true)} disabled={!can("createRevision")} title={!can("createRevision") ? "Your role cannot create revisions" : undefined}>
             <span>＋</span> Create revision
           </button>
         </div>
       </section>
 
       <section className="metrics-strip" aria-label="Vehicle summary">
-        <div className="metric"><span>VEHICLE LENGTH</span><strong>3,780 <small>mm</small></strong></div>
-        <div className="metric"><span>AS-BUILT MASS</span><strong>{totalMass.toFixed(2)} <small>kg</small></strong></div>
-        <div className="metric"><span>STATIC MARGIN</span><strong>1.84 <small>cal</small></strong></div>
+        <div className="metric"><span>VEHICLE LENGTH</span><strong>{Math.round((orkModel?.length ?? 0) * 1000).toLocaleString()} <small>mm</small></strong></div>
+        <div className="metric"><span>MAX DIAMETER</span><strong>{Math.round((orkModel?.maxRadius ?? 0) * 2000)} <small>mm</small></strong></div>
+        <div className="metric"><span>PARSED COMPONENTS</span><strong>{orkModel?.components.length ?? 0} <small>items</small></strong></div>
         <div className="metric"><span>DOCUMENTATION</span><strong>87 <small>%</small></strong><i><b style={{ width: "87%" }} /></i></div>
         <div className="metric metric-alert"><span>OPEN REVIEWS</span><strong>03</strong><em>Action required</em></div>
       </section>
@@ -418,15 +1062,15 @@ export function MissionControl({
             <button className="quiet-button" type="button" aria-label="Component options">•••</button>
           </div>
           <div className="tree-toolbar">
-            <button className="tree-filter tree-filter-active" type="button">ALL <span>8</span></button>
-            <button className="tree-filter" type="button">REVIEW <span>3</span></button>
+            <button className="tree-filter tree-filter-active" type="button">ALL <span>{components.length}</span></button>
+            <button className="tree-filter" type="button">REVIEW <span>{components.filter((component) => component.status === "review").length}</span></button>
           </div>
           <div className="component-tree">
             {components.map((component) => (
               <button
                 key={component.id}
                 type="button"
-                className={`component-row ${component.id === selected.id ? "component-selected" : ""}`}
+                className={`component-row ${component.id === selectedId ? "component-selected" : ""}`}
                 style={{ paddingLeft: `${16 + component.depth * 18}px` }}
                 onClick={() => setSelectedId(component.id)}
               >
@@ -447,125 +1091,191 @@ export function MissionControl({
         <section className="model-panel panel">
           <div className="model-toolbar">
             <div className="view-tabs">
-              <button className="view-tab view-tab-active" type="button">ASSEMBLY</button>
-              <button className="view-tab" type="button">EXPLODED</button>
-              <button className="view-tab" type="button">SECTION</button>
+              <button className={`view-tab ${viewMode === "components" ? "view-tab-active" : ""}`} type="button" onClick={() => setViewMode("components")}>COMPONENTS</button>
+              <button className={`view-tab ${viewMode === "3d" ? "view-tab-active" : ""}`} type="button" onClick={() => setViewMode("3d")}>3D ASSEMBLY</button>
             </div>
+            {viewMode === "3d" && <div className="roll-control" aria-label="Longitudinal roll control">
+              <button type="button" aria-label="Roll left 15 degrees" onClick={() => setRollDegrees((value) => (value - 15 + 360) % 360)}>↶</button>
+              <label>ROLL <input type="range" min="0" max="360" step="1" value={rollDegrees} onChange={(event) => setRollDegrees(Number(event.target.value))} /></label>
+              <output>{rollDegrees}°</output>
+              <button type="button" aria-label="Roll right 15 degrees" onClick={() => setRollDegrees((value) => (value + 15) % 360)}>↷</button>
+            </div>}
             <div className="model-controls">
-              <button type="button" aria-label="Zoom out">−</button>
-              <span>84%</span>
-              <button type="button" aria-label="Zoom in">＋</button>
-              <button type="button" aria-label="Fit model">⌗</button>
+              <button type="button" aria-label="Zoom out" onClick={() => activeView()?.zoomOut()}>−</button>
+              <span>{viewMode === "components" ? "2D" : "3D"}</span>
+              <button type="button" aria-label="Zoom in" onClick={() => activeView()?.zoomIn()}>＋</button>
+              <button type="button" aria-label="Fit model" onClick={() => activeView()?.reset()}>⌗</button>
             </div>
           </div>
 
           <div className="model-stage">
-            <div className="axis-label axis-top">+Z / FLIGHT</div>
-            <div className="dimension dimension-top"><span>3,780 mm OVERALL</span></div>
             <div className="rocket-wrap">
-              <div className="rocket-model" aria-label="BANSHEE Mk II vehicle model">
-                <button className={`rocket-part nose ${selected.id === "nose" ? "rocket-selected" : ""}`} onClick={() => setSelectedId("nose")} aria-label="Select nose assembly" />
-                <button className={`rocket-part payload ${selected.id === "payload" ? "rocket-selected" : ""}`} onClick={() => setSelectedId("payload")} aria-label="Select payload bay"><span>PAY-210</span></button>
-                <button className={`rocket-part avionics ${selected.id === "avionics" ? "rocket-selected" : ""}`} onClick={() => setSelectedId("avionics")} aria-label="Select avionics bay"><span>AVN-320</span></button>
-                <button className={`rocket-part airframe ${selected.id === "airframe" ? "rocket-selected" : ""}`} onClick={() => setSelectedId("airframe")} aria-label="Select main airframe"><span>STR-410</span></button>
-                <button className={`rocket-part motor ${selected.id === "motor" ? "rocket-selected" : ""}`} onClick={() => setSelectedId("motor")} aria-label="Select motor section"><span>MTR-500</span></button>
-                <button className={`rocket-fin fin-left ${selected.id === "fins" ? "rocket-selected" : ""}`} onClick={() => setSelectedId("fins")} aria-label="Select fin set" />
-                <button className={`rocket-fin fin-right ${selected.id === "fins" ? "rocket-selected" : ""}`} onClick={() => setSelectedId("fins")} aria-label="Select fin set" />
-                <div className="rocket-nozzle" />
-              </div>
-              <div className="model-callout callout-one"><i /><span><small>SELECTED COMPONENT</small><strong>{selected.code}</strong><em>{selected.name}</em></span></div>
-              <div className="model-callout callout-two"><i /><span><small>REFERENCE DATUM</small><strong>STA 0.000</strong><em>Nose tip</em></span></div>
+              {viewMode === "components" ? (
+                <RocketSectionView ref={sectionRef} model={orkModel} selectedId={selectedId} onSelect={setSelectedId} accent={accent} themeKey={themeMode} />
+              ) : (
+                <RocketViewer ref={viewerRef} model={orkModel} selectedId={selectedId} onSelect={setSelectedId} accent={accent} themeKey={themeMode} rollDegrees={rollDegrees} />
+              )}
+              {!orkModel && <div className="model-loading">{saveState === "loading" ? "READING OPENROCKET GEOMETRY…" : "NO .ORK FILE · IMPORT ONE TO INITIALISE THIS PROJECT"}</div>}
             </div>
             <div className="model-footer">
-              <span>MODEL SOURCE <strong>BANSHEE_MK2_R28.ORK</strong></span>
-              <span>LAST SYNC <strong>28 JUL 2026 · 11:42</strong></span>
-              <span className="model-valid"><b>✓</b> ORK VALID</span>
+              <span>MODEL SOURCE <strong>{orkModel?.sourceName.toUpperCase() ?? "WAITING FOR .ORK"}</strong></span>
+              <span>LAST SAVED BY <strong>{lastSavedBy || "CONNECTING"}</strong></span>
+              <span className="model-valid"><b>✓</b> {orkModel ? "ORK PARSED" : "LOADING"}</span>
             </div>
           </div>
         </section>
 
-        <aside className="inspector-panel panel">
+        <aside className={`inspector-panel panel ${selectedId ? "" : "inspector-empty"}`}>
+          {!selectedId ? (
+            <div className="empty-selection">
+              <span>NO COMPONENT SELECTED</span>
+              <p>Select geometry or a component-tree item to inspect its OpenRocket parameters.</p>
+            </div>
+          ) : (<>
           <div className="inspector-identity">
-            <div className="inspector-code">{selected.code}</div>
+            <div className="inspector-code">ENGINEERING RECORD · {selected.code}</div>
             <StatusDot status={selected.status} />
             <h2>{selected.name}</h2>
-            <p>{selected.type}</p>
+            <p>{selected.type} · controlled against ORK V{workspaceVersion ?? "—"}</p>
           </div>
-          <div className="inspector-tabs">
-            <button type="button" className={activePanel === "properties" ? "inspector-tab-active" : ""} onClick={() => setActivePanel("properties")}>PROPERTIES</button>
-            <button type="button" className={activePanel === "documents" ? "inspector-tab-active" : ""} onClick={() => setActivePanel("documents")}>DOCS <span>{selected.documents.length}</span></button>
-            <button type="button" className={activePanel === "activity" ? "inspector-tab-active" : ""} onClick={() => setActivePanel("activity")}>ACTIVITY</button>
+          <div className="inspector-tabs inspector-tabs-four">
+            <button type="button" className={activePanel === "properties" ? "inspector-tab-active" : ""} onClick={() => setActivePanel("properties")}>DESIGN</button>
+            <button type="button" className={activePanel === "records" ? "inspector-tab-active" : ""} onClick={() => setActivePanel("records")}>RECORDS <span>{componentRecord.artifacts.length}</span></button>
+            <button type="button" className={activePanel === "tests" ? "inspector-tab-active" : ""} onClick={() => setActivePanel("tests")}>TESTS <span>{componentRecord.tests.filter((test) => test.status === "required").length}</span></button>
+            <button type="button" className={activePanel === "comments" ? "inspector-tab-active" : ""} onClick={() => setActivePanel("comments")}>TEAM <span>{componentRecord.comments.length}</span></button>
           </div>
 
           {activePanel === "properties" && (
             <div className="inspector-body">
               <div className="section-label"><span>OPENROCKET PARAMETERS</span><button type="button">⌃</button></div>
-              <label className="field-label">Component name<input value={selected.name} onChange={(event) => updateSelected("name", event.target.value)} /></label>
+              <label className="field-label">Component name<input value={selected.name} disabled={!can("editOrk")} onChange={(event) => updateSelected("name", event.target.value)} /></label>
               <div className="field-grid">
-                <label className="field-label">Length<div className="unit-field"><input type="number" value={selected.length} onChange={(event) => updateSelected("length", Number(event.target.value))} /><span>mm</span></div></label>
-                <label className="field-label">Diameter<div className="unit-field"><input type="number" value={selected.diameter} onChange={(event) => updateSelected("diameter", Number(event.target.value))} /><span>mm</span></div></label>
+                <label className="field-label">Length<div className="unit-field"><input type="number" value={selected.length} disabled={!can("editOrk")} onChange={(event) => updateSelected("length", Number(event.target.value))} /><span>mm</span></div></label>
+                <label className="field-label">Diameter<div className="unit-field"><input type="number" value={selected.diameter} disabled={!can("editOrk")} onChange={(event) => updateSelected("diameter", Number(event.target.value))} /><span>mm</span></div></label>
               </div>
+              {selected.wallThickness !== undefined && <div className="field-grid">
+                <label className="field-label">Wall thickness<div className="unit-field"><input type="number" min="0" step="0.1" value={selected.wallThickness} disabled={!can("editOrk")} onChange={(event) => updateSelected("wallThickness", Number(event.target.value))} /><span>mm</span></div></label>
+                <label className="field-label">Inner diameter<div className="unit-field unit-readonly"><input readOnly value={Math.max(0, selected.diameter - 2 * selected.wallThickness).toFixed(1)} /><span>mm</span></div></label>
+              </div>}
               <div className="field-grid">
-                <label className="field-label">As-built mass<div className="unit-field"><input type="number" step="0.01" value={selected.mass} onChange={(event) => updateSelected("mass", Number(event.target.value))} /><span>kg</span></div></label>
-                <label className="field-label">Material<input value={selected.material} onChange={(event) => updateSelected("material", event.target.value)} /></label>
+                <label className="field-label">As-built mass<div className="unit-field"><input type="number" step="0.01" value={selected.mass} disabled={!can("editOrk")} onChange={(event) => updateSelected("mass", Number(event.target.value))} /><span>kg</span></div></label>
+                <label className="field-label">Material<input value={selected.material} disabled={!can("editOrk")} onChange={(event) => updateSelected("material", event.target.value)} /></label>
               </div>
 
               <div className="section-label section-spaced"><span>CONFIGURATION STATUS</span><button type="button">⌃</button></div>
               <div className="status-card">
                 <div><span className="status-icon">!</span><p><strong>{selected.status === "verified" ? "Released component" : selected.status === "draft" ? "Draft changes" : "Review in progress"}</strong><small>{selected.status === "verified" ? "Evidence and properties verified" : "1 approval required before release"}</small></p></div>
-                <button type="button" onClick={() => setActivePanel("activity")}>View activity →</button>
+                <button type="button" onClick={() => setActivePanel("comments")}>Open team record →</button>
               </div>
 
-              <div className="section-label section-spaced"><span>LINKED EVIDENCE</span><button type="button" onClick={() => setActivePanel("documents")}>View all</button></div>
-              <div className="evidence-mini">
-                {selected.documents.slice(0, 2).map((document) => (
-                  <button type="button" key={document.name} onClick={() => setActivePanel("documents")}>
-                    <span className="file-icon">{document.name.endsWith(".pdf") ? "PDF" : "DOC"}</span>
-                    <span><strong>{document.name}</strong><small>{document.meta}</small></span>
-                    <em>›</em>
-                  </button>
+              <div className="section-label section-spaced"><span>RECORD COVERAGE</span><button type="button" onClick={() => setActivePanel("records")}>Open records</button></div>
+              <div className="record-coverage">
+                <button type="button" onClick={() => setActivePanel("records")}><strong>{componentRecord.artifacts.filter((item) => item.category === "drawing" && item.status === "current").length}</strong><span>current drawings</span></button>
+                <button type="button" onClick={() => setActivePanel("tests")}><strong>{componentRecord.tests.filter((item) => item.status === "required").length}</strong><span>tests required</span></button>
+                <button type="button" onClick={() => setActivePanel("records")}><strong>{componentRecord.artifacts.filter((item) => item.category === "photo" || item.category === "video").length}</strong><span>photos / videos</span></button>
+              </div>
+            </div>
+          )}
+
+          {activePanel === "records" && (
+            <div className="inspector-body record-panel-body">
+              <div className="record-heading">
+                <div><span className="eyebrow">CONTROLLED EVIDENCE</span><h3>Part records</h3></div>
+                <span className="version-lock">ORK V{workspaceVersion ?? "—"}</span>
+              </div>
+              <div className="record-metrics">
+                <div><strong>{componentRecord.artifacts.filter((item) => item.category === "drawing" && item.status === "current").length}</strong><span>drawings</span></div>
+                <div><strong>{componentRecord.artifacts.filter((item) => item.category === "test-evidence").length}</strong><span>test files</span></div>
+                <div><strong>{componentRecord.artifacts.filter((item) => item.category === "photo" || item.category === "video").length}</strong><span>media</span></div>
+              </div>
+              <section className="record-uploader" aria-label="Add engineering record">
+                <div className="record-form-grid">
+                  <label>Record type<select value={uploadCategory} disabled={!can("uploadEvidence")} onChange={(event) => setUploadCategory(event.target.value as EngineeringArtifact["category"])}><option value="drawing">Engineering drawing</option><option value="document">Document / analysis</option><option value="test-evidence">Test evidence</option><option value="photo">Photo</option><option value="video">Video</option></select></label>
+                  <label>Revision<input value={uploadRevision} disabled={!can("uploadEvidence")} onChange={(event) => setUploadRevision(event.target.value.toUpperCase())} maxLength={24} /></label>
+                </div>
+                <label>Controlled title<input value={recordTitle} disabled={!can("uploadEvidence")} onChange={(event) => setRecordTitle(event.target.value)} placeholder="Defaults to the file name" /></label>
+                <input ref={documentInput} className="visually-hidden" type="file" accept={uploadCategory === "photo" ? "image/*" : uploadCategory === "video" ? "video/*" : undefined} onChange={attachDocument} />
+                <button className="record-upload-button" type="button" disabled={!can("uploadEvidence")} onClick={() => documentInput.current?.click()}><span>＋</span><div><strong>{can("uploadEvidence") ? "Select file to add" : "Viewer access"}</strong><small>{can("uploadEvidence") ? "Revision, author, time and ORK version are captured automatically" : "Ask a lead or engineer to add controlled evidence"}</small></div></button>
+              </section>
+
+              <div className="record-section-title"><span>DRAWINGS &amp; REVISION HISTORY</span><small>{componentRecord.artifacts.filter((item) => item.category === "drawing").length}</small></div>
+              <div className="engineering-record-list">
+                {componentRecord.artifacts.filter((item) => item.category === "drawing").map((artifact) => (
+                  <a key={artifact.id} href={`/api/component-records?projectId=${encodeURIComponent(workspace.project.id)}&componentId=${encodeURIComponent(selected.id)}&artifactId=${artifact.id}&download=1`} target="_blank" rel="noreferrer" className={artifact.status === "superseded" ? "record-superseded" : ""}>
+                    <span className="record-file-kind">DWG</span><div><strong>{artifact.title}</strong><small>REV {artifact.revision} · {artifact.status.toUpperCase()} · {recordSize(artifact.sizeBytes)}</small><em>{artifact.uploadedByName} · ORK V{artifact.orkVersion ?? "—"} · {recordDate(artifact.createdAt)}</em></div><b>↗</b>
+                  </a>
+                ))}
+                {!recordLoading && !componentRecord.artifacts.some((item) => item.category === "drawing") && <div className="record-empty"><strong>No controlled drawing yet</strong><span>Add the released or working drawing above. New revisions retain the earlier file.</span></div>}
+              </div>
+
+              <div className="record-section-title"><span>DOCUMENTS, TEST EVIDENCE &amp; MEDIA</span><small>{componentRecord.artifacts.filter((item) => item.category !== "drawing").length}</small></div>
+              <div className="engineering-record-list">
+                {componentRecord.artifacts.filter((item) => item.category !== "drawing").map((artifact) => (
+                  <a key={artifact.id} href={`/api/component-records?projectId=${encodeURIComponent(workspace.project.id)}&componentId=${encodeURIComponent(selected.id)}&artifactId=${artifact.id}&download=1`} target="_blank" rel="noreferrer">
+                    <span className="record-file-kind">{artifact.category === "test-evidence" ? "TEST" : artifact.category === "photo" ? "IMG" : artifact.category === "video" ? "VID" : "DOC"}</span><div><strong>{artifact.title}</strong><small>{artifact.category.replace("-", " ").toUpperCase()} · REV {artifact.revision} · {recordSize(artifact.sizeBytes)}</small><em>{artifact.uploadedByName} · ORK V{artifact.orkVersion ?? "—"} · {recordDate(artifact.createdAt)}</em></div><b>↗</b>
+                  </a>
+                ))}
+                {!recordLoading && !componentRecord.artifacts.some((item) => item.category !== "drawing") && <div className="record-empty"><strong>No supporting evidence yet</strong><span>Add analysis, test files, inspection photos or video.</span></div>}
+              </div>
+            </div>
+          )}
+
+          {activePanel === "tests" && (
+            <div className="inspector-body record-panel-body">
+              <div className="record-heading"><div><span className="eyebrow">VERIFICATION</span><h3>Test requirements</h3></div><span className="version-lock">{componentRecord.tests.filter((test) => test.status === "required").length} OPEN</span></div>
+              <section className={`test-create-card ${!can("createTest") ? "test-create-locked" : ""}`}>
+                {!can("createTest") && <p className="role-guidance">Only a team lead can issue a new test requirement.</p>}
+                <label>Test title<input value={testTitle} disabled={!can("createTest")} onChange={(event) => setTestTitle(event.target.value)} placeholder="e.g. Axial compression proof test" /></label>
+                <label>Acceptance requirement<textarea value={testRequirement} disabled={!can("createTest")} onChange={(event) => setTestRequirement(event.target.value)} placeholder="State a measurable limit, method and pass criterion." /></label>
+                <button type="button" disabled={!can("createTest")} onClick={createRequiredTest}>＋ Add required test</button>
+              </section>
+              <div className="record-section-title"><span>REQUIRED</span><small>{componentRecord.tests.filter((test) => test.status === "required").length}</small></div>
+              <div className="test-list">
+                {componentRecord.tests.filter((test) => test.status === "required").map((test) => (
+                  <article key={test.id} className="test-card test-required"><div className="test-state">REQ</div><div><h4>{test.title}</h4><p>{test.requirement}</p><small>Owner {test.ownerName} · ORK V{test.orkVersion ?? "—"} · {recordDate(test.createdAt)}</small><button type="button" disabled={!can("completeTest")} onClick={() => completeRequiredTest(test)}>Mark test complete</button></div></article>
+                ))}
+                {!recordLoading && !componentRecord.tests.some((test) => test.status === "required") && <div className="record-empty"><strong>No open test requirements</strong><span>Add one when this part needs verification before release.</span></div>}
+              </div>
+              <div className="record-section-title"><span>COMPLETE</span><small>{componentRecord.tests.filter((test) => test.status === "complete").length}</small></div>
+              <div className="test-list">
+                {componentRecord.tests.filter((test) => test.status === "complete").map((test) => (
+                  <article key={test.id} className="test-card test-complete"><div className="test-state">✓</div><div><h4>{test.title}</h4><p>{test.completionNotes}</p><small>{test.completedByName} · ORK V{test.orkVersion ?? "—"} · {recordDate(test.completedAt)}</small></div></article>
                 ))}
               </div>
             </div>
           )}
 
-          {activePanel === "documents" && (
-            <div className="inspector-body">
-              <div className="document-summary"><strong>{selected.documents.length}</strong><span>linked records<br /><small>2 verified · {Math.max(0, selected.documents.length - 2)} in review</small></span></div>
-              <input ref={documentInput} className="visually-hidden" type="file" onChange={attachDocument} />
-              <button className="upload-zone" type="button" onClick={() => documentInput.current?.click()}>
-                <span>＋</span><strong>Link documentation</strong><small>Drawing, analysis, certificate or test record</small>
-              </button>
-              <div className="document-list">
-                {selected.documents.map((document) => (
-                  <button type="button" key={document.name}>
-                    <span className="file-icon">{document.name.endsWith(".pdf") ? "PDF" : document.name.split(".").pop()?.toUpperCase()}</span>
-                    <span><strong>{document.name}</strong><small>{document.meta}</small></span>
-                    <StatusDot status={document.state === "current" ? "verified" : "review"} />
-                  </button>
+          {activePanel === "comments" && (
+            <div className="inspector-body record-panel-body">
+              <div className="record-heading"><div><span className="eyebrow">TEAM THREAD</span><h3>Discussion &amp; decisions</h3></div><span className="version-lock">{componentRecord.comments.length} NOTES</span></div>
+              <section className="comment-composer">
+                <textarea value={commentDraft} disabled={!can("comment")} onChange={(event) => setCommentDraft(event.target.value)} placeholder={can("comment") ? "Record a decision, ask a question, or type @ to tag a teammate…" : "Viewer access; comments are read-only."} />
+                <div className="mention-row"><span>MENTION</span>{workspace.team.members.map((member) => member.displayName).filter((name) => name !== user.name).map((name) => <button key={name} type="button" disabled={!can("comment")} onClick={() => insertMention(name)}>@{personInitials(name)}</button>)}</div>
+                <button className="comment-submit" type="button" disabled={!commentDraft.trim() || !can("comment")} onClick={postComment}>Post to part record</button>
+              </section>
+              <div className="comment-thread">
+                {componentRecord.comments.map((comment) => (
+                  <article key={comment.id}><span className="comment-avatar">{personInitials(comment.authorName)}</span><div><header><strong>{comment.authorName}</strong><time>{recordDate(comment.createdAt)}</time></header><p>{comment.body}</p><footer><span>ORK V{comment.orkVersion ?? "—"}</span>{comment.mentions.map((mention) => <em key={mention}>@{mention}</em>)}</footer></div></article>
                 ))}
+                {!recordLoading && !componentRecord.comments.length && <div className="record-empty"><strong>No discussion yet</strong><span>Use this thread for engineering decisions and review questions—not transient chat.</span></div>}
+              </div>
+              <div className="record-section-title"><span>TRACE LOG</span><small>{componentRecord.events.length}</small></div>
+              <div className="record-event-list">
+                {componentRecord.events.slice(0, 12).map((event) => <article key={event.id}><span>{event.action.toUpperCase()}</span><div><strong>{event.summary}</strong><small>{event.authorName} · ORK V{event.orkVersion ?? "—"} · {recordDate(event.createdAt)}</small></div></article>)}
               </div>
             </div>
           )}
-
-          {activePanel === "activity" && (
-            <div className="inspector-body activity-list">
-              {activity.map((item) => (
-                <article key={item.id}>
-                  <span className={`activity-avatar activity-${item.tone}`}>{item.initials}</span>
-                  <div><p><strong>{item.person}</strong> {item.action}</p><h3>{item.target}</h3><small>{item.detail}</small><time>{item.time}</time></div>
-                </article>
-              ))}
-            </div>
-          )}
+          </>)}
         </aside>
       </div>
+
+      {saveState === "conflict" && <div className="conflict-banner"><span><strong>Live save paused.</strong> {conflictMessage || "A teammate saved a newer working copy."}</span><button type="button" onClick={reloadSharedOrk}>Reload shared file</button></div>}
 
       <footer className="statusbar">
         <div className="status-message"><span className="pulse-dot" />{notice}</div>
         <div className="statusbar-right">
-          {user.preview && <span className="preview-pill">LOCAL PREVIEW</span>}
-          <span>REV 28</span><span>FORMAT 1.12</span><span>SI UNITS</span>
+          {user.preview && <span className="preview-pill">{mode === "demo" ? "DEMO · NOT SAVED" : `LOCAL ${workspace.team.role.toUpperCase()}`}</span>}
+          <span>{mode === "demo" ? "LOCAL ORK" : `LIVE ORK · V${workspaceVersion ?? "—"}`}</span><span>FORMAT 1.12</span><span>SI UNITS</span>
         </div>
       </footer>
 

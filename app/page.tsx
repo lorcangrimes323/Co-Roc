@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { getChatGPTUser } from "./chatgpt-auth";
-import { MissionControl } from "./mission-control";
+import { headers } from "next/headers";
+import { AccessPortal } from "./access-portal";
+import { localIdentityByRole, WorkspaceApp } from "./workspace-app";
+import type { TeamRole } from "./workspace-types";
 
 export const dynamic = "force-dynamic";
 
@@ -10,16 +13,16 @@ export const metadata: Metadata = {
     "A focused engineering workspace connecting OpenRocket models, hardware evidence and revision history.",
 };
 
-export default async function Home() {
+export default async function Home({ searchParams }: { searchParams?: Promise<{ local_role?: string }> }) {
   const user = await getChatGPTUser();
+  const host = (await headers()).get("host") ?? "";
+  const local = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host);
+  const roleValue = (await searchParams)?.local_role;
+  const localRole: TeamRole | null = roleValue === "lead" || roleValue === "engineer" || roleValue === "viewer" ? roleValue : null;
+
+  if (!user && !(local && localRole)) return <AccessPortal local={local} />;
 
   return (
-    <MissionControl
-      user={{
-        name: user?.displayName ?? "Lorcan Grimes",
-        email: user?.email ?? "local.preview@rocket-configuration.dev",
-        preview: !user,
-      }}
-    />
+    <WorkspaceApp user={user ? { name: user.displayName, email: user.email, preview: false } : localIdentityByRole[localRole!]} />
   );
 }

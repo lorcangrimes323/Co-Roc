@@ -1,14 +1,13 @@
-import { env } from "cloudflare:workers";
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
+import { releaseProjectStorage, reserveProjectStorage, STORAGE_LIMITS } from "../../../db/access-store";
 import { documents } from "../../../db/schema";
-import { getChatGPTUser } from "../../chatgpt-auth";
-
-type UploadEnvironment = { FILES: R2Bucket };
+import { getComponentRecordEnvironment } from "../../../db/component-record-store";
+import { requireProjectAccess } from "../access";
 
 export async function GET(request: Request) {
-  const user = await getChatGPTUser();
-  if (!user) return Response.json({ documents: [] });
+  const result = await requireProjectAccess(request, "view");
+  if (!result.ok) return result.response;
 
   const componentId = new URL(request.url).searchParams.get("componentId");
   if (!componentId) {
@@ -18,17 +17,16 @@ export async function GET(request: Request) {
   const rows = await getDb()
     .select()
     .from(documents)
-    .where(and(eq(documents.projectId, "banshee-mk2"), eq(documents.componentId, componentId)))
+    .where(and(eq(documents.projectId, result.access.project.id), eq(documents.componentId, componentId)))
     .orderBy(desc(documents.id));
 
   return Response.json({ documents: rows });
 }
 
 export async function POST(request: Request) {
-  const user = await getChatGPTUser();
-  if (!user) {
-    return Response.json({ error: "Sign in is required to upload evidence." }, { status: 401 });
-  }
+  const result = await requireProjectAccess(request, "uploadEvidence");
+  if (!result.ok) return result.response;
+  const { user, project } = result.access;
 
   const form = await request.formData();
   const componentId = String(form.get("componentId") ?? "").trim();
@@ -37,20 +35,28 @@ export async function POST(request: Request) {
   if (!componentId || !(file instanceof File)) {
     return Response.json({ error: "A component and file are required." }, { status: 400 });
   }
-  if (file.size > 25 * 1024 * 1024) {
-    return Response.json({ error: "Files must be 25 MB or smaller." }, { status: 413 });
+  if (file.size > STORAGE_LIMITS.maxArtifactBytes) {
+    return Response.json({ error: "Files must be 24 MB or smaller." }, { status: 413 });
   }
 
-  const objectKey = `banshee-mk2/${componentId}/${crypto.randomUUID()}-${file.name}`;
-  const uploadEnv = env as unknown as UploadEnvironment;
-  await uploadEnv.FILES.put(objectKey, await file.arrayBuffer(), {
-    httpMetadata: { contentType: file.type || "application/octet-stream" },
-  });
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
+  const objectKey = `${project.id}/legacy-documents/${componentId}/${crypto.randomUUID()}-${safeName}`;
+  if (!await reserveProjectStorage(project.id, file.size, 1)) {
+    return Response.json({ error: "This project has reached its 2 GB storage limit." }, { status: 413 });
+  }
+  try {
+    await getComponentRecordEnvironment().FILES.put(objectKey, file.stream(), {
+      httpMetadata: { contentType: file.type || "application/octet-stream" },
+    });
+  } catch (error) {
+    await releaseProjectStorage(project.id, file.size, 1);
+    throw error;
+  }
 
   const [document] = await getDb()
     .insert(documents)
     .values({
-      projectId: "banshee-mk2",
+      projectId: project.id,
       componentId,
       fileName: file.name,
       objectKey,

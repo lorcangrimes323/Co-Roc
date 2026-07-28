@@ -1,91 +1,109 @@
 import assert from "node:assert/strict";
-import { access, readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const developmentPreviewMeta =
-  /<meta(?=[^>]*\bname=["']codex-preview["'])(?=[^>]*\bcontent=["']development["'])[^>]*>/i;
-const templateRoot = new URL("../", import.meta.url);
-const previewRoot = new URL("../app/_sites-preview/", import.meta.url);
+const root = new URL("../", import.meta.url);
 
-async function render() {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
-
-  return worker.fetch(
-    new Request("http://localhost/", {
-      headers: { accept: "text/html" },
-    }),
-    {
-      ASSETS: {
-        fetch: async () => new Response("Not found", { status: 404 }),
-      },
-    },
-    {
-      waitUntil() {},
-      passThroughOnException() {},
-    },
-  );
+async function source(path) {
+  return readFile(new URL(path, root), "utf8");
 }
 
-test("server-renders the starter loading skeleton", async () => {
-  const response = await render();
-  assert.equal(response.status, 200);
-  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
-
-  const html = await response.text();
-  assert.match(html, developmentPreviewMeta);
-  assert.match(html, /<title>Your site is taking shape<\/title>/i);
-  assert.match(html, /Building your site/);
-  assert.match(html, /Your site is taking shape/);
-  assert.match(
-    html,
-    /Your first version will appear here automatically when it’s ready\./,
-  );
-  assert.doesNotMatch(html, /Codex/);
-  assert.match(html, /react-loading-skeleton/);
-  assert.match(html, /role="status"/);
-});
-
-test("keeps the loading skeleton scoped and disposable", async () => {
-  const [preview, css, page, layout, packageJson, files] = await Promise.all([
-    readFile(new URL("SkeletonPreview.tsx", previewRoot), "utf8"),
-    readFile(new URL("preview.css", previewRoot), "utf8"),
-    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../package.json", import.meta.url), "utf8"),
-    readdir(previewRoot),
+test("keeps OpenRocket geometry and live edits traceable", async () => {
+  const [missionControl, openRocket, orkRoute, schema] = await Promise.all([
+    source("app/mission-control.tsx"),
+    source("lib/openrocket.ts"),
+    source("app/api/ork/route.ts"),
+    source("db/schema.ts"),
   ]);
 
-  assert.deepEqual(files.sort(), ["SkeletonPreview.tsx", "preview.css"]);
-  assert.match(preview, /from "react-loading-skeleton"/);
-  assert.match(preview, /baseColor="#eceae7"/);
-  assert.match(preview, /highlightColor="#f9f8f6"/);
-  assert.match(preview, /duration=\{2\.8\}/);
-  assert.match(preview, /sites-skeleton-search-placeholder/);
-  assert.match(packageJson, /"react-loading-skeleton": "3\.5\.0"/);
+  assert.match(missionControl, /WORKING · V\$\{workspaceVersion/);
+  assert.match(missionControl, /encodeOpenRocketAsync\(orkModel\)/);
+  assert.match(missionControl, /baseVersion/);
+  assert.match(missionControl, /Wall thickness/);
+  assert.match(missionControl, /rollDegrees/);
 
-  const shellIndex = preview.indexOf('className="sites-skeleton-shell"');
-  const statusIndex = preview.indexOf('className="sites-skeleton-status"');
-  assert.ok(shellIndex >= 0 && statusIndex > shellIndex);
-  assert.match(css, /position:\s*fixed/);
-  assert.match(css, /inset:\s*0/);
-  assert.match(css, /opacity:\s*0\.52/);
-  assert.match(css, /prefers-reduced-motion:\s*reduce/);
-  assert.doesNotMatch(css, /#020617|canvas|pets|progress/i);
-  assert.doesNotMatch(
-    preview,
-    /loading-spinner|status-mark|status-progress|canvas|cookie|random/i,
-  );
+  assert.match(openRocket, /archiveEntries/);
+  assert.match(openRocket, /export function encodeOpenRocket/);
+  assert.match(openRocket, /wallThickness/);
+  assert.match(openRocket, /instanceSeparation/);
+  assert.match(openRocket, /outerdiameter/);
+  assert.match(openRocket, /angleoffset/);
+  assert.match(orkRoute, /status: 409/);
+  assert.match(orkRoute, /sha256Hex/);
+  assert.match(schema, /orkChanges/);
+  assert.match(schema, /orkSnapshots/);
+});
 
-  assert.match(page, /export const metadata:\s*Metadata/);
-  assert.match(page, /"codex-preview": "development"/);
-  assert.match(page, /<SkeletonPreview \/>/);
-  assert.match(layout, /title:\s*"Starter Project"/);
-  assert.doesNotMatch(layout, /codex-preview|_sites-preview|themeColor|\bViewport\b/);
-  assert.doesNotMatch(css, /(^|\s)(html|body)\s*\{/m);
+test("enforces team roles and keeps projects isolated", async () => {
+  const [access, accessStore, session, ork, records, schema, workspace] = await Promise.all([
+    source("app/api/access.ts"),
+    source("db/access-store.ts"),
+    source("app/api/session/route.ts"),
+    source("app/api/ork/route.ts"),
+    source("app/api/component-records/route.ts"),
+    source("db/schema.ts"),
+    source("app/workspace-app.tsx"),
+  ]);
 
-  await assert.rejects(
-    access(new URL("public/_sites-preview", templateRoot)),
-  );
+  assert.match(accessStore, /lead: \["view", "editOrk", "uploadEvidence", "createTest"/);
+  assert.match(accessStore, /engineer: \["view", "editOrk", "uploadEvidence", "completeTest"/);
+  assert.match(accessStore, /viewer: \["view"\]/);
+  assert.match(access, /requireProjectAccess/);
+  assert.match(access, /x-project-id/);
+  assert.match(ork, /requireProjectAccess\(request, "editOrk"\)/);
+  assert.match(records, /action === "create-test" \? "createTest"/);
+  assert.match(records, /action === "complete-test" \? "completeTest"/);
+  assert.match(session, /invite-member/);
+  assert.match(session, /A team must retain at least one active lead/);
+  assert.match(schema, /teamMembers/);
+  assert.match(schema, /projects/);
+  assert.match(workspace, /Team & projects/);
+});
+
+test("separates demo data from live autosave and recovers local drafts", async () => {
+  const [home, demo, missionControl, portal] = await Promise.all([
+    source("app/page.tsx"),
+    source("app/demo/page.tsx"),
+    source("app/mission-control.tsx"),
+    source("app/access-portal.tsx"),
+  ]);
+  assert.match(home, /AccessPortal/);
+  assert.match(portal, /chatGPTSignInPath/);
+  assert.match(demo, /mode="demo"/);
+  assert.match(missionControl, /rocket-draft:/);
+  assert.match(missionControl, /Recovered/);
+  assert.match(missionControl, /mode !== "live"/);
+});
+
+test("provides a focused engineering record for every component", async () => {
+  const [missionControl, recordRoute, recordStore, css, migration] = await Promise.all([
+    source("app/mission-control.tsx"),
+    source("app/api/component-records/route.ts"),
+    source("db/component-record-store.ts"),
+    source("app/globals.css"),
+    source("drizzle/0001_outstanding_alex_wilder.sql"),
+  ]);
+
+  assert.match(missionControl, /ENGINEERING RECORD/);
+  assert.match(missionControl, /DRAWINGS &amp; REVISION HISTORY/);
+  assert.match(missionControl, /Acceptance requirement/);
+  assert.match(missionControl, /Mark test complete/);
+  assert.match(missionControl, /Photo/);
+  assert.match(missionControl, /Video/);
+  assert.match(missionControl, /type @ to tag a teammate/);
+  assert.match(missionControl, /TRACE LOG/);
+
+  assert.match(recordRoute, /component_artifacts/);
+  assert.match(recordRoute, /component_tests/);
+  assert.match(recordRoute, /component_comments/);
+  assert.match(recordRoute, /component_record_events/);
+  assert.match(recordRoute, /status = 'superseded'/);
+  assert.match(recordRoute, /mentions_json/);
+  assert.match(recordStore, /CREATE TABLE IF NOT EXISTS component_record_events/);
+  assert.match(migration, /CREATE TABLE `component_artifacts`/);
+
+  assert.match(css, /--ink-2:\s*#ffffff/);
+  assert.match(css, /--accent:\s*#c92335/);
+  assert.match(css, /\.inspector-tabs-four/);
+  assert.match(css, /\.engineering-record-list/);
 });
