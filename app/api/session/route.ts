@@ -1,6 +1,7 @@
 import { ensureAccessSchema, getAccessEnvironment, ROLE_PERMISSIONS, safeSlug, TeamRole } from "../../../db/access-store";
 import { ensureLocalPreviewWorkspace, requireProjectAccess } from "../access";
 import { getRequestUser } from "../request-user";
+import { sha256 } from "../../account-auth";
 
 type MembershipRow = {
   team_id: string;
@@ -27,7 +28,12 @@ type MemberRow = {
   display_name: string;
   role: TeamRole;
   status: string;
+  project_scope: string;
 };
+
+type MemberProjectRow = { team_id: string; member_email: string; project_id: string };
+type InviteCodeRow = { id: string; team_id: string; code_hint: string; role: TeamRole; max_uses: number; use_count: number; expires_at: string; active: number; created_at: string };
+type InviteProjectRow = { invite_code_id: string; project_id: string };
 
 type TeamEventRow = { id: number; team_id: string; action: string; summary: string; actor_name: string; created_at: string };
 
@@ -43,6 +49,14 @@ function validEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+function generatedTeamCode() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  const body = Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
+  return `RC-${body.slice(0, 4)}-${body.slice(4)}`;
+}
+
 async function recordTeamEvent(DB: D1Database, input: { teamId: string; action: string; targetType: string; targetId: string; summary: string; actorName: string; actorEmail: string }) {
   await DB.prepare(`INSERT INTO team_events (team_id, action, target_type, target_id, summary, actor_name, actor_email)
     VALUES (?, ?, ?, ?, ?, ?, ?)`)
@@ -55,18 +69,34 @@ export async function GET(request: Request) {
   await ensureAccessSchema();
   await ensureLocalPreviewWorkspace(user);
   const { DB } = getAccessEnvironment();
-  const [membershipRows, projectRows, memberRows, eventRows] = await Promise.all([
+  const [membershipRows, projectRows, memberRows, memberProjectRows, inviteRows, inviteProjectRows, eventRows] = await Promise.all([
     DB.prepare(`SELECT t.id AS team_id, t.name AS team_name, t.slug AS team_slug, m.role, m.status
       FROM team_members m JOIN teams t ON t.id = m.team_id
       WHERE lower(m.email) = lower(?) AND m.status IN ('active', 'invited')
       ORDER BY t.name`).bind(user.email).all<MembershipRow>(),
     DB.prepare(`SELECT p.* FROM projects p JOIN team_members m ON m.team_id = p.team_id
-      WHERE lower(m.email) = lower(?) AND m.status IN ('active', 'invited') ORDER BY p.created_at`)
+      WHERE lower(m.email) = lower(?) AND m.status IN ('active', 'invited') AND (
+        m.role = 'lead' OR m.project_scope = 'all' OR EXISTS (
+          SELECT 1 FROM member_project_access mpa
+          WHERE mpa.team_id = m.team_id AND lower(mpa.member_email) = lower(m.email) AND mpa.project_id = p.id
+        )
+      ) ORDER BY p.created_at`)
       .bind(user.email).all<ProjectRow>(),
-    DB.prepare(`SELECT tm.id, tm.team_id, tm.email, tm.display_name, tm.role, tm.status
+    DB.prepare(`SELECT tm.id, tm.team_id, tm.email, tm.display_name, tm.role, tm.status, tm.project_scope
       FROM team_members tm WHERE tm.team_id IN (
         SELECT team_id FROM team_members WHERE lower(email) = lower(?) AND status IN ('active', 'invited')
       ) ORDER BY tm.display_name, tm.email`).bind(user.email).all<MemberRow>(),
+    DB.prepare(`SELECT mpa.team_id, mpa.member_email, mpa.project_id FROM member_project_access mpa
+      WHERE mpa.team_id IN (SELECT team_id FROM team_members WHERE lower(email) = lower(?) AND status IN ('active', 'invited'))`)
+      .bind(user.email).all<MemberProjectRow>(),
+    DB.prepare(`SELECT c.id, c.team_id, c.code_hint, c.role, c.max_uses, c.use_count, c.expires_at, c.active, c.created_at
+      FROM team_invite_codes c WHERE c.team_id IN (
+        SELECT team_id FROM team_members WHERE lower(email) = lower(?) AND role = 'lead' AND status = 'active'
+      ) ORDER BY c.created_at DESC LIMIT 50`).bind(user.email).all<InviteCodeRow>(),
+    DB.prepare(`SELECT icp.invite_code_id, icp.project_id FROM invite_code_projects icp
+      WHERE icp.invite_code_id IN (SELECT id FROM team_invite_codes WHERE team_id IN (
+        SELECT team_id FROM team_members WHERE lower(email) = lower(?) AND role = 'lead' AND status = 'active'
+      ))`).bind(user.email).all<InviteProjectRow>(),
     DB.prepare(`SELECT te.id, te.team_id, te.action, te.summary, te.actor_name, te.created_at
       FROM team_events te WHERE te.team_id IN (
         SELECT team_id FROM team_members WHERE lower(email) = lower(?) AND status IN ('active', 'invited')
@@ -95,7 +125,22 @@ export async function GET(request: Request) {
         displayName: member.display_name,
         role: validRole(member.role),
         status: member.status,
+        projectScope: member.project_scope === "selected" ? "selected" : "all",
+        projectIds: member.role === "lead" || member.project_scope !== "selected"
+          ? projectRows.results.filter((project: ProjectRow) => project.team_id === membership.team_id).map((project: ProjectRow) => project.id)
+          : memberProjectRows.results.filter((access: MemberProjectRow) => access.team_id === membership.team_id && access.member_email.toLowerCase() === member.email.toLowerCase()).map((access: MemberProjectRow) => access.project_id),
       })),
+      inviteCodes: role === "lead" ? inviteRows.results.filter((invite: InviteCodeRow) => invite.team_id === membership.team_id).map((invite: InviteCodeRow) => ({
+        id: invite.id,
+        codeHint: invite.code_hint,
+        role: validRole(invite.role),
+        maxUses: invite.max_uses,
+        useCount: invite.use_count,
+        expiresAt: invite.expires_at,
+        active: Boolean(invite.active),
+        createdAt: invite.created_at,
+        projectIds: inviteProjectRows.results.filter((item: InviteProjectRow) => item.invite_code_id === invite.id).map((item: InviteProjectRow) => item.project_id),
+      })) : [],
       events: eventRows.results.filter((event: TeamEventRow) => event.team_id === membership.team_id).slice(0, 20).map((event: TeamEventRow) => ({
         id: event.id, action: event.action, summary: event.summary, actorName: event.actor_name, createdAt: event.created_at,
       })),
@@ -159,6 +204,56 @@ export async function POST(request: Request) {
       .bind(id, access.team.id, name, slug, clean(body.description, 500), user.email).run();
     await recordTeamEvent(DB, { teamId: access.team.id, action: "created", targetType: "project", targetId: id, summary: `Created project ${name}`, actorName: user.displayName, actorEmail: user.email });
     return Response.json({ projectId: id }, { status: 201 });
+  }
+
+  if (action === "create-team-code") {
+    const role = body.role === "engineer" ? "engineer" : "viewer";
+    const projectIds = Array.from(new Set(Array.isArray(body.projectIds) ? body.projectIds.map((value) => clean(value, 80)).filter(Boolean) : []));
+    const maxUses = Math.max(1, Math.min(100, Math.round(Number(body.maxUses) || 1)));
+    const expiryDays = Math.max(1, Math.min(90, Math.round(Number(body.expiryDays) || 14)));
+    if (!projectIds.length) return Response.json({ error: "Select at least one rocket for this code." }, { status: 400 });
+    const validProjects = await DB.prepare(`SELECT id FROM projects WHERE team_id = ? AND id IN (${projectIds.map(() => "?").join(",")})`)
+      .bind(access.team.id, ...projectIds).all<{ id: string }>();
+    if (validProjects.results.length !== projectIds.length) return Response.json({ error: "One or more selected rockets do not belong to this team." }, { status: 400 });
+    const code = generatedTeamCode();
+    const codeId = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + expiryDays * 86400000).toISOString();
+    await DB.batch([
+      DB.prepare(`INSERT INTO team_invite_codes (id, team_id, code_hash, code_hint, role, max_uses, expires_at, created_by_email)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+        .bind(codeId, access.team.id, await sha256(code.replace(/[^A-Z0-9]/g, "")), `••••-${code.slice(-4)}`, role, maxUses, expiresAt, user.email),
+      ...projectIds.map((projectId) => DB.prepare(`INSERT INTO invite_code_projects (invite_code_id, project_id) VALUES (?, ?)`).bind(codeId, projectId)),
+    ]);
+    await recordTeamEvent(DB, { teamId: access.team.id, action: "code.created", targetType: "invite-code", targetId: codeId, summary: `Created ${role} team code for ${projectIds.length} rocket${projectIds.length === 1 ? "" : "s"}`, actorName: user.displayName, actorEmail: user.email });
+    return Response.json({ code, codeId, role, projectIds, maxUses, expiresAt }, { status: 201 });
+  }
+
+  if (action === "revoke-team-code") {
+    const codeId = clean(body.codeId, 80);
+    const result = await DB.prepare(`UPDATE team_invite_codes SET active = 0 WHERE id = ? AND team_id = ?`).bind(codeId, access.team.id).run();
+    if ((result.meta.changes ?? 0) !== 1) return Response.json({ error: "Team code not found." }, { status: 404 });
+    await recordTeamEvent(DB, { teamId: access.team.id, action: "code.revoked", targetType: "invite-code", targetId: codeId, summary: "Revoked a team code", actorName: user.displayName, actorEmail: user.email });
+    return Response.json({ revoked: true });
+  }
+
+  if (action === "update-member-projects") {
+    const memberId = Number(body.memberId);
+    const projectIds = Array.from(new Set(Array.isArray(body.projectIds) ? body.projectIds.map((value) => clean(value, 80)).filter(Boolean) : []));
+    if (!projectIds.length) return Response.json({ error: "Assign at least one rocket to this member." }, { status: 400 });
+    const member = await DB.prepare(`SELECT id, email, role FROM team_members WHERE team_id = ? AND id = ?`).bind(access.team.id, memberId).first<{ id: number; email: string; role: TeamRole }>();
+    if (!member) return Response.json({ error: "Member not found." }, { status: 404 });
+    if (member.role === "lead") return Response.json({ error: "Team leads always have access to every rocket." }, { status: 409 });
+    const validProjects = await DB.prepare(`SELECT id FROM projects WHERE team_id = ? AND id IN (${projectIds.map(() => "?").join(",")})`)
+      .bind(access.team.id, ...projectIds).all<{ id: string }>();
+    if (validProjects.results.length !== projectIds.length) return Response.json({ error: "One or more selected rockets do not belong to this team." }, { status: 400 });
+    await DB.batch([
+      DB.prepare(`UPDATE team_members SET project_scope = 'selected', updated_at = CURRENT_TIMESTAMP WHERE team_id = ? AND id = ?`).bind(access.team.id, memberId),
+      DB.prepare(`DELETE FROM member_project_access WHERE team_id = ? AND lower(member_email) = lower(?)`).bind(access.team.id, member.email),
+      ...projectIds.map((projectId) => DB.prepare(`INSERT INTO member_project_access (team_id, member_email, project_id, granted_by_email) VALUES (?, ?, ?, ?)`)
+        .bind(access.team.id, member.email.toLowerCase(), projectId, user.email)),
+    ]);
+    await recordTeamEvent(DB, { teamId: access.team.id, action: "access.changed", targetType: "member", targetId: String(memberId), summary: `Assigned ${member.email} to ${projectIds.length} rocket${projectIds.length === 1 ? "" : "s"}`, actorName: user.displayName, actorEmail: user.email });
+    return Response.json({ updated: true });
   }
 
   if (action === "invite-member") {

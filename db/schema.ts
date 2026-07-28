@@ -42,12 +42,48 @@ export const teamMembers = sqliteTable("team_members", {
   displayName: text("display_name").notNull(),
   role: text("role").notNull().default("engineer"),
   status: text("status").notNull().default("invited"),
+  projectScope: text("project_scope").notNull().default("all"),
   invitedByEmail: text("invited_by_email").notNull(),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
   uniqueIndex("team_members_team_email_unique").on(table.teamId, table.email),
   index("team_members_email_idx").on(table.email, table.teamId),
+]);
+
+export const teamInviteCodes = sqliteTable("team_invite_codes", {
+  id: text("id").primaryKey(),
+  teamId: text("team_id").notNull(),
+  codeHash: text("code_hash").notNull().unique(),
+  codeHint: text("code_hint").notNull(),
+  role: text("role").notNull().default("viewer"),
+  maxUses: integer("max_uses").notNull().default(1),
+  useCount: integer("use_count").notNull().default(0),
+  expiresAt: text("expires_at").notNull(),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdByEmail: text("created_by_email").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("team_invite_codes_team_idx").on(table.teamId, table.createdAt),
+]);
+
+export const inviteCodeProjects = sqliteTable("invite_code_projects", {
+  inviteCodeId: text("invite_code_id").notNull(),
+  projectId: text("project_id").notNull(),
+}, (table) => [
+  uniqueIndex("invite_code_projects_unique").on(table.inviteCodeId, table.projectId),
+  index("invite_code_projects_project_idx").on(table.projectId, table.inviteCodeId),
+]);
+
+export const memberProjectAccess = sqliteTable("member_project_access", {
+  teamId: text("team_id").notNull(),
+  memberEmail: text("member_email").notNull(),
+  projectId: text("project_id").notNull(),
+  grantedByEmail: text("granted_by_email").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("member_project_access_unique").on(table.teamId, table.memberEmail, table.projectId),
+  index("member_project_access_project_idx").on(table.projectId, table.memberEmail),
 ]);
 
 export const projects = sqliteTable("projects", {

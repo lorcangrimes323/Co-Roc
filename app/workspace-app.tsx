@@ -24,6 +24,7 @@ export function WorkspaceApp({ user }: { user: WorkspaceIdentity }) {
   const [teamOpen, setTeamOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [generatedCode, setGeneratedCode] = useState("");
 
   const loadSession = useCallback(async (preferredProjectId?: string) => {
     const response = await fetch("/api/session", { headers: previewHeaders(user), cache: "no-store" });
@@ -54,13 +55,15 @@ export function WorkspaceApp({ user }: { user: WorkspaceIdentity }) {
         headers: { "content-type": "application/json", "x-project-id": activeProjectId, ...previewHeaders(user) },
         body: JSON.stringify(body),
       });
-      const payload = await response.json() as { error?: string; projectId?: string };
+      const payload = await response.json() as { error?: string; projectId?: string; code?: string };
       if (!response.ok) throw new Error(payload.error || "The team change could not be saved.");
       await loadSession(preferredProjectId ?? payload.projectId);
       setMessage("Team workspace updated.");
+      return payload;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "The team change could not be saved.");
     } finally { setBusy(false); }
+    return null;
   }
 
   async function createFirstWorkspace(event: FormEvent<HTMLFormElement>) {
@@ -72,6 +75,19 @@ export function WorkspaceApp({ user }: { user: WorkspaceIdentity }) {
   async function signOut() {
     await fetch("/api/auth", { method: "DELETE" });
     window.location.assign("/");
+  }
+
+  async function createTeamCode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const payload = await submitAction({
+      action: "create-team-code",
+      role: form.get("role"),
+      maxUses: form.get("maxUses"),
+      expiryDays: form.get("expiryDays"),
+      projectIds: form.getAll("projectIds"),
+    });
+    if (payload?.code) setGeneratedCode(payload.code);
   }
 
   if (!session) return <main className="workspace-gate"><div className="gate-loader"><span />Connecting to the engineering workspace…</div></main>;
@@ -108,13 +124,32 @@ export function WorkspaceApp({ user }: { user: WorkspaceIdentity }) {
           <section className="team-modal" aria-modal="true" role="dialog" aria-label="Team administration">
             <header><div><span className="access-eyebrow">{workspace.team.name}</span><h2>Team & projects</h2></div><button type="button" onClick={() => setTeamOpen(false)} aria-label="Close">×</button></header>
             <div className="team-role-summary"><strong>{workspace.team.role}</strong><span>{workspace.team.permissions.includes("manageTeam") ? "You can manage team access." : "Your access is managed by a team lead."}</span></div>
+            {workspace.team.permissions.includes("manageTeam") && <section className="team-section invite-code-section">
+              <div className="team-section-heading"><div><h3>Team join codes</h3><p>Create a controlled code for a role and selected rockets. The full code is shown once.</p></div></div>
+              <form className="invite-code-form" onSubmit={createTeamCode}>
+                <label>Role<select name="role" defaultValue="engineer"><option value="engineer">Engineer</option><option value="viewer">Viewer</option></select></label>
+                <label>Member limit<input name="maxUses" type="number" min="1" max="100" defaultValue="5" /></label>
+                <label>Expires after<input name="expiryDays" type="number" min="1" max="90" defaultValue="14" /><span>days</span></label>
+                <fieldset><legend>Rocket access</legend><div className="project-check-grid">{workspace.team.projects.map((project) => <label key={project.id}><input name="projectIds" type="checkbox" value={project.id} defaultChecked={project.id === activeProjectId} /><span>{project.name}</span></label>)}</div></fieldset>
+                <button className="primary-button" disabled={busy}>Generate team code</button>
+              </form>
+              {generatedCode && <div className="generated-code" role="status"><div><span>NEW TEAM CODE</span><strong>{generatedCode}</strong></div><button type="button" onClick={() => void navigator.clipboard.writeText(generatedCode)}>Copy code</button></div>}
+              {!!workspace.team.inviteCodes?.length && <div className="invite-code-list">{workspace.team.inviteCodes.map((invite) => {
+                const assigned = workspace.team.projects.filter((project) => invite.projectIds.includes(project.id)).map((project) => project.name).join(", ");
+                const expired = new Date(invite.expiresAt).getTime() <= Date.now();
+                return <div key={invite.id} className={!invite.active || expired || invite.useCount >= invite.maxUses ? "inactive" : ""}><strong>{invite.codeHint}</strong><span>{invite.role} · {invite.useCount}/{invite.maxUses} used · {assigned || "No rockets"}</span><small>Expires {new Date(invite.expiresAt).toLocaleDateString()}</small>{invite.active && !expired && invite.useCount < invite.maxUses && <button type="button" disabled={busy} onClick={() => void submitAction({ action: "revoke-team-code", codeId: invite.id })}>Revoke</button>}</div>;
+              })}</div>}
+            </section>}
             <section className="team-section">
               <h3>Members</h3>
               <div className="member-list">{workspace.team.members.map((member) => (
-                <div className="member-row" key={member.id}>
-                  <span className="member-avatar">{member.displayName.slice(0, 2).toUpperCase()}</span>
-                  <div><strong>{member.displayName}</strong><small>{member.email} · {member.status}</small></div>
-                  {workspace.team.permissions.includes("manageTeam") ? <select value={member.role} disabled={busy} onChange={(event) => void submitAction({ action: "change-role", memberId: member.id, role: event.target.value })}><option value="lead">Lead</option><option value="engineer">Engineer</option><option value="viewer">Viewer</option></select> : <span className="role-badge">{member.role}</span>}
+                <div className="member-entry" key={member.id}>
+                  <div className="member-row">
+                    <span className="member-avatar">{member.displayName.slice(0, 2).toUpperCase()}</span>
+                    <div><strong>{member.displayName}</strong><small>{member.email} · {member.status} · {member.role === "lead" || member.projectScope === "all" ? "all rockets" : `${member.projectIds.length} assigned`}</small></div>
+                    {workspace.team.permissions.includes("manageTeam") ? <select value={member.role} disabled={busy} onChange={(event) => void submitAction({ action: "change-role", memberId: member.id, role: event.target.value })}><option value="lead">Lead</option><option value="engineer">Engineer</option><option value="viewer">Viewer</option></select> : <span className="role-badge">{member.role}</span>}
+                  </div>
+                  {workspace.team.permissions.includes("manageTeam") && member.role !== "lead" && <details className="member-access"><summary>Rocket access</summary><form onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); void submitAction({ action: "update-member-projects", memberId: member.id, projectIds: form.getAll("projectIds") }); }}><div className="project-check-grid">{workspace.team.projects.map((project) => <label key={project.id}><input name="projectIds" type="checkbox" value={project.id} defaultChecked={member.projectScope === "all" || member.projectIds.includes(project.id)} /><span>{project.name}</span></label>)}</div><button disabled={busy}>Save access</button></form></details>}
                 </div>
               ))}</div>
               {workspace.team.permissions.includes("manageTeam") && <form className="inline-team-form" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); void submitAction({ action: "invite-member", displayName: form.get("displayName"), email: form.get("email"), role: form.get("role") }); event.currentTarget.reset(); }}><input name="displayName" placeholder="Member name" required /><input name="email" type="email" placeholder="name@team.org" required /><select name="role" defaultValue="engineer"><option value="engineer">Engineer</option><option value="viewer">Viewer</option><option value="lead">Lead</option></select><button disabled={busy}>Add member</button></form>}

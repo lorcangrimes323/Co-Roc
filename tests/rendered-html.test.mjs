@@ -61,10 +61,16 @@ test("enforces team roles and keeps projects isolated", async () => {
   assert.match(records, /action === "create-test" \? "createTest"/);
   assert.match(records, /action === "complete-test" \? "completeTest"/);
   assert.match(session, /invite-member/);
+  assert.match(session, /create-team-code/);
+  assert.match(session, /update-member-projects/);
+  assert.match(session, /invite_code_projects/);
+  assert.match(session, /member_project_access/);
   assert.match(session, /A team must retain at least one active lead/);
   assert.match(schema, /teamMembers/);
   assert.match(schema, /projects/);
   assert.match(workspace, /Team & projects/);
+  assert.match(workspace, /Generate team code/);
+  assert.match(workspace, /Rocket access/);
 });
 
 test("uses site accounts, separates demo data and recovers local drafts", async () => {
@@ -78,12 +84,15 @@ test("uses site accounts, separates demo data and recovers local drafts", async 
   ]);
   assert.match(home, /AccessPortal/);
   assert.match(portal, /Create account/);
+  assert.match(portal, /Team code/);
   assert.match(portal, /\/api\/auth/);
   assert.doesNotMatch(portal, /QPL|LOCAL ROLE CHECK/);
   assert.match(authRoute, /verifyPassword/);
   assert.match(authRoute, /Too many sign-in attempts/);
   assert.match(accountAuth, /PBKDF2/);
   assert.match(accountAuth, /HttpOnly; SameSite=Lax/);
+  assert.match(authRoute, /code_hash/);
+  assert.match(authRoute, /joinedTeam/);
   assert.match(demo, /mode="demo"/);
   assert.match(missionControl, /rocket-draft:/);
   assert.match(missionControl, /Recovered/);

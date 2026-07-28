@@ -7,6 +7,20 @@ export type WorkspaceMember = {
   displayName: string;
   role: TeamRole;
   status: string;
+  projectScope: "all" | "selected";
+  projectIds: string[];
+};
+
+export type WorkspaceInviteCode = {
+  id: string;
+  codeHint: string;
+  role: TeamRole;
+  maxUses: number;
+  useCount: number;
+  expiresAt: string;
+  active: boolean;
+  createdAt: string;
+  projectIds: string[];
 };
 
 export type WorkspaceProject = {
@@ -27,6 +41,7 @@ export type WorkspaceTeam = {
   permissions: WorkspacePermission[];
   projects: WorkspaceProject[];
   members: WorkspaceMember[];
+  inviteCodes?: WorkspaceInviteCode[];
   events?: Array<{ id: number; action: string; summary: string; actorName: string; createdAt: string }>;
 };
 

@@ -139,6 +139,7 @@ button { color: inherit; }
 .account-form h2 { margin: 0; font-size: 20px; font-weight: 680; }
 .account-form > p { color: #686365; font-size: 11px; line-height: 1.5; margin: 7px 0 18px; }
 .account-form label { display: grid; gap: 6px; margin: 11px 0; color: #4e4a4c; font-size: 10px; font-weight: 680; }
+.optional-label { justify-self: end; margin-top: -18px; color: #928d8f; font: 8px var(--font-geist-mono); letter-spacing: .08em; }
 .account-form input { width: 100%; min-height: 41px; border: 1px solid #c9c5c6; background: #fff; color: #181718; padding: 0 11px; outline: none; }
 .account-form input:focus { border-color: #c92335; box-shadow: 0 0 0 2px rgba(201,35,53,.08); }
 .account-submit { width: 100%; min-height: 42px; margin-top: 8px; border: 0; background: #c92335; color: #fff; font-size: 12px; font-weight: 780; cursor: pointer; }
@@ -163,7 +164,7 @@ button { color: inherit; }
 .onboarding-card input, .inline-team-form input, .inline-team-form select { min-height: 42px; border: 1px solid #cbc8c9; background: #fff; color: #181718; padding: 0 12px; }
 .form-message { color: #a82434; font-size: 12px; }
 
-.team-modal { width: min(720px, 100%); max-height: min(86vh, 820px); overflow: auto; background: var(--panel); border: 1px solid var(--line-strong); box-shadow: 0 28px 80px rgba(0,0,0,.22); padding: 26px; }
+.team-modal { width: min(780px, 100%); max-height: min(86vh, 820px); overflow: auto; background: var(--panel); border: 1px solid var(--line-strong); box-shadow: 0 28px 80px rgba(0,0,0,.22); padding: 26px; }
 .team-modal > header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--line); padding-bottom: 18px; }
 .team-modal > header .access-eyebrow { margin: 0 0 7px; }
 .team-modal h2 { margin: 0; font-size: 24px; }
@@ -172,13 +173,42 @@ button { color: inherit; }
 .team-role-summary strong, .role-badge { color: var(--accent); text-transform: uppercase; font: 9px var(--font-geist-mono); letter-spacing: .09em; border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); padding: 5px 7px; }
 .team-section { border-top: 1px solid var(--line); padding: 18px 0 4px; }
 .team-section h3 { margin: 0 0 12px; font-size: 13px; }
+.team-section-heading { display: flex; justify-content: space-between; gap: 18px; }
+.team-section-heading h3 { margin-bottom: 4px; }
+.team-section-heading p { margin: 0 0 14px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+.invite-code-form { display: grid; grid-template-columns: 1fr .8fr .9fr; gap: 9px; padding: 13px; border: 1px solid var(--line); background: var(--panel-2); }
+.invite-code-form > label { position: relative; display: grid; gap: 5px; color: var(--muted); font-size: 9px; }
+.invite-code-form select, .invite-code-form input { min-height: 36px; border: 1px solid var(--line-strong); background: var(--panel); color: var(--text); padding: 0 9px; }
+.invite-code-form > label > span { position: absolute; right: 9px; bottom: 11px; color: var(--muted); font-size: 8px; }
+.invite-code-form fieldset { grid-column: 1 / -1; border: 0; padding: 3px 0 0; margin: 0; }
+.invite-code-form legend { color: var(--muted); font-size: 9px; margin-bottom: 7px; }
+.invite-code-form .primary-button { justify-self: start; min-height: 38px; }
+.project-check-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.project-check-grid label { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 6px 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 10px; cursor: pointer; }
+.project-check-grid input { width: 14px; min-height: 14px; accent-color: var(--accent); }
+.generated-code { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 9px; padding: 12px 13px; border: 1px solid color-mix(in srgb, var(--accent) 48%, var(--line)); background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
+.generated-code span, .generated-code strong { display: block; }
+.generated-code span { color: var(--muted); font: 8px var(--font-geist-mono); letter-spacing: .1em; }
+.generated-code strong { margin-top: 4px; color: var(--accent); font: 16px var(--font-geist-mono); letter-spacing: .08em; }
+.generated-code button, .invite-code-list button, .member-access button { border: 1px solid var(--line-strong); background: var(--panel); color: var(--text); padding: 7px 10px; font-size: 9px; cursor: pointer; }
+.invite-code-list { margin-top: 10px; border-top: 1px solid var(--line); }
+.invite-code-list > div { position: relative; display: grid; grid-template-columns: 90px 1fr auto; align-items: center; gap: 10px; min-height: 48px; border-bottom: 1px solid var(--line); }
+.invite-code-list strong { font: 10px var(--font-geist-mono); }
+.invite-code-list span, .invite-code-list small { color: var(--muted); font-size: 9px; }
+.invite-code-list button { grid-column: 3; grid-row: 1; }
+.invite-code-list .inactive { opacity: .58; }
 .member-list { display: grid; }
-.member-row { min-height: 58px; display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 11px; border-top: 1px solid var(--line); }
+.member-entry { border-top: 1px solid var(--line); }
+.member-row { min-height: 58px; display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 11px; }
 .member-avatar { width: 30px; height: 30px; display: grid; place-items: center; background: var(--panel-2); color: var(--accent); font: 9px var(--font-geist-mono); }
 .member-row strong, .member-row small { display: block; }
 .member-row strong { font-size: 12px; }
 .member-row small { color: var(--muted); font-size: 10px; margin-top: 3px; }
 .member-row select { border: 1px solid var(--line-strong); background: var(--panel); color: var(--text); padding: 6px; font-size: 11px; }
+.member-access { margin: -2px 0 10px 45px; }
+.member-access summary { width: max-content; color: var(--accent); font-size: 9px; cursor: pointer; }
+.member-access form { display: grid; gap: 8px; margin-top: 8px; }
+.member-access button { justify-self: start; }
 .inline-team-form { display: grid; grid-template-columns: 1fr 1.25fr 110px auto; gap: 7px; margin-top: 13px; }
 .inline-team-form button { border: 0; background: var(--accent); color: #fff; padding: 0 13px; font-weight: 700; }
 .project-form { grid-template-columns: 1fr 1.25fr auto; }
@@ -206,7 +236,9 @@ button { color: inherit; }
   .account-context h1 { font-size: 31px; }
   .account-context dl { display: none; }
   .account-page-footer span:last-child { display: none; }
-  .inline-team-form, .project-form, .project-admin-list { grid-template-columns: 1fr; }
+  .inline-team-form, .project-form, .project-admin-list, .invite-code-form, .project-check-grid { grid-template-columns: 1fr; }
+  .invite-code-list > div { grid-template-columns: 78px 1fr; padding: 8px 0; }
+  .invite-code-list button { grid-column: 2; grid-row: auto; justify-self: start; }
 }
 
 .rail {

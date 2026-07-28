@@ -59,7 +59,12 @@ export async function requireProjectAccess(request: Request, permission: Permiss
       p.storage_bytes, p.file_count, m.role
     FROM team_members m
     JOIN teams t ON t.id = m.team_id
-    JOIN projects p ON p.team_id = t.id
+    JOIN projects p ON p.team_id = t.id AND (
+      m.role = 'lead' OR m.project_scope = 'all' OR EXISTS (
+        SELECT 1 FROM member_project_access mpa
+        WHERE mpa.team_id = m.team_id AND lower(mpa.member_email) = lower(m.email) AND mpa.project_id = p.id
+      )
+    )
     WHERE lower(m.email) = lower(?) AND m.status IN ('active', 'invited') ${projectFilter}
     ORDER BY CASE m.role WHEN 'lead' THEN 0 WHEN 'engineer' THEN 1 ELSE 2 END, p.created_at
     LIMIT 1`);

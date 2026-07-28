@@ -22,7 +22,7 @@ export function AccessPortal() {
       const response = await fetch("/api/auth", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: mode, displayName: form.get("displayName"), email: form.get("email"), password }),
+        body: JSON.stringify({ action: mode, displayName: form.get("displayName"), email: form.get("email"), password, teamCode: form.get("teamCode") }),
       });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error || "Your account could not be opened.");
@@ -54,8 +54,9 @@ export function AccessPortal() {
           <form className="account-form" onSubmit={submit}>
             <div className="account-tabs"><button type="button" className={mode === "signup" ? "active" : ""} onClick={() => { setMode("signup"); setMessage(""); }}>Create account</button><button type="button" className={mode === "signin" ? "active" : ""} onClick={() => { setMode("signin"); setMessage(""); }}>Sign in</button></div>
             <h2>{mode === "signup" ? "Create your account" : "Welcome back"}</h2>
-            <p>{mode === "signup" ? "Start a team or join one using the email your lead invited." : "Sign in to your engineering workspace."}</p>
+            <p>{mode === "signup" ? "Create a new workspace, or enter a team code to join assigned rockets." : "Sign in to your engineering workspace."}</p>
             {mode === "signup" && <label>Full name<input name="displayName" autoComplete="name" minLength={2} maxLength={100} required placeholder="Lorcan Grimes" /></label>}
+            {mode === "signup" && <label>Team code <span className="optional-label">OPTIONAL</span><input name="teamCode" autoComplete="off" maxLength={40} placeholder="RC-7K3M-9P2Q" /></label>}
             <label>Email address<input name="email" type="email" autoComplete="email" maxLength={180} required placeholder="name@team.org" /></label>
             <label>Password<input name="password" type="password" autoComplete={mode === "signup" ? "new-password" : "current-password"} minLength={10} maxLength={200} required placeholder="At least 10 characters" /></label>
             {mode === "signup" && <label>Confirm password<input name="confirmPassword" type="password" autoComplete="new-password" minLength={10} maxLength={200} required /></label>}
