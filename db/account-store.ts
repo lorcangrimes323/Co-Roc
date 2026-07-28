@@ -15,6 +15,7 @@ export async function ensureAccountSchema() {
       display_name TEXT NOT NULL,
       password_hash TEXT NOT NULL,
       password_salt TEXT NOT NULL,
+      password_iterations INTEGER DEFAULT 100000 NOT NULL,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL
     )`),
@@ -34,4 +35,9 @@ export async function ensureAccountSchema() {
       locked_until TEXT
     )`),
   ]);
+  try {
+    await DB.prepare(`ALTER TABLE accounts ADD COLUMN password_iterations INTEGER DEFAULT 210000 NOT NULL`).run();
+  } catch {
+    // Existing databases already have the per-account work factor column.
+  }
 }

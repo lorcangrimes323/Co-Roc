@@ -1,0 +1,1 @@
+ALTER TABLE `accounts` ADD `password_iterations` integer DEFAULT 210000 NOT NULL;

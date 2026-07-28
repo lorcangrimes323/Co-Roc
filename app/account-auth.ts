@@ -3,7 +3,7 @@ import { ensureAccountSchema, getAccountEnvironment } from "../db/account-store"
 
 export const SESSION_COOKIE = "rocket_session";
 const SESSION_DAYS = 30;
-const PASSWORD_ITERATIONS = 210_000;
+export const PASSWORD_ITERATIONS = 100_000;
 
 export type AccountUser = { id: string; email: string; displayName: string };
 
@@ -37,14 +37,14 @@ export async function sha256(value: string) {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-export async function hashPassword(password: string, salt = randomSalt()) {
+export async function hashPassword(password: string, salt = randomSalt(), iterations = PASSWORD_ITERATIONS) {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: base64ToBytes(salt), iterations: PASSWORD_ITERATIONS }, key, 256);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: base64ToBytes(salt), iterations }, key, 256);
   return { salt, hash: bytesToBase64(new Uint8Array(bits)) };
 }
 
-export async function verifyPassword(password: string, salt: string, expectedHash: string) {
-  const actual = await hashPassword(password, salt);
+export async function verifyPassword(password: string, salt: string, expectedHash: string, iterations = PASSWORD_ITERATIONS) {
+  const actual = await hashPassword(password, salt, iterations);
   if (actual.hash.length !== expectedHash.length) return false;
   let different = 0;
   for (let index = 0; index < actual.hash.length; index += 1) different |= actual.hash.charCodeAt(index) ^ expectedHash.charCodeAt(index);

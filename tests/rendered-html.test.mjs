@@ -90,6 +90,8 @@ test("uses site accounts, separates demo data and recovers local drafts", async 
   assert.match(authRoute, /verifyPassword/);
   assert.match(authRoute, /Too many sign-in attempts/);
   assert.match(accountAuth, /PBKDF2/);
+  assert.match(accountAuth, /PASSWORD_ITERATIONS = 100_000/);
+  assert.match(authRoute, /password_iterations/);
   assert.match(accountAuth, /HttpOnly; SameSite=Lax/);
   assert.match(authRoute, /code_hash/);
   assert.match(authRoute, /joinedTeam/);

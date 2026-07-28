@@ -1,8 +1,8 @@
-import { clearSessionCookie, cookieValue, createAccountSession, deleteAccountSession, getAccountUserFromCookieHeader, hashPassword, SESSION_COOKIE, sessionCookie, sha256, verifyPassword } from "../../account-auth";
+import { clearSessionCookie, cookieValue, createAccountSession, deleteAccountSession, getAccountUserFromCookieHeader, hashPassword, PASSWORD_ITERATIONS, SESSION_COOKIE, sessionCookie, sha256, verifyPassword } from "../../account-auth";
 import { ensureAccountSchema, getAccountEnvironment } from "../../../db/account-store";
 import { ensureAccessSchema } from "../../../db/access-store";
 
-type StoredAccount = { id: string; email: string; display_name: string; password_hash: string; password_salt: string };
+type StoredAccount = { id: string; email: string; display_name: string; password_hash: string; password_salt: string; password_iterations: number };
 type AttemptRow = { attempts: number; window_started_at: string; locked_until: string | null };
 type InviteRow = { id: string; team_id: string; team_name: string; role: "engineer" | "viewer"; max_uses: number; use_count: number; expires_at: string; active: number };
 
@@ -99,8 +99,8 @@ export async function POST(request: Request) {
     const passwordRecord = await hashPassword(password);
     try {
       const statements = [
-        DB.prepare(`INSERT INTO accounts (id, email, display_name, password_hash, password_salt) VALUES (?, ?, ?, ?, ?)`)
-          .bind(accountId, email, displayName, passwordRecord.hash, passwordRecord.salt),
+        DB.prepare(`INSERT INTO accounts (id, email, display_name, password_hash, password_salt, password_iterations) VALUES (?, ?, ?, ?, ?, ?)`)
+          .bind(accountId, email, displayName, passwordRecord.hash, passwordRecord.salt, PASSWORD_ITERATIONS),
       ];
       if (invite) {
         statements.push(
@@ -126,9 +126,9 @@ export async function POST(request: Request) {
   }
 
   if (action === "signin") {
-    const account = await DB.prepare(`SELECT id, email, display_name, password_hash, password_salt FROM accounts WHERE lower(email) = lower(?) LIMIT 1`)
+    const account = await DB.prepare(`SELECT id, email, display_name, password_hash, password_salt, password_iterations FROM accounts WHERE lower(email) = lower(?) LIMIT 1`)
       .bind(email).first<StoredAccount>();
-    if (!account || !await verifyPassword(password, account.password_salt, account.password_hash)) {
+    if (!account || !await verifyPassword(password, account.password_salt, account.password_hash, account.password_iterations)) {
       await recordFailure(rate.key);
       return Response.json({ error: "Email or password is incorrect." }, { status: 401 });
     }
