@@ -10,7 +10,7 @@ type SessionPayload = {
   error?: string;
 };
 
-function previewHeaders(user: WorkspaceIdentity) {
+function previewHeaders(user: WorkspaceIdentity): Record<string, string> {
   return user.preview ? {
     "x-local-preview-name": user.name,
     "x-local-preview-email": user.email,

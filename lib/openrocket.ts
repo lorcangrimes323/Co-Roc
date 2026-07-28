@@ -91,7 +91,7 @@ function finPoints(node: Element) {
   }));
 }
 
-function componentLength(node: Element) {
+function componentLength(node: Element): number {
   if (LENGTH_KINDS.has(node.tagName)) return number(node, "length");
   if (node.tagName === "trapezoidfinset" || node.tagName === "ellipticalfinset" || node.tagName === "freeformfinset") {
     const points = finPoints(node);
@@ -263,7 +263,7 @@ function addNested(
       for (const podNode of children(child(node, "subcomponents"))) {
         const podLength = componentLength(podNode);
         const fallbackRadius = radiusValue(podNode, "aftradius", parent.aftRadius / 2);
-        let fore = radiusValue(podNode, "foreradius", kind === "nosecone" ? 0 : fallbackRadius);
+        let fore = radiusValue(podNode, "foreradius", podNode.tagName === "nosecone" ? 0 : fallbackRadius);
         let aft = radiusValue(podNode, "aftradius", radiusValue(podNode, "outerradius", fallbackRadius));
         if (bool(podNode, "isflipped")) [fore, aft] = [aft, fore];
         // OpenRocket stores pod-set radius offsets to the pod centreline. A zero-degree

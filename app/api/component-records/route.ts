@@ -98,7 +98,7 @@ export async function GET(request: Request) {
   return Response.json({
     artifacts: artifactRows.results.map(mapRow),
     tests: testRows.results.map(mapRow),
-    comments: commentRows.results.map((row) => {
+    comments: commentRows.results.map((row: Record<string, unknown>) => {
       const mapped = mapRow(row) as Record<string, unknown>;
       try { mapped.mentions = JSON.parse(String(mapped.mentionsJson || "[]")); } catch { mapped.mentions = []; }
       return mapped;

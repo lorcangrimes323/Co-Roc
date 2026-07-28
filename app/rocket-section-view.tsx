@@ -175,9 +175,10 @@ export const RocketSectionView = forwardRef<RocketSectionHandle, {
   }), []);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const host = canvas?.parentElement;
+    const canvas = canvasRef.current as HTMLCanvasElement;
+    const host = canvas?.parentElement as HTMLElement;
     if (!canvas || !host || !model) return;
+    const activeModel = model;
     let drag = { active: false, moved: false, x: 0, y: 0 };
 
     function draw() {
@@ -194,7 +195,7 @@ export const RocketSectionView = forwardRef<RocketSectionHandle, {
       context.clearRect(0, 0, rect.width, rect.height);
 
       const margin = 54;
-      const baseScale = (rect.width - margin * 2) / model.length;
+      const baseScale = (rect.width - margin * 2) / activeModel.length;
       const scale = baseScale * zoomRef.current;
       const originX = margin + panRef.current.x;
       const originY = rect.height * 0.53 + panRef.current.y;
@@ -204,8 +205,8 @@ export const RocketSectionView = forwardRef<RocketSectionHandle, {
 
       context.font = "10px ui-monospace, SFMono-Regular, Menlo, monospace";
       context.textBaseline = "top";
-      const stationStep = model.length > 4 ? 0.5 : 0.25;
-      for (let station = 0; station <= model.length + 0.001; station += stationStep) {
+      const stationStep = activeModel.length > 4 ? 0.5 : 0.25;
+      for (let station = 0; station <= activeModel.length + 0.001; station += stationStep) {
         const x = sx(station);
         context.strokeStyle = darkTheme ? "rgba(255,255,255,.07)" : "rgba(20,18,19,.07)";
         context.lineWidth = 1;
@@ -224,7 +225,7 @@ export const RocketSectionView = forwardRef<RocketSectionHandle, {
       context.stroke();
       context.setLineDash([]);
 
-      const regular = model.components.filter((component) => !component.fin);
+      const regular = activeModel.components.filter((component) => !component.fin);
       const ordered = [...regular.filter((component) => component.external), ...regular.filter((component) => !component.external)];
       for (const component of ordered) {
         const radius = Math.max(component.foreRadius, component.aftRadius, 0.006);
@@ -278,7 +279,7 @@ export const RocketSectionView = forwardRef<RocketSectionHandle, {
         }
       }
 
-      for (const component of model.components.filter((item) => item.fin)) {
+      for (const component of activeModel.components.filter((item) => item.fin)) {
         const fin = component.fin!;
         const rootRadius = Math.max(component.foreRadius, component.aftRadius);
         const selected = component.id === selectedId;
@@ -314,7 +315,7 @@ export const RocketSectionView = forwardRef<RocketSectionHandle, {
 
       context.fillStyle = darkTheme ? "#e7e2e2" : "#2d292b";
       context.font = "600 11px ui-monospace, SFMono-Regular, Menlo, monospace";
-      context.fillText(`${model.name.toUpperCase()}  /  ${(model.length * 1000).toFixed(0)} MM  /  Ø ${(model.maxRadius * 2000).toFixed(0)} MM`, 18, 13);
+      context.fillText(`${activeModel.name.toUpperCase()}  /  ${(activeModel.length * 1000).toFixed(0)} MM  /  Ø ${(activeModel.maxRadius * 2000).toFixed(0)} MM`, 18, 13);
       context.textAlign = "right";
       context.fillStyle = "#746f70";
       context.font = "9px ui-monospace, SFMono-Regular, Menlo, monospace";

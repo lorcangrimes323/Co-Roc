@@ -72,7 +72,7 @@ export async function GET(request: Request) {
         SELECT team_id FROM team_members WHERE lower(email) = lower(?) AND status IN ('active', 'invited')
       ) ORDER BY te.id DESC LIMIT 80`).bind(user.email).all<TeamEventRow>(),
   ]);
-  const teams = membershipRows.results.map((membership) => {
+  const teams = membershipRows.results.map((membership: MembershipRow) => {
     const role = validRole(membership.role);
     return {
       id: membership.team_id,
@@ -81,7 +81,7 @@ export async function GET(request: Request) {
       role,
       status: membership.status,
       permissions: ROLE_PERMISSIONS[role],
-      projects: projectRows.results.filter((project) => project.team_id === membership.team_id).map((project) => ({
+      projects: projectRows.results.filter((project: ProjectRow) => project.team_id === membership.team_id).map((project: ProjectRow) => ({
         id: project.id,
         name: project.name,
         slug: project.slug,
@@ -89,14 +89,14 @@ export async function GET(request: Request) {
         storageBytes: project.storage_bytes,
         fileCount: project.file_count,
       })),
-      members: memberRows.results.filter((member) => member.team_id === membership.team_id).map((member) => ({
+      members: memberRows.results.filter((member: MemberRow) => member.team_id === membership.team_id).map((member: MemberRow) => ({
         id: member.id,
         email: member.email,
         displayName: member.display_name,
         role: validRole(member.role),
         status: member.status,
       })),
-      events: eventRows.results.filter((event) => event.team_id === membership.team_id).slice(0, 20).map((event) => ({
+      events: eventRows.results.filter((event: TeamEventRow) => event.team_id === membership.team_id).slice(0, 20).map((event: TeamEventRow) => ({
         id: event.id, action: event.action, summary: event.summary, actorName: event.actor_name, createdAt: event.created_at,
       })),
     };

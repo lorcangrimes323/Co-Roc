@@ -67,7 +67,7 @@ export async function requireProjectAccess(request: Request, permission: Permiss
     ? await statement.bind(user.email, projectId).first<AccessRow>()
     : await statement.bind(user.email).first<AccessRow>();
   if (!row) return { ok: false, response: Response.json({ error: projectId ? "You do not have access to this project." : "No team workspace is assigned to this account.", code: "NO_WORKSPACE" }, { status: 403 }) };
-  const role = row.role === "lead" || row.role === "viewer" ? row.role : "engineer";
+  const role: TeamRole = row.role === "lead" || row.role === "viewer" ? row.role : "engineer";
   if (!hasPermission(role, permission)) {
     return { ok: false, response: Response.json({ error: `Your ${role} role cannot perform this action.`, code: "FORBIDDEN" }, { status: 403 }) };
   }
