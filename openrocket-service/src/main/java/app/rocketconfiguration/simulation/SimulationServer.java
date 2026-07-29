@@ -403,6 +403,8 @@ public final class SimulationServer {
         sample.put("stability", value(branch, FlightDataType.TYPE_STABILITY, index));
         sample.put("cg", value(branch, FlightDataType.TYPE_CG_LOCATION, index));
         sample.put("cp", value(branch, FlightDataType.TYPE_CP_LOCATION, index));
+        sample.put("mass", value(branch, FlightDataType.TYPE_MASS, index));
+        sample.put("motorMass", value(branch, FlightDataType.TYPE_MOTOR_MASS, index));
         return sample;
     }
 

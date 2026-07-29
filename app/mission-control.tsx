@@ -5,7 +5,7 @@ import { RocketViewer, RocketViewerHandle } from "./rocket-viewer";
 import { RocketSectionHandle, RocketSectionView } from "./rocket-section-view";
 import { ProjectRecordWorkspace } from "./project-record-workspace";
 import { RevisionWorkspace } from "./revision-workspace";
-import { SimulationWorkspace } from "./simulation-workspace";
+import { SimulationWorkspace, liveToSimulation, type LiveResult } from "./simulation-workspace";
 import { WorkspaceIcon } from "./workspace-icon";
 import {
   OpenRocketEditableField,
@@ -20,7 +20,16 @@ import type { ActiveWorkspace, WorkspaceIdentity, WorkspaceTeam } from "./worksp
 type ComponentStatus = "verified" | "review" | "draft";
 type ThemeMode = "light" | "dark" | "system";
 type SaveState = "loading" | "saved" | "draft" | "saving" | "conflict" | "offline";
+type AnalysisState = "saved" | "stale" | "calculating" | "current" | "failed";
 type WorkspaceModule = "configuration" | "simulation" | "history" | "tests" | "documents";
+
+const analysisStateLabel: Record<AnalysisState, string> = {
+  saved: "SAVED RESULT",
+  stale: "STALE · EDITS PENDING",
+  calculating: "CALCULATING",
+  current: "CURRENT",
+  failed: "CALCULATION FAILED",
+};
 
 type PendingChange = {
   id: string;
@@ -394,6 +403,10 @@ export function MissionControl({
   }, []);
   const [workspaceVersion, setWorkspaceVersion] = useState<number | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("loading");
+  const [analysisState, setAnalysisState] = useState<AnalysisState>("saved");
+  const [liveAnalysis, setLiveAnalysis] = useState<OpenRocketModel["simulations"][number] | null>(null);
+  const [analysisEngineVersion, setAnalysisEngineVersion] = useState("");
+  const [analysisCalculatedAt, setAnalysisCalculatedAt] = useState("");
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
   const [auditChanges, setAuditChanges] = useState<AuditChange[]>([]);
   const [lastSavedBy, setLastSavedBy] = useState<string>("");
@@ -413,6 +426,8 @@ export function MissionControl({
   const workspaceVersionRef = useRef<number | null>(null);
   const pendingChangesRef = useRef<PendingChange[]>([]);
   const orkModelRef = useRef<OpenRocketModel | null>(null);
+  const calculatedVersionRef = useRef<number | null>(null);
+  const analysisSequenceRef = useRef(0);
   const can = (permission: WorkspaceTeam["permissions"][number]) => mode === "demo" ? permission === "view" || permission === "editOrk" : workspace.team.permissions.includes(permission);
   const availableProjects = teams.flatMap((team) => team.projects.map((project) => ({ ...project, teamName: team.name })));
   const visibleMembers = workspace.team.members.slice(0, 3);
@@ -423,6 +438,28 @@ export function MissionControl({
     tests: "TEST REGISTER",
     documents: "DOCUMENTATION",
   };
+  const vehicleAnalysis = useMemo(() => {
+    if (!orkModel) return null;
+    const simulation = liveAnalysis ?? orkModel.simulations.find((item) => Number.isFinite(item.maxAltitude) || Number.isFinite(item.launchMass)) ?? orkModel.simulations[0];
+    if (!simulation) return null;
+    const dryMass = simulation.launchMass - simulation.launchMotorMass;
+    const stabilityPercent = simulation.referenceStability * (orkModel.maxRadius * 2) / orkModel.length * 100;
+    const shown = (value: number, digits = 1) => Number.isFinite(value) ? value.toFixed(digits) : "—";
+    return {
+      configuration: simulation.branchName || simulation.name,
+      dryMass: shown(dryMass, 3),
+      loadedMass: shown(simulation.launchMass, 3),
+      cg: shown(simulation.referenceCg * 1000, 0),
+      cp: shown(simulation.referenceCp * 1000, 0),
+      stability: shown(simulation.referenceStability, 2),
+      stabilityPercent: shown(stabilityPercent, 2),
+      referenceMach: shown(simulation.referenceMach, 3),
+      apogee: shown(simulation.maxAltitude, 0),
+      maxVelocity: shown(simulation.maxVelocity, 0),
+      maxMach: shown(simulation.maxMach, 3),
+      maxAcceleration: shown(simulation.maxAcceleration, 0),
+    };
+  }, [liveAnalysis, orkModel]);
 
   function openComponentWorkspace(componentId: string, panel: "records" | "tests" | "properties" = "properties") {
     setSelectedId(componentId);
@@ -577,6 +614,12 @@ export function MissionControl({
 
   useEffect(() => {
     let active = true;
+    calculatedVersionRef.current = null;
+    analysisSequenceRef.current += 1;
+    setLiveAnalysis(null);
+    setAnalysisState("saved");
+    setAnalysisEngineVersion("");
+    setAnalysisCalculatedAt("");
     async function openWorkspace() {
       try {
         if (mode === "demo") {
@@ -758,6 +801,66 @@ export function MissionControl({
     }, saveState === "offline" ? 5000 : 1500);
     return () => window.clearTimeout(timer);
   }, [orkModel, pendingChanges, saveState, workspaceVersion, mode]);
+
+  useEffect(() => {
+    if (!orkModel || !pendingChanges.length && saveState !== "draft" && saveState !== "saving" && saveState !== "offline" && saveState !== "conflict") return;
+    analysisSequenceRef.current += 1;
+    setAnalysisState("stale");
+  }, [orkModel, pendingChanges.length, saveState]);
+
+  useEffect(() => {
+    if (!orkModel?.simulations.length) return;
+    if (mode === "live" && (saveState !== "saved" || pendingChanges.length || workspaceVersion === null)) return;
+    if (mode === "live" && calculatedVersionRef.current === workspaceVersion) return;
+
+    const sequence = ++analysisSequenceRef.current;
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setAnalysisState("calculating");
+      try {
+        const simulationIndex = 0;
+        const endpoint = mode === "demo" ? "/api/simulations?demo=1&preview=1" : "/api/simulations?preview=1";
+        const requestHeaders = new Headers(collaborationHeaders());
+        let response: Response;
+        if (mode === "demo") {
+          requestHeaders.set("content-type", "application/octet-stream");
+          requestHeaders.set("x-simulation-index", String(simulationIndex));
+          response = await fetch(endpoint, { method: "POST", headers: requestHeaders, body: await encodeOpenRocketAsync(orkModel) });
+        } else {
+          requestHeaders.set("content-type", "application/json");
+          response = await fetch(endpoint, { method: "POST", headers: requestHeaders, body: JSON.stringify({ simulationIndex }) });
+        }
+        let payload = await responsePayload<{ jobId?: string; result?: LiveResult }>(response);
+        if (!response.ok || !payload.jobId) throw new Error(payload.error || "OpenRocket preview could not be queued");
+
+        const pollEndpoint = `${endpoint}&jobId=${encodeURIComponent(payload.jobId)}`;
+        for (let attempt = 0; attempt < 90; attempt += 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 1000));
+          if (cancelled || sequence !== analysisSequenceRef.current) return;
+          response = await fetch(pollEndpoint, { headers: collaborationHeaders(), cache: "no-store" });
+          payload = await responsePayload<{ jobId?: string; result?: LiveResult }>(response);
+          if (response.status === 202) continue;
+          if (!response.ok || !payload.result) throw new Error(payload.error || "OpenRocket preview calculation failed");
+
+          const base = orkModel.simulations[simulationIndex];
+          setLiveAnalysis(liveToSimulation(payload.result, base, orkModel.maxRadius * 2));
+          setAnalysisEngineVersion(payload.result.engineVersion);
+          setAnalysisCalculatedAt(payload.result.calculatedAt);
+          setAnalysisState("current");
+          if (mode === "live") calculatedVersionRef.current = workspaceVersion;
+          return;
+        }
+        throw new Error("OpenRocket preview calculation timed out");
+      } catch {
+        if (!cancelled && sequence === analysisSequenceRef.current) setAnalysisState("failed");
+      }
+    }, 1200);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [mode, orkModel, pendingChanges.length, saveState, workspaceVersion]);
 
   async function importOrk(event: ChangeEvent<HTMLInputElement>) {
     if (!can("editOrk")) { setNotice("Your role cannot replace the live OpenRocket file"); event.target.value = ""; return; }
@@ -1168,6 +1271,19 @@ export function MissionControl({
             </div>
           </div>
 
+          {vehicleAnalysis && <section className="vehicle-analysis" data-state={analysisState} aria-label="OpenRocket vehicle analysis">
+            <header><span>OPENROCKET VEHICLE ANALYSIS</span><strong><i />{analysisStateLabel[analysisState]}</strong><small>{analysisState === "current" ? `ORK V${workspaceVersion ?? "—"} · CORE ${analysisEngineVersion || "—"}` : analysisState === "calculating" ? "Last valid result remains visible" : analysisState === "failed" ? "Saved result shown · retry after the next save" : analysisState === "stale" ? "Recalculation starts after autosave" : analysisCalculatedAt ? new Date(analysisCalculatedAt).toLocaleString() : "Read from working ORK"}</small></header>
+            <div className="vehicle-analysis-grid">
+              <div><span>FLIGHT CONFIGURATION</span><strong>{vehicleAnalysis.configuration}</strong><small>Active motor configuration</small></div>
+              <div><span>MASS</span><strong>{vehicleAnalysis.dryMass} <small>kg dry</small></strong><small>{vehicleAnalysis.loadedMass} kg with motors</small></div>
+              <div><span>CG / CP</span><strong>{vehicleAnalysis.cg} / {vehicleAnalysis.cp} <small>mm</small></strong><small>at Mach {vehicleAnalysis.referenceMach}</small></div>
+              <div><span>STABILITY</span><strong>{vehicleAnalysis.stability} <small>cal</small></strong><small>{vehicleAnalysis.stabilityPercent}% of vehicle length</small></div>
+              <div><span>APOGEE</span><strong>{vehicleAnalysis.apogee} <small>m</small></strong><small>OpenRocket calculation</small></div>
+              <div><span>MAX SPEED</span><strong>{vehicleAnalysis.maxVelocity} <small>m/s</small></strong><small>Mach {vehicleAnalysis.maxMach}</small></div>
+              <div><span>MAX ACCELERATION</span><strong>{vehicleAnalysis.maxAcceleration} <small>m/s²</small></strong><small>OpenRocket calculation</small></div>
+            </div>
+          </section>}
+
           <div className="model-stage">
             <div className="rocket-wrap">
               {viewMode === "components" ? (
@@ -1329,7 +1445,7 @@ export function MissionControl({
         </aside>
       </div>}
 
-      {workspaceModule === "simulation" && <SimulationWorkspace key={`${workspace.project.id}:${workspaceVersion ?? "none"}`} model={orkModel} mode={mode} workspaceVersion={workspaceVersion} headers={collaborationHeaders} canRun={can("editOrk") && (mode === "demo" || saveState === "saved")} onNotice={setNotice} onModelChange={updateSimulationModel} />}
+      {workspaceModule === "simulation" && <SimulationWorkspace key={`${workspace.project.id}:${workspaceVersion ?? "none"}`} model={orkModel} mode={mode} workspaceVersion={workspaceVersion} headers={collaborationHeaders} canRun={can("editOrk") && (mode === "demo" || saveState === "saved")} runBlockedReason={!can("editOrk") ? "Your team role cannot edit or calculate this configuration." : saveState === "offline" ? "The simulation setup has not reached the shared file. Co-Roc will retry automatically when the connection recovers." : saveState === "conflict" ? "A teammate saved another version first. Resolve the shared-file conflict before calculating." : saveState !== "saved" ? "The simulation setup is still being written to the shared ORK." : undefined} onNotice={setNotice} onModelChange={updateSimulationModel} />}
       {workspaceModule === "history" && <RevisionWorkspace changes={auditChanges} onOpenComponent={(componentId) => openComponentWorkspace(componentId)} />}
       {(workspaceModule === "tests" || workspaceModule === "documents") && <ProjectRecordWorkspace kind={workspaceModule} components={components} headers={collaborationHeaders} projectId={workspace.project.id} onSelectComponent={(componentId, panel) => openComponentWorkspace(componentId, panel)} onNotice={setNotice} />}
 

@@ -9,10 +9,13 @@ async function source(path) {
 }
 
 test("keeps OpenRocket geometry and live edits traceable", async () => {
-  const [missionControl, openRocket, orkRoute, schema] = await Promise.all([
+  const [missionControl, openRocket, orkRoute, simulationRoute, simulationWorkspace, solver, schema] = await Promise.all([
     source("app/mission-control.tsx"),
     source("lib/openrocket.ts"),
     source("app/api/ork/route.ts"),
+    source("app/api/simulations/route.ts"),
+    source("app/simulation-workspace.tsx"),
+    source("openrocket-service/src/main/java/app/rocketconfiguration/simulation/SimulationServer.java"),
     source("db/schema.ts"),
   ]);
 
@@ -35,11 +38,24 @@ test("keeps OpenRocket geometry and live edits traceable", async () => {
   assert.match(openRocket, /instanceSeparation/);
   assert.match(openRocket, /outerdiameter/);
   assert.match(openRocket, /angleoffset/);
+  assert.match(openRocket, /Motor mass/);
+  assert.match(openRocket, /referenceStability/);
   assert.match(orkRoute, /status: 409/);
   assert.match(orkRoute, /sha256Hex/);
   assert.match(orkRoute, /application\/vnd\.co-roc\.ork/);
+  assert.match(orkRoute, /simulationSetup/);
   assert.match(missionControl, /x-co-roc-file-name/);
   assert.match(missionControl, /responsePayload/);
+  assert.match(missionControl, /runBlockedReason/);
+  assert.match(missionControl, /OpenRocket vehicle analysis/);
+  assert.match(missionControl, /MASS/);
+  assert.match(missionControl, /CG \/ CP/);
+  assert.match(missionControl, /CALCULATING/);
+  assert.match(missionControl, /api\/simulations\?preview=1/);
+  assert.match(simulationRoute, /isPreviewRequest/);
+  assert.match(simulationRoute, /demoRequest \|\| previewRequest/);
+  assert.match(simulationWorkspace, /referenceSample/);
+  assert.match(solver, /TYPE_MOTOR_MASS/);
   assert.match(schema, /orkChanges/);
   assert.match(schema, /orkSnapshots/);
 });
