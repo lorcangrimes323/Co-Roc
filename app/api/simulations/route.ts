@@ -9,6 +9,16 @@ type WorkspaceRow = {
   sha256: string;
 };
 
+type SimulationJobRow = {
+  id: string;
+  project_id: string;
+  ork_version: number;
+  ork_sha256: string;
+  simulation_index: number;
+  run_by_name: string;
+  run_by_email: string;
+};
+
 type SimulationResponse = {
   engine: string;
   engineVersion: string;
@@ -56,13 +66,75 @@ function isDemoRequest(request: Request) {
 
 export async function GET(request: Request) {
   const service = serviceConfiguration(request);
+  const requestUrl = new URL(request.url);
+  const solverJobId = requestUrl.searchParams.get("jobId")?.trim();
+  if (solverJobId) {
+    if (!service.url) return Response.json({ error: "The official OpenRocket Core service is not configured for this deployment." }, { status: 503 });
+    const demoRequest = isDemoRequest(request);
+    const access = demoRequest ? null : await requireProjectAccess(request, "view");
+    if (access && !access.ok) return access.response;
+    let solverResponse: Response;
+    try {
+      solverResponse = await fetch(`${service.url}/jobs?id=${encodeURIComponent(solverJobId)}`, {
+        headers: service.token ? { authorization: `Bearer ${service.token}` } : {},
+        signal: AbortSignal.timeout(20_000),
+      });
+    } catch {
+      return Response.json({ error: "The OpenRocket Core service could not be reached.", code: "SOLVER_OFFLINE" }, { status: 503 });
+    }
+    const solverPayload = await solverResponse.text();
+    if (solverResponse.status === 202) {
+      return new Response(solverPayload, { status: 202, headers: { "content-type": "application/json", "cache-control": "no-store" } });
+    }
+    if (!solverResponse.ok) {
+      return new Response(solverPayload, { status: solverResponse.status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
+    }
+    const completed = JSON.parse(solverPayload) as { result?: SimulationResponse };
+    if (!completed.result) return Response.json({ error: "The solver returned an incomplete job result." }, { status: 502 });
+    if (demoRequest) return Response.json({ result: completed.result, demo: true });
+
+    await ensureSimulationSchema();
+    const { DB, FILES } = getSimulationEnvironment();
+    const projectId = access!.access.project.id;
+    const job = await DB.prepare(`SELECT id, project_id, ork_version, ork_sha256, simulation_index,
+        run_by_name, run_by_email FROM simulation_jobs WHERE id = ? AND project_id = ?`)
+      .bind(solverJobId, projectId).first<SimulationJobRow>();
+    if (!job) return Response.json({ error: "Simulation job not found for this project." }, { status: 404 });
+    const result = completed.result;
+    const bytes = new TextEncoder().encode(JSON.stringify(result));
+    const runId = crypto.randomUUID();
+    const objectKey = `${projectId}/simulations/${runId}.json`;
+    if (!await reserveProjectStorage(projectId, bytes.byteLength, 1)) {
+      return Response.json({ error: "This project has reached its storage limit." }, { status: 413 });
+    }
+    try {
+      await FILES.put(objectKey, bytes, { httpMetadata: { contentType: "application/json" } });
+      await DB.prepare(`INSERT INTO simulation_runs (
+        id, project_id, ork_version, ork_sha256, simulation_index, simulation_name,
+        engine, engine_version, result_object_key, max_altitude, max_velocity,
+        max_acceleration, max_mach, warning_count, run_by_name, run_by_email
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .bind(
+          runId, projectId, job.ork_version, job.ork_sha256, job.simulation_index, result.name,
+          result.engine, result.engineVersion, objectKey, result.summary.maxAltitude,
+          result.summary.maxVelocity, result.summary.maxAcceleration, result.summary.maxMach,
+          result.warnings.length, job.run_by_name, job.run_by_email,
+        ).run();
+      await DB.prepare(`DELETE FROM simulation_jobs WHERE id = ? AND project_id = ?`).bind(solverJobId, projectId).run();
+    } catch {
+      await FILES.delete(objectKey);
+      await releaseProjectStorage(projectId, bytes.byteLength, 1);
+      return Response.json({ error: "The simulation completed but its traceable result could not be stored." }, { status: 503 });
+    }
+    return Response.json({ runId, orkVersion: job.ork_version, orkSha256: job.ork_sha256, result }, { status: 201 });
+  }
   if (isDemoRequest(request)) return Response.json({ configured: Boolean(service.url), runs: [] });
   const access = await requireProjectAccess(request, "view");
   if (!access.ok) return access.response;
   await ensureSimulationSchema();
   const { DB, FILES } = getSimulationEnvironment();
   const projectId = access.access.project.id;
-  const runId = new URL(request.url).searchParams.get("runId")?.trim();
+  const runId = requestUrl.searchParams.get("runId")?.trim();
   if (runId) {
     const row = await DB.prepare(`SELECT result_object_key FROM simulation_runs WHERE id = ? AND project_id = ?`)
       .bind(runId, projectId).first<{ result_object_key: string }>();
@@ -118,7 +190,7 @@ export async function POST(request: Request) {
 
   let solverResponse: Response;
   try {
-    solverResponse = await fetch(`${service.url}/simulate?index=${simulationIndex}`, {
+    solverResponse = await fetch(`${service.url}/jobs?index=${simulationIndex}`, {
       method: "POST",
       headers: {
         "content-type": "application/octet-stream",
@@ -126,10 +198,7 @@ export async function POST(request: Request) {
         ...(encodedOptions(options) ? { "x-openrocket-options": encodedOptions(options) } : {}),
       },
       body: previewBytes ?? await ork!.arrayBuffer(),
-      // Free solver instances have a small CPU allocation and may need several
-      // minutes for complex high-power configurations. Keep the request bounded,
-      // but do not discard a valid OpenRocket run at the former two-minute limit.
-      signal: AbortSignal.timeout(600_000),
+      signal: AbortSignal.timeout(30_000),
     });
   } catch {
     return Response.json({ error: "The OpenRocket Core service could not be reached.", code: "SOLVER_OFFLINE" }, { status: 503 });
@@ -139,31 +208,19 @@ export async function POST(request: Request) {
     return new Response(payload, { status: solverResponse.status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
   }
 
-  const result = JSON.parse(payload) as SimulationResponse;
-  if (previewBytes) return Response.json({ result, demo: true }, { status: 200 });
-  const bytes = new TextEncoder().encode(payload);
-  const runId = crypto.randomUUID();
-  const objectKey = `${projectId}/simulations/${runId}.json`;
-  if (!await reserveProjectStorage(projectId, bytes.byteLength, 1)) {
-    return Response.json({ error: "This project has reached its storage limit." }, { status: 413 });
-  }
+  const queued = JSON.parse(payload) as { jobId?: string; status?: string };
+  if (!queued.jobId) return Response.json({ error: "The solver did not create a background job." }, { status: 502 });
+  if (previewBytes) return Response.json(queued, { status: 202 });
   try {
-    await FILES.put(objectKey, bytes, { httpMetadata: { contentType: "application/json" } });
-    await DB.prepare(`INSERT INTO simulation_runs (
-      id, project_id, ork_version, ork_sha256, simulation_index, simulation_name,
-      engine, engine_version, result_object_key, max_altitude, max_velocity,
-      max_acceleration, max_mach, warning_count, run_by_name, run_by_email
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    await DB.prepare(`INSERT INTO simulation_jobs (
+      id, project_id, ork_version, ork_sha256, simulation_index, run_by_name, run_by_email
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)`)
       .bind(
-        runId, projectId, workspace!.version, workspace!.sha256, simulationIndex, result.name,
-        result.engine, result.engineVersion, objectKey, result.summary.maxAltitude,
-        result.summary.maxVelocity, result.summary.maxAcceleration, result.summary.maxMach,
-        result.warnings.length, access!.access.user.displayName, access!.access.user.email,
+        queued.jobId, projectId, workspace!.version, workspace!.sha256, simulationIndex,
+        access!.access.user.displayName, access!.access.user.email,
       ).run();
   } catch {
-    await FILES.delete(objectKey);
-    await releaseProjectStorage(projectId, bytes.byteLength, 1);
-    return Response.json({ error: "The simulation completed but its traceable result could not be stored." }, { status: 503 });
+    return Response.json({ error: "The simulation job was created but could not be recorded." }, { status: 503 });
   }
-  return Response.json({ runId, orkVersion: workspace!.version, orkSha256: workspace!.sha256, result }, { status: 201 });
+  return Response.json(queued, { status: 202 });
 }

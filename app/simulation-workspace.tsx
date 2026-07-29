@@ -277,7 +277,16 @@ export function SimulationWorkspace({ model, mode, workspaceVersion, headers, ca
           body: JSON.stringify({ simulationIndex: selectedCase.sourceIndex, options: selectedCase.options }),
         });
       }
-      const payload = await response.json() as { error?: string; result?: LiveResult };
+      let payload = await response.json() as { error?: string; result?: LiveResult; jobId?: string; status?: string };
+      if (response.status === 202 && payload.jobId) {
+        const jobUrl = `${simulationEndpoint}${simulationEndpoint.includes("?") ? "&" : "?"}jobId=${encodeURIComponent(payload.jobId)}`;
+        for (let attempt = 0; attempt < 450; attempt += 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 2_000));
+          response = await fetch(jobUrl, { headers: headers(), cache: "no-store" });
+          payload = await response.json() as { error?: string; result?: LiveResult; jobId?: string; status?: string };
+          if (response.status !== 202) break;
+        }
+      }
       if (!response.ok || !payload.result) throw new Error(payload.error || "OpenRocket simulation failed");
       setCalculated(liveToSimulation(payload.result, selectedCase.simulation));
       setCalculatedAt(payload.result.calculatedAt);
