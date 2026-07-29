@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: co-roc-openrocket
+    runtime: docker
+    repo: https://github.com/lorcangrimes323/Co-Roc
+    branch: agent/openrocket-simulation-workspace
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./openrocket-service/Dockerfile
+    dockerContext: ./openrocket-service
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: SIMULATION_SERVICE_TOKEN
+        sync: false
