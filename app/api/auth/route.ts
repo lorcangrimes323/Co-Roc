@@ -1,6 +1,7 @@
 import { clearSessionCookie, cookieValue, createAccountSession, deleteAccountSession, getAccountUserFromCookieHeader, hashPassword, PASSWORD_ITERATIONS, SESSION_COOKIE, sessionCookie, sha256, verifyPassword } from "../../account-auth";
 import { ensureAccountSchema, getAccountEnvironment } from "../../../db/account-store";
 import { ensureAccessSchema } from "../../../db/access-store";
+import { hasTrustedRequestOrigin } from "../../request-origin";
 
 type StoredAccount = { id: string; email: string; display_name: string; password_hash: string; password_salt: string; password_iterations: number };
 type AttemptRow = { attempts: number; window_started_at: string; locked_until: string | null };
@@ -16,12 +17,6 @@ function validEmail(value: string) {
 
 function normalizedTeamCode(value: unknown) {
   return clean(value, 40).toUpperCase().replace(/[^A-Z0-9]/g, "");
-}
-
-function sameOrigin(request: Request) {
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-  try { return new URL(origin).host === new URL(request.url).host; } catch { return false; }
 }
 
 async function attemptKey(request: Request, email: string) {
@@ -57,7 +52,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!sameOrigin(request)) return Response.json({ error: "Invalid request origin." }, { status: 403 });
+  if (!hasTrustedRequestOrigin(request)) return Response.json({ error: "Invalid request origin." }, { status: 403 });
   await ensureAccountSchema();
   let body: Record<string, unknown>;
   try { body = await request.json() as Record<string, unknown>; } catch { return Response.json({ error: "A valid request is required." }, { status: 400 }); }
@@ -142,7 +137,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  if (!sameOrigin(request)) return Response.json({ error: "Invalid request origin." }, { status: 403 });
+  if (!hasTrustedRequestOrigin(request)) return Response.json({ error: "Invalid request origin." }, { status: 403 });
   const token = cookieValue(request.headers.get("cookie"), SESSION_COOKIE);
   await deleteAccountSession(token);
   return Response.json({ signedOut: true }, { headers: { "set-cookie": clearSessionCookie(request.url) } });
