@@ -3,6 +3,10 @@
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RocketViewer, RocketViewerHandle } from "./rocket-viewer";
 import { RocketSectionHandle, RocketSectionView } from "./rocket-section-view";
+import { ProjectRecordWorkspace } from "./project-record-workspace";
+import { RevisionWorkspace } from "./revision-workspace";
+import { SimulationWorkspace } from "./simulation-workspace";
+import { WorkspaceIcon } from "./workspace-icon";
 import {
   OpenRocketEditableField,
   OpenRocketModel,
@@ -16,6 +20,7 @@ import type { ActiveWorkspace, WorkspaceIdentity, WorkspaceTeam } from "./worksp
 type ComponentStatus = "verified" | "review" | "draft";
 type ThemeMode = "light" | "dark" | "system";
 type SaveState = "loading" | "saved" | "draft" | "saving" | "conflict" | "offline";
+type WorkspaceModule = "configuration" | "simulation" | "history" | "tests" | "documents";
 
 type PendingChange = {
   id: string;
@@ -347,10 +352,6 @@ function StatusDot({ status }: { status: ComponentStatus }) {
   return <span className={`status-dot status-${status}`} aria-label={status} />;
 }
 
-function Icon({ children }: { children: React.ReactNode }) {
-  return <span className="icon-box" aria-hidden="true">{children}</span>;
-}
-
 export function MissionControl({
   user,
   mode,
@@ -376,6 +377,7 @@ export function MissionControl({
   const [revisionName, setRevisionName] = useState("STR-410 mass update");
   const [orkModel, setOrkModel] = useState<OpenRocketModel | null>(null);
   const [viewMode, setViewMode] = useState<"components" | "3d">("components");
+  const [workspaceModule, setWorkspaceModule] = useState<WorkspaceModule>("configuration");
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
   const [accent, setAccent] = useState("#c92335");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -407,6 +409,19 @@ export function MissionControl({
   const can = (permission: WorkspaceTeam["permissions"][number]) => mode === "demo" ? permission === "view" || permission === "editOrk" : workspace.team.permissions.includes(permission);
   const availableProjects = teams.flatMap((team) => team.projects.map((project) => ({ ...project, teamName: team.name })));
   const visibleMembers = workspace.team.members.slice(0, 3);
+  const moduleLabel: Record<WorkspaceModule, string> = {
+    configuration: "CONFIGURATION",
+    simulation: "SIMULATION",
+    history: "REVISION HISTORY",
+    tests: "TEST REGISTER",
+    documents: "DOCUMENTATION",
+  };
+
+  function openComponentWorkspace(componentId: string, panel: "records" | "tests" | "properties" = "properties") {
+    setSelectedId(componentId);
+    setActivePanel(panel);
+    setWorkspaceModule("configuration");
+  }
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem("rocket-theme");
@@ -669,6 +684,30 @@ export function MissionControl({
       }
     }
     setNotice(`${selected.code} has unsaved changes`);
+  }
+
+  function updateSimulationModel(nextModel: OpenRocketModel, change: { simulationId: string; name: string; editing: boolean }) {
+    orkModelRef.current = nextModel;
+    setOrkModel(nextModel);
+    setSaveState("draft");
+    if (mode === "demo") {
+      setNotice(`${change.name} saved in the local demo ORK; demo data is not uploaded`);
+      return;
+    }
+    const pending: PendingChange = {
+      id: crypto.randomUUID(),
+      componentId: change.simulationId,
+      componentCode: `SIM-${String(nextModel.simulations.findIndex((item) => item.id === change.simulationId) + 1).padStart(3, "0")}`,
+      field: "simulationSetup",
+      previousValue: change.editing ? "Previous simulation conditions" : "No simulation definition",
+      nextValue: change.name,
+    };
+    setPendingChanges((items) => {
+      const next = [...items.filter((item) => !(item.componentId === pending.componentId && item.field === "simulationSetup")), pending];
+      pendingChangesRef.current = next;
+      return next;
+    });
+    setConflictMessage("");
   }
 
   useEffect(() => {
@@ -1002,12 +1041,13 @@ export function MissionControl({
       </header>
 
       <aside className="rail">
-        <button className="rail-button rail-active" type="button" aria-label="Vehicle workspace"><Icon>◇</Icon></button>
-        <button className="rail-button" type="button" aria-label="Documents"><Icon>▱</Icon></button>
-        <button className="rail-button" type="button" aria-label="Revisions"><Icon>↺</Icon></button>
-        <button className="rail-button" type="button" aria-label="Flight data"><Icon>⌁</Icon></button>
+        <button className={`rail-button ${workspaceModule === "configuration" ? "rail-active" : ""}`} type="button" aria-label="Configuration" data-label="Configuration" onClick={() => setWorkspaceModule("configuration")}><WorkspaceIcon name="configuration" /></button>
+        <button className={`rail-button ${workspaceModule === "simulation" ? "rail-active" : ""}`} type="button" aria-label="Simulation" data-label="Simulation" onClick={() => setWorkspaceModule("simulation")}><WorkspaceIcon name="simulation" /></button>
+        <button className={`rail-button ${workspaceModule === "history" ? "rail-active" : ""}`} type="button" aria-label="Revision history" data-label="Revision history" onClick={() => { setWorkspaceModule("history"); void refreshHistory(); }}><WorkspaceIcon name="history" /></button>
+        <button className={`rail-button ${workspaceModule === "tests" ? "rail-active" : ""}`} type="button" aria-label="Tests" data-label="Tests" onClick={() => setWorkspaceModule("tests")}><WorkspaceIcon name="tests" /></button>
+        <button className={`rail-button ${workspaceModule === "documents" ? "rail-active" : ""}`} type="button" aria-label="Documentation" data-label="Documentation" onClick={() => setWorkspaceModule("documents")}><WorkspaceIcon name="documents" /></button>
         <div className="rail-spacer" />
-        <button className={`rail-button ${settingsOpen ? "rail-settings-active" : ""}`} type="button" aria-label="Theme settings" aria-expanded={settingsOpen} onClick={() => setSettingsOpen((open) => !open)}><Icon>⚙</Icon></button>
+        <button className={`rail-button ${settingsOpen ? "rail-settings-active" : ""}`} type="button" aria-label="Theme settings" data-label="Appearance" aria-expanded={settingsOpen} onClick={() => setSettingsOpen((open) => !open)}><WorkspaceIcon name="settings" /></button>
       </aside>
 
       {settingsOpen && (
@@ -1030,13 +1070,13 @@ export function MissionControl({
 
       <section className="workspace-header">
         <div>
-          <div className="breadcrumbs">{workspace.team.name.toUpperCase()} / {workspace.project.name.toUpperCase()} / <strong>CONFIGURATION</strong></div>
+          <div className="breadcrumbs">{workspace.team.name.toUpperCase()} / {workspace.project.name.toUpperCase()} / <strong>{moduleLabel[workspaceModule]}</strong></div>
           <div className="workspace-title-row">
             <h1>{orkModel?.name || workspace.project.name}</h1>
             <span className="revision-badge"><span /> {mode === "demo" ? "DEMO · LOCAL" : `WORKING · V${workspaceVersion ?? "—"}`}</span>
           </div>
         </div>
-        <div className="workspace-actions">
+        {workspaceModule === "configuration" && <div className="workspace-actions">
           <input ref={fileInput} className="visually-hidden" type="file" accept=".ork" onChange={importOrk} />
           <button className="button button-secondary" type="button" onClick={() => fileInput.current?.click()} disabled={!can("editOrk")}>
             <span>⇧</span> Import .ORK
@@ -1047,18 +1087,26 @@ export function MissionControl({
           <button className="button button-primary" type="button" onClick={() => setRevisionOpen(true)} disabled={!can("createRevision")} title={!can("createRevision") ? "Your role cannot create revisions" : undefined}>
             <span>＋</span> Create revision
           </button>
-        </div>
+        </div>}
       </section>
 
       <section className="metrics-strip" aria-label="Vehicle summary">
-        <div className="metric"><span>VEHICLE LENGTH</span><strong>{Math.round((orkModel?.length ?? 0) * 1000).toLocaleString()} <small>mm</small></strong></div>
-        <div className="metric"><span>MAX DIAMETER</span><strong>{Math.round((orkModel?.maxRadius ?? 0) * 2000)} <small>mm</small></strong></div>
-        <div className="metric"><span>PARSED COMPONENTS</span><strong>{orkModel?.components.length ?? 0} <small>items</small></strong></div>
-        <div className="metric"><span>DOCUMENTATION</span><strong>87 <small>%</small></strong><i><b style={{ width: "87%" }} /></i></div>
-        <div className="metric metric-alert"><span>OPEN REVIEWS</span><strong>03</strong><em>Action required</em></div>
+        {workspaceModule === "simulation" ? <>
+          <div className="metric"><span>SAVED CASES</span><strong>{orkModel?.simulations.length ?? 0} <small>runs</small></strong></div>
+          <div className="metric"><span>APOGEE · CASE 1</span><strong>{orkModel?.simulations[0] ? Math.round(orkModel.simulations[0].maxAltitude).toLocaleString() : "—"} <small>m</small></strong></div>
+          <div className="metric"><span>MAX SPEED · CASE 1</span><strong>{orkModel?.simulations[0] ? orkModel.simulations[0].maxVelocity.toFixed(1) : "—"} <small>m/s</small></strong></div>
+          <div className="metric"><span>MAX MACH · CASE 1</span><strong>{orkModel?.simulations[0] ? orkModel.simulations[0].maxMach.toFixed(3) : "—"}</strong></div>
+          <div className="metric metric-alert"><span>WARNINGS · CASE 1</span><strong>{orkModel?.simulations[0]?.warnings.length ?? 0}</strong><em>Review</em></div>
+        </> : <>
+          <div className="metric"><span>VEHICLE LENGTH</span><strong>{Math.round((orkModel?.length ?? 0) * 1000).toLocaleString()} <small>mm</small></strong></div>
+          <div className="metric"><span>MAX DIAMETER</span><strong>{Math.round((orkModel?.maxRadius ?? 0) * 2000)} <small>mm</small></strong></div>
+          <div className="metric"><span>PARSED COMPONENTS</span><strong>{orkModel?.components.length ?? 0} <small>items</small></strong></div>
+          <div className="metric"><span>SAVED SIMULATIONS</span><strong>{orkModel?.simulations.length ?? 0} <small>cases</small></strong></div>
+          <div className="metric"><span>WORKING VERSION</span><strong>{workspaceVersion ?? "—"}</strong><em>{saveState === "saved" ? "Current" : saveState}</em></div>
+        </>}
       </section>
 
-      <div className="main-grid">
+      {workspaceModule === "configuration" && <div className="main-grid">
         <aside className="component-panel panel">
           <div className="panel-heading">
             <div><span className="eyebrow">STRUCTURE</span><h2>Component tree</h2></div>
@@ -1270,7 +1318,11 @@ export function MissionControl({
           )}
           </>)}
         </aside>
-      </div>
+      </div>}
+
+      {workspaceModule === "simulation" && <SimulationWorkspace key={`${workspace.project.id}:${workspaceVersion ?? "none"}`} model={orkModel} mode={mode} workspaceVersion={workspaceVersion} headers={collaborationHeaders} canRun={can("editOrk") && (mode === "demo" || saveState === "saved")} onNotice={setNotice} onModelChange={updateSimulationModel} />}
+      {workspaceModule === "history" && <RevisionWorkspace changes={auditChanges} onOpenComponent={(componentId) => openComponentWorkspace(componentId)} />}
+      {(workspaceModule === "tests" || workspaceModule === "documents") && <ProjectRecordWorkspace kind={workspaceModule} components={components} headers={collaborationHeaders} projectId={workspace.project.id} onSelectComponent={(componentId, panel) => openComponentWorkspace(componentId, panel)} onNotice={setNotice} />}
 
       {saveState === "conflict" && <div className="conflict-banner"><span><strong>Live save paused.</strong> {conflictMessage || "A teammate saved a newer working copy."}</span><button type="button" onClick={reloadSharedOrk}>Reload shared file</button></div>}
 

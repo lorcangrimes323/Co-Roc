@@ -30,6 +30,8 @@ yarn-error.log*
 .sites-dev.*.log
 .sites-*.log
 .ork-*.tmp
+.simulation-ui.*.log
+/openrocket-service/target/
 
 # env files (can opt-in for committing if needed)
 .env*
