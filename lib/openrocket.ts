@@ -257,6 +257,12 @@ function parseSimulations(document: XMLDocument, referenceDiameter: number): Ope
     const averageWind = winds.find((item) => item.getAttribute("model") === "average") ?? wind;
     const multiLevelWind = winds.find((item) => item.getAttribute("model") === "multilevel");
     const atmosphere = conditions ? child(conditions, "atmosphere") : null;
+    const rawLaunchRodAngle = number(conditions, "launchrodangle");
+    const rawLaunchRodDirection = number(conditions, "launchroddirection");
+    const angleUnit = conditions?.getAttribute("coroc-angle-unit");
+    const legacyCoRocRadians = angleUnit !== "degrees"
+      && Boolean(child(simulation, "id"))
+      && Math.abs(rawLaunchRodDirection) <= Math.PI * 2 + 1e-9;
     const summary = (attribute: string) => finiteNumber(flightData?.getAttribute(attribute));
     const configurationId = text(conditions, "configid");
     const referenceCg = launchCgSample?.cg ?? Number.NaN;
@@ -273,8 +279,8 @@ function parseSimulations(document: XMLDocument, referenceDiameter: number): Ope
       windSpeed: number(averageWind, "speed", number(conditions, "windaverage")),
       launchRodLength: number(conditions, "launchrodlength"),
       launchIntoWind: text(conditions, "launchintowind", "true") !== "false",
-      launchRodAngle: number(conditions, "launchrodangle"),
-      launchRodDirection: number(conditions, "launchroddirection"),
+      launchRodAngle: legacyCoRocRadians ? rawLaunchRodAngle * 180 / Math.PI : rawLaunchRodAngle,
+      launchRodDirection: legacyCoRocRadians ? rawLaunchRodDirection * 180 / Math.PI : rawLaunchRodDirection,
       launchAltitude: number(conditions, "launchaltitude"),
       launchLatitude: number(conditions, "launchlatitude"),
       launchLongitude: number(conditions, "launchlongitude"),
@@ -769,8 +775,9 @@ export function saveOpenRocketSimulation(
   }
   setXmlValue(document, conditions, "launchrodlength", String(setup.launchRodLength));
   setXmlValue(document, conditions, "launchintowind", String(setup.launchIntoWind));
-  setXmlValue(document, conditions, "launchrodangle", String(setup.launchRodAngleDegrees * Math.PI / 180));
-  setXmlValue(document, conditions, "launchroddirection", String(setup.launchRodDirectionDegrees * Math.PI / 180));
+  conditions.setAttribute("coroc-angle-unit", "degrees");
+  setXmlValue(document, conditions, "launchrodangle", String(setup.launchRodAngleDegrees));
+  setXmlValue(document, conditions, "launchroddirection", String(setup.launchRodDirectionDegrees));
   setXmlValue(document, conditions, "windaverage", String(setup.windSpeed));
   setXmlValue(document, conditions, "winddeviation", String(setup.windDeviation));
   setXmlValue(document, conditions, "windturbulence", String(setup.windTurbulence));

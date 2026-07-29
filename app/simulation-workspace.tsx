@@ -51,8 +51,8 @@ function optionsFromSimulation(simulation: OpenRocketSimulation, name = simulati
     name,
     launchRodLength: simulation.launchRodLength,
     launchIntoWind: simulation.launchIntoWind,
-    launchRodAngleDegrees: degrees(simulation.launchRodAngle),
-    launchRodDirectionDegrees: degrees(simulation.launchRodDirection),
+    launchRodAngleDegrees: simulation.launchRodAngle,
+    launchRodDirectionDegrees: simulation.launchRodDirection,
     windModelType: simulation.windModelType.toUpperCase().includes("MULTI") ? "MULTI_LEVEL" : "AVERAGE",
     windSpeed: simulation.windSpeed,
     windDeviation: simulation.windDeviation,
@@ -297,17 +297,21 @@ export function SimulationWorkspace({ model, mode, workspaceVersion, headers, ca
           body: JSON.stringify({ simulationIndex: selectedCase.sourceIndex, options: selectedCase.options }),
         });
       }
-      let payload = await response.json() as { error?: string; result?: LiveResult; jobId?: string; status?: string };
+      let payload = await response.json() as { error?: string; detail?: string; failure?: { error?: string; detail?: string }; result?: LiveResult; jobId?: string; status?: string };
       if (response.status === 202 && payload.jobId) {
         const jobUrl = `${simulationEndpoint}${simulationEndpoint.includes("?") ? "&" : "?"}jobId=${encodeURIComponent(payload.jobId)}`;
         for (let attempt = 0; attempt < 450; attempt += 1) {
           await new Promise((resolve) => window.setTimeout(resolve, 2_000));
           response = await fetch(jobUrl, { headers: headers(), cache: "no-store" });
-          payload = await response.json() as { error?: string; result?: LiveResult; jobId?: string; status?: string };
+          payload = await response.json() as { error?: string; detail?: string; failure?: { error?: string; detail?: string }; result?: LiveResult; jobId?: string; status?: string };
           if (response.status !== 202) break;
         }
       }
-      if (!response.ok || !payload.result) throw new Error(payload.error || "OpenRocket simulation failed");
+      if (!response.ok || !payload.result) {
+        const summary = payload.error || payload.failure?.error || "OpenRocket simulation failed";
+        const detail = payload.detail || payload.failure?.detail;
+        throw new Error(detail && detail !== summary ? `${summary}: ${detail}` : summary);
+      }
       const completed = liveToSimulation(payload.result, selectedCase.simulation, model.maxRadius * 2);
       const persisted = saveOpenRocketSimulationResult(model, selectedCase.sourceIndex, completed);
       setCalculated(completed);

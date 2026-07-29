@@ -59,6 +59,8 @@ test("keeps OpenRocket geometry and live edits traceable", async () => {
   assert.match(missionControl, /configuration-pane-widths/);
   assert.match(missionControl, /pane-resizer-tree/);
   assert.match(missionControl, /pane-resizer-record/);
+  assert.match(missionControl, /WORKING VERSION<\/span><strong>\{workspaceVersion \?\? "—"\} <small>/);
+  assert.doesNotMatch(missionControl, /WORKING VERSION<\/span><strong>\{workspaceVersion \?\? "—"\}<\/strong><em>/);
   assert.match(missionControl, /CG:/);
   assert.match(missionControl, /CP:/);
   assert.match(missionControl, /CALCULATING/);
@@ -72,6 +74,11 @@ test("keeps OpenRocket geometry and live edits traceable", async () => {
   assert.match(simulationWorkspace, /referenceSample/);
   assert.match(simulationWorkspace, /motorMassSample/);
   assert.match(simulationWorkspace, /saveOpenRocketSimulationResult/);
+  assert.match(simulationWorkspace, /launchRodDirectionDegrees: simulation\.launchRodDirection/);
+  assert.match(simulationWorkspace, /payload\.failure\?\.detail/);
+  assert.match(solver, /launchRodDirectionDegrees/);
+  assert.match(openRocket, /coroc-angle-unit/);
+  assert.match(openRocket, /legacyCoRocRadians/);
   assert.match(solver, /TYPE_MOTOR_MASS/);
   assert.match(solver, /launchMotorMass/);
   assert.match(solver, /awaitCore/);
@@ -126,6 +133,11 @@ test("uses site accounts, separates demo data and recovers local drafts", async 
   assert.match(portal, /Team code/);
   assert.match(portal, /\/api\/auth/);
   assert.doesNotMatch(portal, /QPL|LOCAL ROLE CHECK/);
+  const styles = await source("app/globals.css");
+  assert.match(styles, /\.access-page \{ height: 100vh; height: 100dvh;/);
+  assert.match(styles, /overflow-y: auto/);
+  assert.match(styles, /@media \(max-height: 760px\)/);
+  assert.match(styles, /@media \(max-width: 420px\)/);
   assert.match(authRoute, /verifyPassword/);
   assert.match(authRoute, /Too many sign-in attempts/);
   assert.match(accountAuth, /PBKDF2/);

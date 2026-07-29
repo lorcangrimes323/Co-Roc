@@ -1276,7 +1276,7 @@ export function MissionControl({
           <div className="metric"><span>MAX DIAMETER</span><strong>{Math.round((orkModel?.maxRadius ?? 0) * 2000)} <small>mm</small></strong></div>
           <div className="metric"><span>PARSED COMPONENTS</span><strong>{orkModel?.components.length ?? 0} <small>items</small></strong></div>
           <div className="metric"><span>SAVED SIMULATIONS</span><strong>{orkModel?.simulations.length ?? 0} <small>cases</small></strong></div>
-          <div className="metric"><span>WORKING VERSION</span><strong>{workspaceVersion ?? "—"}</strong><em>{saveState === "saved" ? "Current" : saveState}</em></div>
+          <div className="metric"><span>WORKING VERSION</span><strong>{workspaceVersion ?? "—"} <small>{saveState === "saved" ? "Current" : saveState}</small></strong></div>
         </>}
       </section>
 
