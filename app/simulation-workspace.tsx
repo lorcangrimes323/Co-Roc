@@ -213,10 +213,11 @@ export function SimulationWorkspace({ model, mode, workspaceVersion, headers, ca
   })), [saved]);
   const selectedCase = cases.find((item) => item.id === selectedId) ?? cases[0] ?? null;
   const selected = calculated ?? selectedCase?.simulation ?? null;
+  const simulationEndpoint = mode === "demo" ? "/api/simulations?demo=1" : "/api/simulations";
 
   async function refreshRuns() {
     try {
-      const response = await fetch("/api/simulations", { headers: headers(), cache: "no-store" });
+      const response = await fetch(simulationEndpoint, { headers: headers(), cache: "no-store" });
       if (!response.ok) return;
       const payload = await response.json() as { configured?: boolean; runs?: RunRow[] };
       setConfigured(Boolean(payload.configured));
@@ -226,7 +227,7 @@ export function SimulationWorkspace({ model, mode, workspaceVersion, headers, ca
 
   useEffect(() => {
     let active = true;
-    fetch("/api/simulations", { headers: headers(), cache: "no-store" })
+    fetch(simulationEndpoint, { headers: headers(), cache: "no-store" })
       .then((response) => response.ok ? response.json() as Promise<{ configured?: boolean; runs?: RunRow[] }> : null)
       .then((payload) => {
         if (!active || !payload) return;
@@ -264,13 +265,13 @@ export function SimulationWorkspace({ model, mode, workspaceVersion, headers, ca
       let response: Response;
       if (mode === "demo") {
         const bytes = await encodeOpenRocketAsync(model);
-        response = await fetch("/api/simulations", {
+        response = await fetch(simulationEndpoint, {
           method: "POST",
           headers: { ...headers(), "content-type": "application/octet-stream", "x-simulation-index": String(selectedCase.sourceIndex), "x-simulation-options": JSON.stringify(selectedCase.options) },
           body: bytes,
         });
       } else {
-        response = await fetch("/api/simulations", {
+        response = await fetch(simulationEndpoint, {
           method: "POST",
           headers: { ...headers(), "content-type": "application/json" },
           body: JSON.stringify({ simulationIndex: selectedCase.sourceIndex, options: selectedCase.options }),
