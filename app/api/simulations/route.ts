@@ -99,8 +99,8 @@ export async function POST(request: Request) {
   if (!Number.isInteger(simulationIndex) || simulationIndex < 0 || simulationIndex > 100) {
     return Response.json({ error: "A valid simulation index is required." }, { status: 400 });
   }
-  if (previewBytes && previewBytes.byteLength > 2_000_000) {
-    return Response.json({ error: "Demo simulations are limited to 2 MB OpenRocket files." }, { status: 413 });
+  if (previewBytes && previewBytes.byteLength > 8_000_000) {
+    return Response.json({ error: "Demo simulations are limited to 8 MB OpenRocket files." }, { status: 413 });
   }
 
   await ensureOrkSchema();
