@@ -6,6 +6,9 @@
   "compatibility_date": "2026-05-22",
   "compatibility_flags": ["nodejs_compat"],
   "preview_urls": false,
+  "vars": {
+    "OPENROCKET_SIM_URL": "https://co-roc-openrocket.onrender.com"
+  },
   "d1_databases": [
     {
       "binding": "DB",
