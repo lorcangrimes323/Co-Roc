@@ -9,8 +9,9 @@ async function source(path) {
 }
 
 test("keeps OpenRocket geometry and live edits traceable", async () => {
-  const [missionControl, openRocket, orkRoute, simulationRoute, simulationWorkspace, solver, schema] = await Promise.all([
+  const [missionControl, styles, openRocket, orkRoute, simulationRoute, simulationWorkspace, solver, schema] = await Promise.all([
     source("app/mission-control.tsx"),
+    source("app/globals.css"),
     source("lib/openrocket.ts"),
     source("app/api/ork/route.ts"),
     source("app/api/simulations/route.ts"),
@@ -56,9 +57,13 @@ test("keeps OpenRocket geometry and live edits traceable", async () => {
   assert.match(missionControl, /CP:/);
   assert.match(missionControl, /CALCULATING/);
   assert.match(missionControl, /api\/simulations\?preview=1/);
+  assert.match(styles, /--analysis-top-zone: 108px/);
+  assert.match(styles, /--analysis-bottom-zone: 128px/);
+  assert.match(styles, /inset: var\(--analysis-top-zone\) 0 var\(--analysis-bottom-zone\)/);
   assert.match(simulationRoute, /isPreviewRequest/);
   assert.match(simulationRoute, /demoRequest \|\| previewRequest/);
   assert.match(simulationWorkspace, /referenceSample/);
+  assert.match(simulationWorkspace, /motorMassSample/);
   assert.match(solver, /TYPE_MOTOR_MASS/);
   assert.match(solver, /launchMotorMass/);
   assert.match(solver, /awaitCore/);

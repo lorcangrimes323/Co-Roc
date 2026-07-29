@@ -505,13 +505,13 @@ button { color: inherit; }
 .analysis-readout { position: absolute; display: flex; flex-direction: column; gap: 1px; padding: 0; text-shadow: 0 1px 0 var(--ink-2); }
 .analysis-readout strong { color: var(--text); font-weight: 650; }
 .analysis-readout span, .analysis-readout small { color: var(--muted); }
-.analysis-vehicle { top: 16px; left: 16px; }
-.analysis-stability { top: 16px; right: 16px; align-items: flex-end; text-align: right; }
-.analysis-flight { left: 16px; bottom: 50px; color: var(--accent); }
+.analysis-vehicle { top: 14px; left: 18px; max-width: 44%; }
+.analysis-stability { top: 14px; right: 18px; max-width: 44%; align-items: flex-end; text-align: right; }
+.analysis-flight { left: 18px; bottom: 16px; max-width: 48%; color: var(--accent); }
 .analysis-flight strong, .analysis-flight span { color: currentColor; }
 .analysis-marker { width: 8px; height: 8px; display: inline-block; margin-right: 5px; border-radius: 50%; vertical-align: -1px; background: #2457ff; box-shadow: inset 0 0 0 1px #fff; }
 .analysis-marker.marker-cp { background: #f22029; }
-.analysis-state { position: absolute; right: 16px; bottom: 50px; display: flex; align-items: center; color: var(--green); font-size: 9px; letter-spacing: .05em; }
+.analysis-state { position: absolute; right: 18px; bottom: 16px; display: flex; align-items: center; color: var(--green); font-size: 9px; letter-spacing: .05em; }
 .analysis-state i { width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: currentColor; }
 .analysis-state small { color: var(--faint); }
 .vehicle-analysis[data-state="stale"] .analysis-state, .vehicle-analysis[data-state="calculating"] .analysis-state { color: var(--amber); }
@@ -526,14 +526,14 @@ button { color: inherit; }
 .roll-control-compact label { padding: 0 4px 0 8px; }
 .roll-control-compact input { display: none; }
 .roll-control-compact output { width: 34px; }
-.model-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; background: var(--ink-2); }
+.model-stage { --analysis-top-zone: 108px; --analysis-bottom-zone: 128px; position: relative; flex: 1; min-height: 0; overflow: hidden; background: var(--ink-2); container-type: inline-size; }
 .model-stage::before { display: none; }
 .axis-label { position: absolute; top: 16px; left: 18px; color: var(--faint); font: 8px var(--font-geist-mono); letter-spacing: .08em; }
 .dimension-top { position: absolute; height: 1px; top: 35px; left: 10%; right: 10%; background: var(--line-strong); }
 .dimension-top::before, .dimension-top::after { content: ""; position: absolute; top: -4px; width: 1px; height: 9px; background: var(--line-strong); }
 .dimension-top::after { right: 0; }
 .dimension-top span { position: absolute; left: 50%; transform: translate(-50%, -50%); background: #0a191d; color: var(--muted); padding: 0 8px; font: 8px var(--font-geist-mono); }
-.rocket-wrap { position: absolute; inset: 53px 0 35px; }
+.rocket-wrap { position: absolute; inset: var(--analysis-top-zone) 0 var(--analysis-bottom-zone); }
 .ork-canvas { width: 100%; height: 100%; display: block; cursor: crosshair; }
 .model-loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--faint); font: 9px var(--font-geist-mono); letter-spacing: .12em; pointer-events: none; }
 .rocket-3d { position: relative; width: 100%; height: 100%; overflow: hidden; cursor: grab; touch-action: none; }
@@ -542,13 +542,23 @@ button { color: inherit; }
 .rocket-section { position: relative; width: 100%; height: 100%; overflow: hidden; cursor: grab; }
 .rocket-section:active { cursor: grabbing; }
 .rocket-section canvas { display: block; width: 100%; height: 100%; }
-.section-hint { position: absolute; z-index: 2; left: 18px; bottom: 16px; color: var(--muted); font: 9px var(--font-geist-mono); letter-spacing: .06em; pointer-events: none; }
+.section-hint { position: absolute; z-index: 2; left: 50%; bottom: 12px; max-width: calc(100% - 36px); transform: translateX(-50%); color: var(--muted); font: 9px var(--font-geist-mono); letter-spacing: .06em; text-align: center; white-space: nowrap; pointer-events: none; }
 .viewer-hint { position: absolute; z-index: 2; left: 18px; bottom: 17px; color: var(--faint); font: 7px var(--font-geist-mono); letter-spacing: .08em; pointer-events: none; }
 .viewer-axis { position: absolute; z-index: 2; right: 17px; bottom: 16px; display: flex; gap: 5px; font: 7px var(--font-geist-mono); pointer-events: none; }
 .viewer-axis span { width: 17px; height: 17px; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 50%; }
 .axis-x { color: var(--red); }
 .axis-y { color: var(--green); }
 .axis-z { color: #7b9df0; }
+@container (max-width: 560px) {
+  .analysis-vehicle span,
+  .analysis-stability span,
+  .analysis-stability small,
+  .analysis-flight { display: none; }
+  .analysis-vehicle,
+  .analysis-stability { max-width: 42%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .analysis-state { left: 18px; right: auto; }
+  .section-hint { overflow: hidden; text-overflow: ellipsis; }
+}
 .ork-view { position: absolute; inset: 12% 8% 13%; display: grid; place-items: center; }
 .ork-centreline { position: absolute; left: -3%; right: -3%; top: 50%; border-top: 1px dashed rgba(141,174,180,.2); }
 .ork-centreline::after { content: "+X"; position: absolute; right: 0; top: -15px; color: var(--faint); font: 7px var(--font-geist-mono); }
