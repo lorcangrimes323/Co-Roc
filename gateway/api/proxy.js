@@ -3,6 +3,7 @@ const HOP_BY_HOP_HEADERS = new Set([
   "connection",
   "content-encoding",
   "content-length",
+  "expect",
   "keep-alive",
   "proxy-authenticate",
   "proxy-authorization",
@@ -39,6 +40,7 @@ export default async function handler(request, response) {
     headers.set(name, Array.isArray(value) ? value.join(", ") : value);
   }
   headers.set("x-forwarded-host", request.headers.host || "co-roc.com");
+  headers.set("x-co-roc-public-host", request.headers.host || "co-roc.com");
 
   const upstream = await fetch(upstreamUrl, {
     method: request.method,

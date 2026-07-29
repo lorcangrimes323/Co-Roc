@@ -14,7 +14,9 @@ export function hasTrustedRequestOrigin(request: Request) {
     const requestHost = requestUrl.host.toLowerCase();
     if (originHost === requestHost && originUrl.protocol === requestUrl.protocol) return true;
 
-    const forwardedHost = normalizedHost(request.headers.get("x-forwarded-host"));
+    const forwardedHost = normalizedHost(
+      request.headers.get("x-co-roc-public-host") ?? request.headers.get("x-forwarded-host"),
+    );
     return originUrl.protocol === "https:"
       && originHost === forwardedHost
       && TRUSTED_PUBLIC_HOSTS.has(forwardedHost);
