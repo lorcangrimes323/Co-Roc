@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RocketViewer, RocketViewerHandle } from "./rocket-viewer";
 import { RocketSectionHandle, RocketSectionView } from "./rocket-section-view";
 import { ProjectRecordWorkspace } from "./project-record-workspace";
@@ -22,6 +22,9 @@ type ThemeMode = "light" | "dark" | "system";
 type SaveState = "loading" | "saved" | "draft" | "saving" | "conflict" | "offline";
 type AnalysisState = "saved" | "stale" | "calculating" | "current" | "failed";
 type WorkspaceModule = "configuration" | "simulation" | "history" | "tests" | "documents";
+type PaneSide = "tree" | "record";
+
+const defaultPaneWidths = { tree: 280, record: 460 };
 
 const analysisStateLabel: Record<AnalysisState, string> = {
   saved: "SAVED RESULT",
@@ -398,6 +401,7 @@ export function MissionControl({
   const [accent, setAccent] = useState("#c92335");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [rollDegrees, setRollDegrees] = useState(0);
+  const [paneWidths, setPaneWidths] = useState(defaultPaneWidths);
   const changeRoll = useCallback((deltaDegrees: number) => {
     setRollDegrees((value) => (value + deltaDegrees + 360) % 360);
   }, []);
@@ -423,6 +427,7 @@ export function MissionControl({
   const documentInput = useRef<HTMLInputElement>(null);
   const viewerRef = useRef<RocketViewerHandle>(null);
   const sectionRef = useRef<RocketSectionHandle>(null);
+  const mainGridRef = useRef<HTMLDivElement>(null);
   const workspaceVersionRef = useRef<number | null>(null);
   const pendingChangesRef = useRef<PendingChange[]>([]);
   const orkModelRef = useRef<OpenRocketModel | null>(null);
@@ -431,6 +436,58 @@ export function MissionControl({
   const can = (permission: WorkspaceTeam["permissions"][number]) => mode === "demo" ? permission === "view" || permission === "editOrk" : workspace.team.permissions.includes(permission);
   const availableProjects = teams.flatMap((team) => team.projects.map((project) => ({ ...project, teamName: team.name })));
   const visibleMembers = workspace.team.members.slice(0, 3);
+
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(window.localStorage.getItem("co-roc:configuration-pane-widths") || "null") as Partial<typeof defaultPaneWidths> | null;
+      if (stored && Number.isFinite(stored.tree) && Number.isFinite(stored.record)) {
+        setPaneWidths({ tree: Number(stored.tree), record: Number(stored.record) });
+      }
+    } catch { /* Keep the engineering defaults when browser storage is unavailable. */ }
+  }, []);
+
+  useEffect(() => {
+    try { window.localStorage.setItem("co-roc:configuration-pane-widths", JSON.stringify(paneWidths)); }
+    catch { /* Resizing still works for the current session. */ }
+  }, [paneWidths]);
+
+  const constrainedPaneWidths = useCallback((side: PaneSide, requested: number, fixed: typeof defaultPaneWidths, total: number) => {
+    const centreMinimum = 420;
+    if (side === "tree") return { ...fixed, tree: Math.max(220, Math.min(requested, total - fixed.record - centreMinimum)) };
+    return { ...fixed, record: Math.max(340, Math.min(requested, total - fixed.tree - centreMinimum)) };
+  }, []);
+
+  function beginPaneResize(side: PaneSide, event: ReactPointerEvent<HTMLDivElement>) {
+    const grid = mainGridRef.current;
+    if (!grid) return;
+    event.preventDefault();
+    const bounds = grid.getBoundingClientRect();
+    const start = paneWidths;
+    const move = (pointer: PointerEvent) => {
+      const requested = side === "tree" ? pointer.clientX - bounds.left : bounds.right - pointer.clientX;
+      setPaneWidths(constrainedPaneWidths(side, requested, start, bounds.width));
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+      document.body.classList.remove("resizing-panes");
+    };
+    document.body.classList.add("resizing-panes");
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop, { once: true });
+    window.addEventListener("pointercancel", stop, { once: true });
+  }
+
+  function resizePaneWithKeyboard(side: PaneSide, event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    const grid = mainGridRef.current;
+    if (!grid) return;
+    event.preventDefault();
+    const direction = event.key === "ArrowRight" ? 1 : -1;
+    const requested = side === "tree" ? paneWidths.tree + direction * 16 : paneWidths.record - direction * 16;
+    setPaneWidths(constrainedPaneWidths(side, requested, paneWidths, grid.getBoundingClientRect().width));
+  }
   const moduleLabel: Record<WorkspaceModule, string> = {
     configuration: "CONFIGURATION",
     simulation: "SIMULATION",
@@ -442,7 +499,11 @@ export function MissionControl({
     if (!orkModel) return null;
     const simulation = liveAnalysis ?? orkModel.simulations.find((item) => Number.isFinite(item.maxAltitude) || Number.isFinite(item.launchMass)) ?? orkModel.simulations[0];
     if (!simulation) return null;
-    const dryMass = simulation.launchMass - simulation.launchMotorMass;
+    const componentDryMass = orkModel.components
+      .filter((component) => component.kind !== "motor")
+      .reduce((total, component) => total + (Number.isFinite(component.mass) ? component.mass : 0), 0);
+    const calculatedDryMass = simulation.launchMass - simulation.launchMotorMass;
+    const dryMass = Number.isFinite(calculatedDryMass) ? calculatedDryMass : componentDryMass > 0 ? componentDryMass : Number.NaN;
     const stabilityPercent = simulation.referenceStability * (orkModel.maxRadius * 2) / orkModel.length * 100;
     const shown = (value: number, digits = 1) => Number.isFinite(value) ? value.toFixed(digits) : "—";
     const configuredName = simulation.branchName && simulation.branchName !== "Flight configuration" ? simulation.branchName : simulation.name;
@@ -1219,7 +1280,13 @@ export function MissionControl({
         </>}
       </section>
 
-      {workspaceModule === "configuration" && <div className="main-grid">
+      {workspaceModule === "configuration" && <div
+        ref={mainGridRef}
+        className="main-grid"
+        style={{ "--tree-pane-width": `${paneWidths.tree}px`, "--record-pane-width": `${paneWidths.record}px` } as CSSProperties}
+      >
+        <div className="pane-resizer pane-resizer-tree" role="separator" aria-label="Resize component tree" aria-orientation="vertical" tabIndex={0} style={{ left: `${paneWidths.tree - 5}px` }} onPointerDown={(event) => beginPaneResize("tree", event)} onKeyDown={(event) => resizePaneWithKeyboard("tree", event)} onDoubleClick={() => setPaneWidths(defaultPaneWidths)} />
+        <div className="pane-resizer pane-resizer-record" role="separator" aria-label="Resize engineering record" aria-orientation="vertical" tabIndex={0} style={{ right: `${paneWidths.record - 5}px` }} onPointerDown={(event) => beginPaneResize("record", event)} onKeyDown={(event) => resizePaneWithKeyboard("record", event)} onDoubleClick={() => setPaneWidths(defaultPaneWidths)} />
         <aside className="component-panel panel">
           <div className="panel-heading">
             <div><span className="eyebrow">STRUCTURE</span><h2>Component tree</h2></div>
@@ -1285,8 +1352,8 @@ export function MissionControl({
               <div className="analysis-readout analysis-vehicle">
                 <strong>{orkModel?.name ?? "Vehicle"}</strong>
                 <span>Length {Math.round((orkModel?.length ?? 0) * 1000)} mm · max diameter {Math.round((orkModel?.maxRadius ?? 0) * 2000)} mm</span>
-                <span>Mass without motors {vehicleAnalysis.dryMass} kg</span>
-                <span>Mass with motors {vehicleAnalysis.loadedMass} kg</span>
+                <span>Mass without motors {vehicleAnalysis.dryMass === "—" ? "Core calculating…" : `${vehicleAnalysis.dryMass} kg`}</span>
+                <span>Mass with motors {vehicleAnalysis.loadedMass === "—" ? "Core calculating…" : `${vehicleAnalysis.loadedMass} kg`}</span>
               </div>
               <div className="analysis-readout analysis-stability">
                 <strong>Stability {vehicleAnalysis.stability} cal / {vehicleAnalysis.stabilityPercent}%</strong>

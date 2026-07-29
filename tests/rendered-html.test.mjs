@@ -41,6 +41,9 @@ test("keeps OpenRocket geometry and live edits traceable", async () => {
   assert.match(openRocket, /angleoffset/);
   assert.match(openRocket, /Motor mass/);
   assert.match(openRocket, /referenceStability/);
+  assert.match(openRocket, /saveOpenRocketSimulationResult/);
+  assert.match(openRocket, /calculatedComponentMass/);
+  assert.match(openRocket, /motorMassSample/);
   assert.match(orkRoute, /status: 409/);
   assert.match(orkRoute, /sha256Hex/);
   assert.match(orkRoute, /application\/vnd\.co-roc\.ork/);
@@ -53,6 +56,9 @@ test("keeps OpenRocket geometry and live edits traceable", async () => {
   assert.match(missionControl, /analysis-stability/);
   assert.match(missionControl, /analysis-flight/);
   assert.match(missionControl, /Mass without motors/);
+  assert.match(missionControl, /configuration-pane-widths/);
+  assert.match(missionControl, /pane-resizer-tree/);
+  assert.match(missionControl, /pane-resizer-record/);
   assert.match(missionControl, /CG:/);
   assert.match(missionControl, /CP:/);
   assert.match(missionControl, /CALCULATING/);
@@ -65,6 +71,7 @@ test("keeps OpenRocket geometry and live edits traceable", async () => {
   assert.match(simulationRoute, /demoRequest \|\| previewRequest/);
   assert.match(simulationWorkspace, /referenceSample/);
   assert.match(simulationWorkspace, /motorMassSample/);
+  assert.match(simulationWorkspace, /saveOpenRocketSimulationResult/);
   assert.match(solver, /TYPE_MOTOR_MASS/);
   assert.match(solver, /launchMotorMass/);
   assert.match(solver, /awaitCore/);
