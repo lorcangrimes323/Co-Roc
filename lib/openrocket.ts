@@ -246,7 +246,9 @@ function parseSimulations(document: XMLDocument, referenceDiameter: number): Ope
       if (!nearest || Math.abs(sample.time - railExitTime) < Math.abs(nearest.time - railExitTime)) return sample;
       return nearest;
     }, null);
-    const launchSample = allSamples.find((sample) => Number.isFinite(sample.mass) && Number.isFinite(sample.cg)) ?? null;
+    const launchSample = allSamples.find((sample) => Number.isFinite(sample.mass)) ?? null;
+    const motorMassSample = allSamples.find((sample) => Number.isFinite(sample.motorMass)) ?? null;
+    const launchCgSample = allSamples.find((sample) => Number.isFinite(sample.cg)) ?? null;
     const referenceSample = allSamples
       .filter((sample) => Number.isFinite(sample.cp) && Number.isFinite(sample.cg) && Number.isFinite(sample.stability) && Number.isFinite(sample.mach))
       .reduce<OpenRocketSimulationSample | null>((nearest, sample) => !nearest || Math.abs(sample.mach - 0.3) < Math.abs(nearest.mach - 0.3) ? sample : nearest, null);
@@ -257,7 +259,7 @@ function parseSimulations(document: XMLDocument, referenceDiameter: number): Ope
     const atmosphere = conditions ? child(conditions, "atmosphere") : null;
     const summary = (attribute: string) => finiteNumber(flightData?.getAttribute(attribute));
     const configurationId = text(conditions, "configid");
-    const referenceCg = launchSample?.cg ?? Number.NaN;
+    const referenceCg = launchCgSample?.cg ?? Number.NaN;
     const referenceCp = referenceSample?.cp ?? Number.NaN;
     const referenceStability = Number.isFinite(referenceCg) && Number.isFinite(referenceCp) && referenceDiameter > 0
       ? (referenceCp - referenceCg) / referenceDiameter
@@ -308,7 +310,7 @@ function parseSimulations(document: XMLDocument, referenceDiameter: number): Ope
       railExitCg: railExit?.cg ?? Number.NaN,
       railExitCp: railExit?.cp ?? Number.NaN,
       launchMass: launchSample?.mass ?? Number.NaN,
-      launchMotorMass: launchSample?.motorMass ?? Number.NaN,
+      launchMotorMass: motorMassSample?.motorMass ?? Number.NaN,
       referenceMach: referenceSample?.mach ?? Number.NaN,
       referenceStability,
       referenceCg,
@@ -382,7 +384,8 @@ function makeComponent(
   external: boolean,
   z = 0,
 ): OpenRocketComponent {
-  const explicitMass = number(node, "overridemass", number(node, "mass", 0));
+  const explicitMassNode = child(node, "overridemass") ?? child(node, "mass");
+  const explicitMass = explicitMassNode ? numberText(explicitMassNode.textContent || "0") : Number.NaN;
   const innerRadius = radiusValue(node, "innerradius", Math.max(0, aftRadius - number(node, "thickness", 0)));
   const component: OpenRocketComponent = {
     id: text(node, "id", `${stage}-${node.tagName}-${x}`),
@@ -418,7 +421,52 @@ function makeComponent(
       points,
     };
   }
+  if (!Number.isFinite(component.mass)) component.mass = calculatedComponentMass(node, component);
   return component;
+}
+
+function calculatedComponentMass(node: Element, component: OpenRocketComponent) {
+  const material = child(node, "material");
+  const density = finiteNumber(material?.getAttribute("density"), 0);
+  if (!(density > 0)) return 0;
+  if (component.kind === "parachute") {
+    const diameter = number(node, "diameter");
+    const canopyMass = Math.PI * (diameter / 2) ** 2 * density;
+    const lineMaterial = child(node, "linematerial");
+    const lineDensity = finiteNumber(lineMaterial?.getAttribute("density"), 0);
+    return canopyMass + number(node, "linecount") * number(node, "linelength") * lineDensity;
+  }
+  if (component.kind === "shockcord") return number(node, "cordlength", component.length) * density;
+  if (component.kind === "streamer") return number(node, "stripwidth") * number(node, "striplength") * density;
+  const outer = Math.max(component.foreRadius, component.aftRadius);
+  const inner = Math.max(0, component.innerRadius);
+  const tubeVolume = Math.PI * Math.max(0, outer * outer - inner * inner) * component.length;
+  if (["bodytube", "innertube", "tubecoupler", "launchlug", "centeringring", "bulkhead", "engineblock"].includes(component.kind)) {
+    return tubeVolume * density;
+  }
+  if (component.kind === "transition" || component.kind === "nosecone") {
+    const outerVolume = Math.PI * component.length / 3 * (
+      component.foreRadius ** 2 + component.foreRadius * component.aftRadius + component.aftRadius ** 2
+    );
+    const innerFore = Math.max(0, component.foreRadius - component.thickness);
+    const innerAft = Math.max(0, component.aftRadius - component.thickness);
+    const innerVolume = Math.PI * component.length / 3 * (innerFore ** 2 + innerFore * innerAft + innerAft ** 2);
+    const shapeFactor = component.kind === "nosecone" && component.shape !== "conical" ? 1.65 : 1;
+    return Math.max(0, outerVolume - innerVolume) * shapeFactor * density;
+  }
+  if (component.fin) {
+    const area = component.kind === "ellipticalfinset"
+      ? Math.PI * component.fin.root * component.fin.span / 4
+      : component.fin.points.length >= 3
+        ? Math.abs(component.fin.points.reduce((sum, point, index, points) => {
+            const next = points[(index + 1) % points.length];
+            return sum + point.x * next.y - next.x * point.y;
+          }, 0)) / 2
+        : (component.fin.root + component.fin.tip) * component.fin.span / 2;
+    return area * component.thickness * component.fin.count * density;
+  }
+  if (material?.getAttribute("type") === "line") return component.length * density;
+  return 0;
 }
 
 function addMotor(node: Element, mount: OpenRocketComponent, components: OpenRocketComponent[]) {
@@ -767,6 +815,67 @@ export function saveOpenRocketSimulation(
       rawXml,
       archiveEntries: { ...model.archiveEntries, [model.sourceEntryName]: strToU8(rawXml) },
     simulations: parseSimulations(document, model.maxRadius * 2),
+    },
+  };
+}
+
+export function saveOpenRocketSimulationResult(
+  model: OpenRocketModel,
+  sourceIndex: number,
+  result: OpenRocketSimulation,
+) {
+  const document = new DOMParser().parseFromString(model.rawXml, "application/xml");
+  if (document.querySelector("parsererror")) throw new Error("The working OpenRocket XML is invalid");
+  const simulation = Array.from(document.querySelectorAll("openrocket > simulations > simulation"))[sourceIndex];
+  if (!simulation) throw new Error("The calculated OpenRocket simulation no longer exists");
+  simulation.setAttribute("status", "uptodate");
+  children(simulation, "flightdata").forEach((node) => node.remove());
+
+  const flightData = document.createElement("flightdata");
+  const summaries: Array<[string, number]> = [
+    ["maxaltitude", result.maxAltitude], ["maxvelocity", result.maxVelocity],
+    ["maxacceleration", result.maxAcceleration], ["maxmach", result.maxMach],
+    ["timetoapogee", result.timeToApogee], ["flighttime", result.flightTime],
+    ["groundhitvelocity", result.groundHitVelocity], ["launchrodvelocity", result.launchRodVelocity],
+    ["deploymentvelocity", result.deploymentVelocity], ["optimumdelay", result.optimumDelay],
+  ];
+  summaries.forEach(([name, value]) => { if (Number.isFinite(value)) flightData.setAttribute(name, String(value)); });
+  result.warnings.forEach((warning) => {
+    const node = document.createElement("warning");
+    node.setAttribute("type", warning.type || "Other");
+    setXmlValue(document, node, "id", crypto.randomUUID());
+    setXmlValue(document, node, "description", warning.description);
+    setXmlValue(document, node, "priority", warning.priority || "NORMAL");
+    flightData.appendChild(node);
+  });
+
+  const branch = document.createElement("databranch");
+  branch.setAttribute("name", result.branchName || result.name);
+  branch.setAttribute("types", "Time,Altitude,Vertical velocity,Total velocity,Total acceleration,Mach number,Stability margin calibers,CG location,CP location,Mass,Motor mass");
+  result.events.forEach((event) => {
+    const node = document.createElement("event");
+    node.setAttribute("time", String(event.time));
+    node.setAttribute("type", event.type);
+    node.setAttribute("id", crypto.randomUUID());
+    branch.appendChild(node);
+  });
+  const encoded = (value: number) => Number.isFinite(value) ? String(value) : "NaN";
+  result.series.forEach((sample) => {
+    const node = document.createElement("datapoint");
+    node.textContent = [sample.time, sample.altitude, sample.verticalVelocity, sample.velocity, sample.acceleration,
+      sample.mach, sample.stability, sample.cg, sample.cp, sample.mass, sample.motorMass].map(encoded).join(",");
+    branch.appendChild(node);
+  });
+  flightData.appendChild(branch);
+  simulation.appendChild(flightData);
+  const rawXml = new XMLSerializer().serializeToString(document);
+  return {
+    simulationId: text(simulation, "id", result.id),
+    model: {
+      ...model,
+      rawXml,
+      archiveEntries: { ...model.archiveEntries, [model.sourceEntryName]: strToU8(rawXml) },
+      simulations: parseSimulations(document, model.maxRadius * 2),
     },
   };
 }

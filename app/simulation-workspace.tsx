@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { encodeOpenRocketAsync, saveOpenRocketSimulation, type OpenRocketModel, type OpenRocketSimulation, type OpenRocketSimulationSample, type OpenRocketSimulationSetup } from "../lib/openrocket";
+import { encodeOpenRocketAsync, saveOpenRocketSimulation, saveOpenRocketSimulationResult, type OpenRocketModel, type OpenRocketSimulation, type OpenRocketSimulationSample, type OpenRocketSimulationSetup } from "../lib/openrocket";
 
 type SimulationOptionsInput = OpenRocketSimulationSetup;
 
@@ -92,7 +92,7 @@ export function liveToSimulation(result: LiveResult, base: OpenRocketSimulation,
     : finite(referenceSample?.stability, finite(summary.railExitStability, base.referenceStability));
   return {
     ...base,
-    id: `run-${result.simulationIndex}-${result.calculatedAt}`,
+    id: base.id,
     name: result.name,
     status: result.status,
     branchName: base.branchName || result.branchName,
@@ -308,10 +308,13 @@ export function SimulationWorkspace({ model, mode, workspaceVersion, headers, ca
         }
       }
       if (!response.ok || !payload.result) throw new Error(payload.error || "OpenRocket simulation failed");
-      setCalculated(liveToSimulation(payload.result, selectedCase.simulation));
+      const completed = liveToSimulation(payload.result, selectedCase.simulation, model.maxRadius * 2);
+      const persisted = saveOpenRocketSimulationResult(model, selectedCase.sourceIndex, completed);
+      setCalculated(completed);
+      onModelChange(persisted.model, { simulationId: persisted.simulationId, name: completed.name, editing: true });
       setCalculatedAt(payload.result.calculatedAt);
       setEngineVersion(payload.result.engineVersion);
-      onNotice(`${payload.result.name} calculated by OpenRocket Core ${payload.result.engineVersion}`);
+      onNotice(`${payload.result.name} calculated and saved to the working OpenRocket file`);
       await refreshRuns();
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "OpenRocket simulation failed";
