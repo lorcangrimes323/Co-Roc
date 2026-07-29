@@ -50,16 +50,14 @@ function encodedOptions(options: unknown) {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-function isLocalDemo(request: Request) {
-  const hostname = new URL(request.url).hostname;
-  return (hostname === "localhost" || hostname === "127.0.0.1")
-    && request.headers.get("x-project-id") === "demo-banshee"
+function isDemoRequest(request: Request) {
+  return request.headers.get("x-project-id") === "demo-banshee"
     && Boolean(request.headers.get("x-local-preview-email"));
 }
 
 export async function GET(request: Request) {
   const service = serviceConfiguration(request);
-  if (isLocalDemo(request)) return Response.json({ configured: Boolean(service.url), runs: [] });
+  if (isDemoRequest(request)) return Response.json({ configured: Boolean(service.url), runs: [] });
   const access = await requireProjectAccess(request, "view");
   if (!access.ok) return access.response;
   await ensureSimulationSchema();
@@ -89,8 +87,8 @@ export async function POST(request: Request) {
   }
   const contentType = request.headers.get("content-type") || "";
   const previewBytes = contentType.includes("application/octet-stream") ? await request.arrayBuffer() : null;
-  const localDemo = Boolean(previewBytes) && isLocalDemo(request) && service.localPreview;
-  const access = localDemo ? null : await requireProjectAccess(request, "editOrk");
+  const demoRequest = Boolean(previewBytes) && isDemoRequest(request);
+  const access = demoRequest ? null : await requireProjectAccess(request, "editOrk");
   if (access && !access.ok) return access.response;
   const body = previewBytes ? {} : await request.json().catch(() => ({})) as { simulationIndex?: unknown; options?: unknown };
   const simulationIndex = Number(previewBytes ? request.headers.get("x-simulation-index") ?? 0 : body.simulationIndex ?? 0);
@@ -102,6 +100,9 @@ export async function POST(request: Request) {
   if (!Number.isInteger(simulationIndex) || simulationIndex < 0 || simulationIndex > 100) {
     return Response.json({ error: "A valid simulation index is required." }, { status: 400 });
   }
+  if (previewBytes && previewBytes.byteLength > 2_000_000) {
+    return Response.json({ error: "Demo simulations are limited to 2 MB OpenRocket files." }, { status: 413 });
+  }
 
   await ensureOrkSchema();
   await ensureSimulationSchema();
@@ -112,8 +113,8 @@ export async function POST(request: Request) {
   if (!previewBytes && !workspace) return Response.json({ error: "Import an .ork file before running a simulation." }, { status: 404 });
   const ork = workspace ? await FILES.get(workspace.current_object_key) : null;
   if (!previewBytes && !ork) return Response.json({ error: "The current .ork file is missing." }, { status: 503 });
-  if (previewBytes && !localDemo) {
-    return Response.json({ error: "Untracked simulations are only available in the local demo." }, { status: 403 });
+  if (previewBytes && !demoRequest) {
+    return Response.json({ error: "Untracked simulations are only available in demo mode." }, { status: 403 });
   }
 
   let solverResponse: Response;
