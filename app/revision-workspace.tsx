@@ -1,0 +1,11 @@
+"use client";
+
+type Change = { id: number; version: number; componentId: string; componentCode: string; field: string; previousValue: string; nextValue: string; authorName: string; authorEmail: string; createdAt: string };
+
+export function RevisionWorkspace({ changes, onOpenComponent }: { changes: Change[]; onOpenComponent: (componentId: string) => void }) {
+  const versions = Array.from(new Set(changes.map((change) => change.version))).sort((a, b) => b - a);
+  return <section className="workspace-module revision-module">
+    <aside className="module-tree"><header><span className="eyebrow">WORKING FILE</span><h2>Revision index</h2></header><div className="revision-index">{versions.map((version) => <a key={version} href={`#version-${version}`}><strong>V{version}</strong><span>{changes.filter((change) => change.version === version).length} changes</span></a>)}</div><footer>Each entry is attributable to an account and ORK working version.</footer></aside>
+    <div className="revision-content"><header className="module-titlebar"><div><span className="eyebrow">TRACEABILITY</span><h2>Change &amp; revision history</h2><p>Field-level changes recorded when the live OpenRocket document is saved.</p></div><span className="revision-total">{changes.length} CHANGES</span></header><div className="revision-timeline">{versions.map((version) => { const versionChanges = changes.filter((change) => change.version === version); const lead = versionChanges[0]; return <section id={`version-${version}`} key={version}><header><span>V{version}</span><div><h3>Working file version {version}</h3><p>{lead.authorName} · {new Date(lead.createdAt.includes("T") ? lead.createdAt : `${lead.createdAt.replace(" ", "T")}Z`).toLocaleString()}</p></div></header><div>{versionChanges.map((change) => <button key={change.id} type="button" onClick={() => onOpenComponent(change.componentId)}><span><strong>{change.componentCode}</strong><small>{change.field}</small></span><code>{change.previousValue || "—"}</code><b>→</b><code>{change.nextValue || "—"}</code></button>)}</div></section>; })}{!changes.length && <div className="module-empty large">No live changes have been recorded for this project.</div>}</div></div>
+  </section>;
+}

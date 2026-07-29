@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const accounts = sqliteTable("accounts", {
   id: text("id").primaryKey(),
@@ -181,6 +181,28 @@ export const orkSnapshots = sqliteTable("ork_snapshots", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
   uniqueIndex("ork_snapshots_project_version_unique").on(table.projectId, table.version),
+]);
+
+export const simulationRuns = sqliteTable("simulation_runs", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id").notNull(),
+  orkVersion: integer("ork_version").notNull(),
+  orkSha256: text("ork_sha256").notNull(),
+  simulationIndex: integer("simulation_index").notNull(),
+  simulationName: text("simulation_name").notNull(),
+  engine: text("engine").notNull(),
+  engineVersion: text("engine_version").notNull(),
+  resultObjectKey: text("result_object_key").notNull().unique(),
+  maxAltitude: real("max_altitude"),
+  maxVelocity: real("max_velocity"),
+  maxAcceleration: real("max_acceleration"),
+  maxMach: real("max_mach"),
+  warningCount: integer("warning_count").notNull().default(0),
+  runByName: text("run_by_name").notNull(),
+  runByEmail: text("run_by_email").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("simulation_runs_project_idx").on(table.projectId, table.createdAt),
 ]);
 
 export const componentArtifacts = sqliteTable("component_artifacts", {

@@ -36,6 +36,89 @@ export type OpenRocketComponent = {
   };
 };
 
+export type OpenRocketSimulationSample = {
+  time: number;
+  altitude: number;
+  velocity: number;
+  verticalVelocity: number;
+  acceleration: number;
+  mach: number;
+  stability: number;
+  cg: number;
+  cp: number;
+};
+
+export type OpenRocketSimulation = {
+  id: string;
+  name: string;
+  status: string;
+  configurationId: string;
+  branchName: string;
+  windSpeed: number;
+  launchRodLength: number;
+  launchIntoWind: boolean;
+  launchRodAngle: number;
+  launchRodDirection: number;
+  launchAltitude: number;
+  launchLatitude: number;
+  launchLongitude: number;
+  geodeticMethod: string;
+  isaAtmosphere: boolean;
+  launchTemperature: number;
+  launchPressure: number;
+  timeStep: number;
+  maxSimulationTime: number;
+  maxStepAngle: number;
+  randomSeed: number;
+  windModelType: string;
+  windDeviation: number;
+  windTurbulence: number;
+  windDirection: number;
+  windLevels: Array<{ altitude: number; speed: number; direction: number; standardDeviation: number }>;
+  maxAltitude: number;
+  maxVelocity: number;
+  maxAcceleration: number;
+  maxMach: number;
+  timeToApogee: number;
+  flightTime: number;
+  groundHitVelocity: number;
+  launchRodVelocity: number;
+  deploymentVelocity: number;
+  optimumDelay: number;
+  railExitStability: number;
+  railExitCg: number;
+  railExitCp: number;
+  warnings: Array<{ type: string; priority: string; description: string }>;
+  events: Array<{ type: string; time: number }>;
+  series: OpenRocketSimulationSample[];
+};
+
+export type OpenRocketSimulationSetup = {
+  name: string;
+  launchRodLength: number;
+  launchIntoWind: boolean;
+  launchRodAngleDegrees: number;
+  launchRodDirectionDegrees: number;
+  windModelType: "AVERAGE" | "MULTI_LEVEL";
+  windSpeed: number;
+  windDeviation: number;
+  windTurbulence: number;
+  windDirectionDegrees: number;
+  windAltitudeReference: "MSL" | "AGL";
+  windLevels: Array<{ altitude: number; speed: number; directionDegrees: number; standardDeviation: number }>;
+  launchAltitude: number;
+  launchLatitude: number;
+  launchLongitude: number;
+  geodeticMethod: "FLAT" | "SPHERICAL" | "WGS84";
+  isaAtmosphere: boolean;
+  launchTemperatureC: number;
+  launchPressureHpa: number;
+  timeStep: number;
+  maxSimulationTime: number;
+  maxStepAngleDegrees: number;
+  randomSeed: number;
+};
+
 export type OpenRocketModel = {
   name: string;
   designer: string;
@@ -44,12 +127,13 @@ export type OpenRocketModel = {
   length: number;
   maxRadius: number;
   components: OpenRocketComponent[];
+  simulations: OpenRocketSimulation[];
   rawXml: string;
   sourceEntryName: string;
   archiveEntries: Record<string, Uint8Array>;
 };
 
-export type OpenRocketEditableField = "name" | "length" | "diameter" | "wallThickness" | "mass" | "material";
+export type OpenRocketEditableField = "name" | "length" | "diameter" | "wallThickness" | "mass" | "material" | "simulationSetup";
 
 const AXIAL_KINDS = new Set(["nosecone", "bodytube", "transition"]);
 const LENGTH_KINDS = new Set([
@@ -106,6 +190,108 @@ function componentLength(node: Element): number {
     return children(subs).reduce((sum, item) => sum + componentLength(item), 0);
   }
   return 0.01;
+}
+
+function finiteNumber(value: string | null | undefined, fallback = Number.NaN) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function parseSimulations(document: XMLDocument): OpenRocketSimulation[] {
+  return Array.from(document.querySelectorAll("openrocket > simulations > simulation")).flatMap((simulation, simulationIndex) => {
+    const flightData = child(simulation, "flightdata");
+    const conditions = child(simulation, "conditions");
+    const branch = child(flightData, "databranch");
+    const typeNames = (branch?.getAttribute("types") ?? "").split(",").map((value) => value.trim());
+    const typeIndex = (name: string) => typeNames.indexOf(name);
+    const dataNodes = branch ? children(branch, "datapoint") : [];
+    const allSamples = dataNodes.map((dataNode) => {
+      const values = (dataNode.textContent ?? "").trim().split(",");
+      const value = (name: string) => finiteNumber(values[typeIndex(name)]);
+      return {
+        time: value("Time"),
+        altitude: value("Altitude"),
+        velocity: value("Total velocity"),
+        verticalVelocity: value("Vertical velocity"),
+        acceleration: value("Total acceleration"),
+        mach: value("Mach number"),
+        stability: value("Stability margin calibers"),
+        cg: value("CG location"),
+        cp: value("CP location"),
+      };
+    }).filter((sample) => Number.isFinite(sample.time));
+    const stride = Math.max(1, Math.ceil(allSamples.length / 420));
+    const series = allSamples.filter((_sample, index) => index % stride === 0 || index === allSamples.length - 1);
+    const events = branch ? children(branch, "event").map((event) => ({
+      type: event.getAttribute("type") || "event",
+      time: finiteNumber(event.getAttribute("time"), 0),
+    })) : [];
+    const railExitTime = events.find((event) => event.type === "launchrod")?.time ?? 0;
+    const railExit = allSamples.reduce<OpenRocketSimulationSample | null>((nearest, sample) => {
+      if (!Number.isFinite(sample.stability)) return nearest;
+      if (!nearest || Math.abs(sample.time - railExitTime) < Math.abs(nearest.time - railExitTime)) return sample;
+      return nearest;
+    }, null);
+    const wind = conditions ? child(conditions, "wind") : null;
+    const winds = conditions ? children(conditions, "wind") : [];
+    const averageWind = winds.find((item) => item.getAttribute("model") === "average") ?? wind;
+    const multiLevelWind = winds.find((item) => item.getAttribute("model") === "multilevel");
+    const atmosphere = conditions ? child(conditions, "atmosphere") : null;
+    const summary = (attribute: string) => finiteNumber(flightData?.getAttribute(attribute));
+    return [{
+      id: simulation.querySelector(":scope > id")?.textContent?.trim() || `simulation-${simulationIndex + 1}`,
+      name: text(simulation, "name", `Simulation ${simulationIndex + 1}`),
+      status: simulation.getAttribute("status") || "unknown",
+      configurationId: text(conditions, "configid"),
+      branchName: branch?.getAttribute("name") || "Flight configuration",
+      windSpeed: number(averageWind, "speed", number(conditions, "windaverage")),
+      launchRodLength: number(conditions, "launchrodlength"),
+      launchIntoWind: text(conditions, "launchintowind", "true") !== "false",
+      launchRodAngle: number(conditions, "launchrodangle"),
+      launchRodDirection: number(conditions, "launchroddirection"),
+      launchAltitude: number(conditions, "launchaltitude"),
+      launchLatitude: number(conditions, "launchlatitude"),
+      launchLongitude: number(conditions, "launchlongitude"),
+      geodeticMethod: text(conditions, "geodeticmethod", "spherical").toLowerCase(),
+      isaAtmosphere: atmosphere?.getAttribute("model") !== "extendedisa",
+      launchTemperature: finiteNumber(atmosphere?.getAttribute("temperature")),
+      launchPressure: finiteNumber(atmosphere?.getAttribute("pressure")),
+      timeStep: number(conditions, "timestep"),
+      maxSimulationTime: number(conditions, "maxtime", 1200),
+      maxStepAngle: number(conditions, "maximumangle", 0.0523598776),
+      randomSeed: number(conditions, "randomseed", 0),
+      windModelType: text(conditions, "windmodeltype", "Average"),
+      windDeviation: number(averageWind, "standarddeviation", number(conditions, "winddeviation")),
+      windTurbulence: number(conditions, "windturbulence"),
+      windDirection: number(averageWind, "direction", number(conditions, "winddirection")),
+      windLevels: multiLevelWind ? children(multiLevelWind, "windlevel").map((level) => ({
+        altitude: finiteNumber(level.getAttribute("altitude"), 0),
+        speed: finiteNumber(level.getAttribute("speed"), 0),
+        direction: finiteNumber(level.getAttribute("direction"), 0),
+        standardDeviation: finiteNumber(level.getAttribute("standarddeviation"), 0),
+      })) : [],
+      maxAltitude: summary("maxaltitude"),
+      maxVelocity: summary("maxvelocity"),
+      maxAcceleration: summary("maxacceleration"),
+      maxMach: summary("maxmach"),
+      timeToApogee: summary("timetoapogee"),
+      flightTime: summary("flighttime"),
+      groundHitVelocity: summary("groundhitvelocity"),
+      launchRodVelocity: summary("launchrodvelocity"),
+      deploymentVelocity: summary("deploymentvelocity"),
+      optimumDelay: summary("optimumdelay"),
+      railExitStability: railExit?.stability ?? Number.NaN,
+      railExitCg: railExit?.cg ?? Number.NaN,
+      railExitCp: railExit?.cp ?? Number.NaN,
+      warnings: children(flightData, "warning").map((warning) => ({
+        type: warning.getAttribute("type") || "Warning",
+        priority: text(warning, "priority", "NORMAL"),
+        description: text(warning, "description", warning.textContent?.trim() || "Simulation warning"),
+      })),
+      events,
+      series,
+    }];
+  });
 }
 
 function radiusValue(node: Element, tag: string, fallback: number) {
@@ -365,6 +551,7 @@ export async function parseOpenRocket(buffer: ArrayBuffer, sourceName: string): 
   const maxRadius = components
     .filter((component) => component.parentId === null && AXIAL_KINDS.has(component.kind))
     .reduce((max, component) => Math.max(max, component.foreRadius, component.aftRadius), 0);
+  const simulations = parseSimulations(document);
 
   return {
     name: text(rocket, "name", sourceName.replace(/\.ork$/i, "")),
@@ -374,6 +561,7 @@ export async function parseOpenRocket(buffer: ArrayBuffer, sourceName: string): 
     length: cursor,
     maxRadius,
     components,
+    simulations,
     rawXml,
     sourceEntryName,
     archiveEntries: archive,
@@ -401,6 +589,7 @@ export function applyOpenRocketEdit(
   const node = idNode?.parentElement;
   const component = model.components.find((item) => item.id === componentId);
   if (!node || !component) throw new Error("The edited component no longer exists in the working .ork file");
+  document.querySelectorAll("openrocket > simulations > simulation").forEach((simulation) => simulation.setAttribute("status", "outdated"));
 
   const numeric = typeof value === "number" ? value : Number(value);
   const nextComponent = { ...component };
@@ -457,6 +646,98 @@ export function applyOpenRocketEdit(
     rawXml,
     archiveEntries: { ...model.archiveEntries, [model.sourceEntryName]: strToU8(rawXml) },
     components: model.components.map((item) => item.id === componentId ? nextComponent : item),
+    simulations: model.simulations.map((simulation) => ({ ...simulation, status: "outdated" })),
+  };
+}
+
+function simulationWind(document: XMLDocument, conditions: Element, model: string) {
+  let wind = children(conditions, "wind").find((item) => item.getAttribute("model") === model);
+  if (!wind) {
+    wind = document.createElement("wind");
+    wind.setAttribute("model", model);
+    conditions.appendChild(wind);
+  }
+  return wind;
+}
+
+export function saveOpenRocketSimulation(
+  model: OpenRocketModel,
+  sourceIndex: number,
+  setup: OpenRocketSimulationSetup,
+  simulationId?: string,
+) {
+  const document = new DOMParser().parseFromString(model.rawXml, "application/xml");
+  if (document.querySelector("parsererror")) throw new Error("The working OpenRocket XML is invalid");
+  const container = document.querySelector("openrocket > simulations");
+  const simulations = container ? children(container, "simulation") : [];
+  const source = simulations[sourceIndex];
+  if (!container || !source) throw new Error("The selected OpenRocket simulation no longer exists");
+  let target = simulationId
+    ? simulations.find((simulation) => text(simulation, "id") === simulationId)
+    : undefined;
+  const id = target ? text(target, "id") : crypto.randomUUID();
+  if (!target) {
+    target = source.cloneNode(true) as Element;
+    setXmlValue(document, target, "id", id);
+    container.appendChild(target);
+  }
+  setXmlValue(document, target, "name", setup.name.trim() || "New simulation");
+  target.setAttribute("status", "not_simulated");
+  children(target, "flightdata").forEach((node) => node.remove());
+  let conditions = child(target, "conditions");
+  if (!conditions) {
+    conditions = document.createElement("conditions");
+    target.appendChild(conditions);
+  }
+  setXmlValue(document, conditions, "launchrodlength", String(setup.launchRodLength));
+  setXmlValue(document, conditions, "launchintowind", String(setup.launchIntoWind));
+  setXmlValue(document, conditions, "launchrodangle", String(setup.launchRodAngleDegrees * Math.PI / 180));
+  setXmlValue(document, conditions, "launchroddirection", String(setup.launchRodDirectionDegrees * Math.PI / 180));
+  setXmlValue(document, conditions, "windaverage", String(setup.windSpeed));
+  setXmlValue(document, conditions, "winddeviation", String(setup.windDeviation));
+  setXmlValue(document, conditions, "windturbulence", String(setup.windTurbulence));
+  setXmlValue(document, conditions, "winddirection", String(setup.windDirectionDegrees * Math.PI / 180));
+  setXmlValue(document, conditions, "windmodeltype", setup.windModelType === "MULTI_LEVEL" ? "MultiLevel" : "Average");
+  const averageWind = simulationWind(document, conditions, "average");
+  setXmlValue(document, averageWind, "speed", String(setup.windSpeed));
+  setXmlValue(document, averageWind, "direction", String(setup.windDirectionDegrees * Math.PI / 180));
+  setXmlValue(document, averageWind, "standarddeviation", String(setup.windDeviation));
+  const multiLevelWind = simulationWind(document, conditions, "multilevel");
+  multiLevelWind.setAttribute("altituderef", setup.windAltitudeReference.toLowerCase());
+  children(multiLevelWind, "windlevel").forEach((node) => node.remove());
+  setup.windLevels.forEach((level) => {
+    const node = document.createElement("windlevel");
+    node.setAttribute("altitude", String(level.altitude));
+    node.setAttribute("speed", String(level.speed));
+    node.setAttribute("direction", String(level.directionDegrees * Math.PI / 180));
+    node.setAttribute("standarddeviation", String(level.standardDeviation));
+    multiLevelWind!.appendChild(node);
+  });
+  setXmlValue(document, conditions, "launchaltitude", String(setup.launchAltitude));
+  setXmlValue(document, conditions, "launchlatitude", String(setup.launchLatitude));
+  setXmlValue(document, conditions, "launchlongitude", String(setup.launchLongitude));
+  setXmlValue(document, conditions, "geodeticmethod", setup.geodeticMethod.toLowerCase());
+  let atmosphere = child(conditions, "atmosphere");
+  if (!atmosphere) {
+    atmosphere = document.createElement("atmosphere");
+    conditions.appendChild(atmosphere);
+  }
+  atmosphere.setAttribute("model", setup.isaAtmosphere ? "isa" : "extendedisa");
+  atmosphere.setAttribute("temperature", String(setup.launchTemperatureC + 273.15));
+  atmosphere.setAttribute("pressure", String(setup.launchPressureHpa * 100));
+  setXmlValue(document, conditions, "timestep", String(setup.timeStep));
+  setXmlValue(document, conditions, "maxtime", String(setup.maxSimulationTime));
+  setXmlValue(document, conditions, "maximumangle", String(setup.maxStepAngleDegrees * Math.PI / 180));
+  setXmlValue(document, conditions, "randomseed", String(Math.trunc(setup.randomSeed)));
+  const rawXml = new XMLSerializer().serializeToString(document);
+  return {
+    simulationId: id,
+    model: {
+      ...model,
+      rawXml,
+      archiveEntries: { ...model.archiveEntries, [model.sourceEntryName]: strToU8(rawXml) },
+      simulations: parseSimulations(document),
+    },
   };
 }
 
