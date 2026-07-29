@@ -44,6 +44,8 @@ public final class SimulationServer {
     private static final String SERVICE_TOKEN = System.getenv().getOrDefault("SIMULATION_SERVICE_TOKEN", "");
     private static final ExecutorService JOB_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
     private static final Map<String, SimulationJob> JOBS = new ConcurrentHashMap<>();
+    private static volatile boolean READY = false;
+    private static volatile String STARTUP_FAILURE = "";
 
     private static final class SimulationJob {
         private final Instant createdAt = Instant.now();
@@ -56,13 +58,6 @@ public final class SimulationServer {
     private SimulationServer() {}
 
     public static void main(String[] args) throws IOException {
-        prepareRuntimeDirectories();
-        OpenRocketCore.initialize(new PluginModule(), new AbstractModule() {
-            @Override
-            protected void configure() {
-                bind(ComponentPresetDao.class).to(ComponentPresetDatabase.class);
-            }
-        });
         int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "8080"));
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
         server.createContext("/health", SimulationServer::health);
@@ -70,7 +65,21 @@ public final class SimulationServer {
         server.createContext("/jobs", SimulationServer::jobs);
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.start();
-        System.out.printf("OpenRocket Core 24.12 service listening on %d%n", port);
+        System.out.printf("OpenRocket Core service listening on %d; initialising 24.12%n", port);
+        try {
+            prepareRuntimeDirectories();
+            OpenRocketCore.initialize(new PluginModule(), new AbstractModule() {
+                @Override
+                protected void configure() {
+                    bind(ComponentPresetDao.class).to(ComponentPresetDatabase.class);
+                }
+            });
+            READY = true;
+            System.out.println("OpenRocket Core 24.12 ready");
+        } catch (Throwable error) {
+            STARTUP_FAILURE = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+            error.printStackTrace();
+        }
     }
 
     private static void prepareRuntimeDirectories() throws IOException {
@@ -90,8 +99,9 @@ public final class SimulationServer {
             send(exchange, 405, Map.of("error", "Method not allowed"));
             return;
         }
-        send(exchange, 200, Map.of(
-                "status", "ready",
+        int status = STARTUP_FAILURE.isBlank() ? 200 : 503;
+        send(exchange, status, Map.of(
+                "status", READY ? "ready" : STARTUP_FAILURE.isBlank() ? "initialising" : "failed",
                 "engine", "OpenRocket Core",
                 "engineVersion", "24.12",
                 "serialized", true
@@ -107,6 +117,7 @@ public final class SimulationServer {
             send(exchange, 401, Map.of("error", "Invalid simulation service token"));
             return;
         }
+        if (!awaitCore(exchange)) return;
         byte[] ork = exchange.getRequestBody().readNBytes(MAX_ORK_BYTES + 1);
         if (ork.length == 0 || ork.length > MAX_ORK_BYTES) {
             send(exchange, 413, Map.of("error", "A non-empty .ork file no larger than 25 MB is required"));
@@ -144,6 +155,7 @@ public final class SimulationServer {
             send(exchange, 401, Map.of("error", "Invalid simulation service token"));
             return;
         }
+        if (!awaitCore(exchange)) return;
         cleanupJobs();
         if ("GET".equals(exchange.getRequestMethod())) {
             String id = queryValue(exchange.getRequestURI().getRawQuery(), "id");
@@ -498,6 +510,24 @@ public final class SimulationServer {
     private static boolean authorized(HttpExchange exchange) {
         if (SERVICE_TOKEN.isBlank()) return true;
         return ("Bearer " + SERVICE_TOKEN).equals(exchange.getRequestHeaders().getFirst("Authorization"));
+    }
+
+    private static boolean awaitCore(HttpExchange exchange) throws IOException {
+        long deadline = System.nanoTime() + 70_000_000_000L;
+        while (!READY && STARTUP_FAILURE.isBlank() && System.nanoTime() < deadline) {
+            try {
+                Thread.sleep(250);
+            } catch (InterruptedException error) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        if (READY) return true;
+        send(exchange, 503, Map.of(
+                "error", STARTUP_FAILURE.isBlank() ? "OpenRocket Core is still initialising" : "OpenRocket Core failed to initialise",
+                "code", STARTUP_FAILURE.isBlank() ? "CORE_STARTING" : "CORE_START_FAILED"
+        ));
+        return false;
     }
 
     private static void send(HttpExchange exchange, int status, Object payload) throws IOException {

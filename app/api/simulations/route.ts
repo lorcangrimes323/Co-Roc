@@ -82,7 +82,7 @@ export async function GET(request: Request) {
     try {
       solverResponse = await fetch(`${service.url}/jobs?id=${encodeURIComponent(solverJobId)}`, {
         headers: service.token ? { authorization: `Bearer ${service.token}` } : {},
-        signal: AbortSignal.timeout(20_000),
+        signal: AbortSignal.timeout(45_000),
       });
     } catch {
       return Response.json({ error: "The OpenRocket Core service could not be reached.", code: "SOLVER_OFFLINE" }, { status: 503 });
@@ -204,7 +204,7 @@ export async function POST(request: Request) {
         ...(encodedOptions(options) ? { "x-openrocket-options": encodedOptions(options) } : {}),
       },
       body: previewBytes ?? await ork!.arrayBuffer(),
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(75_000),
     });
   } catch {
     return Response.json({ error: "The OpenRocket Core service could not be reached.", code: "SOLVER_OFFLINE" }, { status: 503 });
