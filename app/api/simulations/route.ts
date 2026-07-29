@@ -51,8 +51,7 @@ function encodedOptions(options: unknown) {
 }
 
 function isDemoRequest(request: Request) {
-  return request.headers.get("x-project-id") === "demo-banshee"
-    && Boolean(request.headers.get("x-local-preview-email"));
+  return new URL(request.url).searchParams.get("demo") === "1";
 }
 
 export async function GET(request: Request) {
