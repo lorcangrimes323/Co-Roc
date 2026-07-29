@@ -162,8 +162,24 @@ export const RocketSectionView = forwardRef<RocketSectionHandle, {
   const drawRef = useRef<() => void>(() => undefined);
   const hitsRef = useRef<HitRegion[]>([]);
 
-  function changeZoom(factor: number) {
-    zoomRef.current = Math.max(0.65, Math.min(4.5, zoomRef.current * factor));
+  function changeZoom(factor: number, anchor?: { x: number; y: number }) {
+    const previousZoom = zoomRef.current;
+    const nextZoom = Math.max(0.65, Math.min(4.5, previousZoom * factor));
+    if (anchor && nextZoom !== previousZoom) {
+      const canvas = canvasRef.current;
+      const host = canvas?.parentElement;
+      if (host) {
+        const rect = host.getBoundingClientRect();
+        const scaleChange = nextZoom / previousZoom;
+        const baseOriginX = 54;
+        const baseOriginY = rect.height * 0.53;
+        panRef.current = {
+          x: anchor.x - baseOriginX - (anchor.x - baseOriginX - panRef.current.x) * scaleChange,
+          y: anchor.y - baseOriginY - (anchor.y - baseOriginY - panRef.current.y) * scaleChange,
+        };
+      }
+    }
+    zoomRef.current = nextZoom;
     drawRef.current();
   }
 
@@ -349,7 +365,11 @@ export const RocketSectionView = forwardRef<RocketSectionHandle, {
         onRoll(event.deltaY < 0 ? -5 : 5);
         return;
       }
-      changeZoom(event.deltaY < 0 ? 1.1 : 1 / 1.1);
+      const rect = canvas.getBoundingClientRect();
+      changeZoom(event.deltaY < 0 ? 1.1 : 1 / 1.1, {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      });
     }
     function pointerDown(event: PointerEvent) {
       drag = { active: true, moved: false, x: event.clientX, y: event.clientY };
