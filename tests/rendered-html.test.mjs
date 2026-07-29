@@ -20,7 +20,9 @@ test("keeps OpenRocket geometry and live edits traceable", async () => {
     source("db/schema.ts"),
   ]);
 
-  assert.match(missionControl, /WORKING · V\$\{workspaceVersion/);
+  assert.match(missionControl, /WORKING COPY · BASELINE V/);
+  assert.match(missionControl, /Create version/);
+  assert.match(missionControl, /Request version/);
   assert.match(missionControl, /encodeOpenRocketAsync\(orkModel\)/);
   assert.match(missionControl, /baseVersion/);
   assert.match(missionControl, /Wall thickness/);
@@ -59,8 +61,8 @@ test("keeps OpenRocket geometry and live edits traceable", async () => {
   assert.match(missionControl, /configuration-pane-widths/);
   assert.match(missionControl, /pane-resizer-tree/);
   assert.match(missionControl, /pane-resizer-record/);
-  assert.match(missionControl, /WORKING VERSION<\/span><strong>\{workspaceVersion \?\? "—"\} <small>/);
-  assert.doesNotMatch(missionControl, /WORKING VERSION<\/span><strong>\{workspaceVersion \?\? "—"\}<\/strong><em>/);
+  assert.match(missionControl, /RELEASE BASELINE/);
+  assert.doesNotMatch(missionControl, /WORKING VERSION<\/span>/);
   assert.match(missionControl, /CG:/);
   assert.match(missionControl, /CP:/);
   assert.match(missionControl, /CALCULATING/);
@@ -85,15 +87,18 @@ test("keeps OpenRocket geometry and live edits traceable", async () => {
   assert.match(solver, /initialising/);
   assert.match(schema, /orkChanges/);
   assert.match(schema, /orkSnapshots/);
+  assert.match(schema, /orkReleaseRequests/);
+  assert.match(schema, /orkReleases/);
 });
 
 test("enforces team roles and keeps projects isolated", async () => {
-  const [access, accessStore, session, ork, records, schema, workspace] = await Promise.all([
+  const [access, accessStore, session, ork, records, releases, schema, workspace] = await Promise.all([
     source("app/api/access.ts"),
     source("db/access-store.ts"),
     source("app/api/session/route.ts"),
     source("app/api/ork/route.ts"),
     source("app/api/component-records/route.ts"),
+    source("app/api/releases/route.ts"),
     source("db/schema.ts"),
     source("app/workspace-app.tsx"),
   ]);
@@ -101,11 +106,17 @@ test("enforces team roles and keeps projects isolated", async () => {
   assert.match(accessStore, /lead: \["view", "editOrk", "uploadEvidence", "createTest"/);
   assert.match(accessStore, /engineer: \["view", "editOrk", "uploadEvidence", "completeTest"/);
   assert.match(accessStore, /viewer: \["view"\]/);
+  assert.match(accessStore, /engineer: \[[^\]]+"requestRelease"/);
+  assert.match(accessStore, /lead: \[[^\]]+"approveRelease"/);
   assert.match(access, /requireProjectAccess/);
   assert.match(access, /x-project-id/);
   assert.match(ork, /requireProjectAccess\(request, "editOrk"\)/);
   assert.match(records, /action === "create-test" \? "createTest"/);
   assert.match(records, /action === "complete-test" \? "completeTest"/);
+  assert.match(releases, /action === "request" \? "requestRelease" : "approveRelease"/);
+  assert.match(releases, /working update is already awaiting approval/);
+  assert.match(releases, /release\.restored/);
+  assert.match(releases, /object_key AS objectKey/);
   assert.match(session, /invite-member/);
   assert.match(session, /create-team-code/);
   assert.match(session, /update-member-projects/);
@@ -150,6 +161,22 @@ test("uses site accounts, separates demo data and recovers local drafts", async 
   assert.match(missionControl, /rocket-draft:/);
   assert.match(missionControl, /Recovered/);
   assert.match(missionControl, /mode !== "live"/);
+});
+
+test("provides a complete touch-first mobile engineering workspace", async () => {
+  const styles = await source("app/globals.css");
+  assert.match(styles, /@media \(max-width: 820px\)/);
+  assert.match(styles, /\.rail \{[\s\S]*position: fixed;[\s\S]*inset: auto 0 0;/);
+  assert.match(styles, /\.rail-button::after \{[\s\S]*position: static;/);
+  assert.match(styles, /\.workspace-actions \{ width: 100%; display: grid; grid-template-columns: 1fr 1fr;/);
+  assert.match(styles, /\.main-grid \{ grid-template-columns: minmax\(0, 1fr\); \}/);
+  assert.match(styles, /\.simulation-module \.module-tree-list \{[\s\S]*overflow-x: auto;/);
+  assert.match(styles, /\.simulation-metrics \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.match(styles, /\.simulation-detail-grid \{ grid-template-columns: minmax\(0, 1fr\);/);
+  assert.match(styles, /\.register-head \{ display: none; \}/);
+  assert.match(styles, /\.revision-timeline > section \{ grid-template-columns: minmax\(0, 1fr\);/);
+  assert.match(styles, /\.simulation-editor \{ width: 100%; height: 100vh; height: 100dvh;/);
+  assert.match(styles, /\.statusbar \{[\s\S]*bottom: 64px;/);
 });
 
 test("provides a focused engineering record for every component", async () => {

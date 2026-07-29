@@ -1,11 +1,11 @@
 import { env } from "cloudflare:workers";
 
 export type TeamRole = "lead" | "engineer" | "viewer";
-export type Permission = "view" | "editOrk" | "uploadEvidence" | "createTest" | "completeTest" | "comment" | "createRevision" | "manageTeam" | "manageProjects";
+export type Permission = "view" | "editOrk" | "uploadEvidence" | "createTest" | "completeTest" | "comment" | "requestRelease" | "approveRelease" | "manageTeam" | "manageProjects";
 
 export const ROLE_PERMISSIONS: Record<TeamRole, Permission[]> = {
-  lead: ["view", "editOrk", "uploadEvidence", "createTest", "completeTest", "comment", "createRevision", "manageTeam", "manageProjects"],
-  engineer: ["view", "editOrk", "uploadEvidence", "completeTest", "comment", "createRevision"],
+  lead: ["view", "editOrk", "uploadEvidence", "createTest", "completeTest", "comment", "requestRelease", "approveRelease", "manageTeam", "manageProjects"],
+  engineer: ["view", "editOrk", "uploadEvidence", "completeTest", "comment", "requestRelease"],
   viewer: ["view"],
 };
 

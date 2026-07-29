@@ -4,7 +4,7 @@ import { ChangeEvent, CSSProperties, KeyboardEvent as ReactKeyboardEvent, Pointe
 import { RocketViewer, RocketViewerHandle } from "./rocket-viewer";
 import { RocketSectionHandle, RocketSectionView } from "./rocket-section-view";
 import { ProjectRecordWorkspace } from "./project-record-workspace";
-import { RevisionWorkspace } from "./revision-workspace";
+import { RevisionWorkspace, type ControlledRelease, type ReleaseRequest } from "./revision-workspace";
 import { SimulationWorkspace, liveToSimulation, type LiveResult } from "./simulation-workspace";
 import { WorkspaceIcon } from "./workspace-icon";
 import {
@@ -393,7 +393,7 @@ export function MissionControl({
   const [activity, setActivity] = useState(initialActivity);
   const [notice, setNotice] = useState("Workspace synchronised");
   const [revisionOpen, setRevisionOpen] = useState(false);
-  const [revisionName, setRevisionName] = useState("STR-410 mass update");
+  const [revisionName, setRevisionName] = useState("Configuration baseline");
   const [orkModel, setOrkModel] = useState<OpenRocketModel | null>(null);
   const [viewMode, setViewMode] = useState<"components" | "3d">("components");
   const [workspaceModule, setWorkspaceModule] = useState<WorkspaceModule>("configuration");
@@ -413,6 +413,9 @@ export function MissionControl({
   const [analysisCalculatedAt, setAnalysisCalculatedAt] = useState("");
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
   const [auditChanges, setAuditChanges] = useState<AuditChange[]>([]);
+  const [controlledReleases, setControlledReleases] = useState<ControlledRelease[]>([]);
+  const [releaseRequests, setReleaseRequests] = useState<ReleaseRequest[]>([]);
+  const [releaseNotes, setReleaseNotes] = useState("");
   const [lastSavedBy, setLastSavedBy] = useState<string>("");
   const [conflictMessage, setConflictMessage] = useState("");
   const [componentRecord, setComponentRecord] = useState<ComponentRecord>(emptyComponentRecord);
@@ -436,6 +439,8 @@ export function MissionControl({
   const can = (permission: WorkspaceTeam["permissions"][number]) => mode === "demo" ? permission === "view" || permission === "editOrk" : workspace.team.permissions.includes(permission);
   const availableProjects = teams.flatMap((team) => team.projects.map((project) => ({ ...project, teamName: team.name })));
   const visibleMembers = workspace.team.members.slice(0, 3);
+  const latestRelease = controlledReleases[0] ?? null;
+  const pendingRelease = releaseRequests.find((request) => request.status === "pending") ?? null;
 
   useEffect(() => {
     try {
@@ -551,7 +556,7 @@ export function MissionControl({
         setWorkspaceVersion(nextVersion);
         setLastSavedBy(decodeURIComponent(response.headers.get("x-ork-updated-by") || "Teammate"));
         setSaveState("saved");
-        setNotice(`Live update received · version ${nextVersion}`);
+        setNotice(`Live update received · working update W${nextVersion}`);
         await refreshHistory();
       } catch { /* retain the last known-good working copy */ }
     }, 2500);
@@ -597,8 +602,10 @@ export function MissionControl({
     try {
       const response = await fetch("/api/ork/history", { headers: collaborationHeaders(), cache: "no-store" });
       if (!response.ok) return;
-      const payload = await response.json() as { changes?: AuditChange[] };
+      const payload = await response.json() as { changes?: AuditChange[]; releases?: ControlledRelease[]; requests?: ReleaseRequest[] };
       setAuditChanges(payload.changes ?? []);
+      setControlledReleases(payload.releases ?? []);
+      setReleaseRequests(payload.requests ?? []);
     } catch { /* live history is non-blocking */ }
   }
 
@@ -682,6 +689,9 @@ export function MissionControl({
     setAnalysisState("saved");
     setAnalysisEngineVersion("");
     setAnalysisCalculatedAt("");
+    setAuditChanges([]);
+    setControlledReleases([]);
+    setReleaseRequests([]);
     async function openWorkspace() {
       try {
         if (mode === "demo") {
@@ -854,7 +864,7 @@ export function MissionControl({
         setWorkspaceVersion(payload.workspace.version);
         window.localStorage.removeItem(`rocket-draft:${workspace.project.id}`);
         setLastSavedBy(payload.workspace.updatedByName);
-        setNotice(`Shared .ork saved · version ${payload.workspace.version}`);
+        setNotice(`Shared .ork saved · working update W${payload.workspace.version}`);
         await refreshHistory();
       } catch {
         setSaveState("offline");
@@ -987,10 +997,10 @@ export function MissionControl({
       const url = URL.createObjectURL(await response.blob());
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${orkModel?.sourceName.replace(/\.ork$/i, "") || "shared-working"}-v${workspaceVersion ?? 0}.ork`;
+      link.download = `${orkModel?.sourceName.replace(/\.ork$/i, "") || "shared-working"}-working-w${workspaceVersion ?? 0}.ork`;
       link.click();
       URL.revokeObjectURL(url);
-      setNotice(`Downloaded controlled working copy · version ${workspaceVersion ?? "—"}`);
+      setNotice(`Downloaded working update W${workspaceVersion ?? "—"}`);
     } catch {
       setNotice("The controlled .ork could not be downloaded");
     }
@@ -1051,7 +1061,7 @@ export function MissionControl({
       await refreshComponentRecord(selected.id);
       setRecordTitle("");
       setComponents((items) => items.map((component) => component.id === selected.id ? { ...component, status: "review" } : component));
-      setNotice(`${file.name} added to ${selected.code} at ORK V${workspaceVersion ?? "—"}`);
+      setNotice(`${file.name} added to ${selected.code} at working update W${workspaceVersion ?? "—"}`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : `${file.name} could not be uploaded`);
     }
@@ -1141,44 +1151,47 @@ export function MissionControl({
     }
   }
 
-  async function createRevision() {
-    if (!can("createRevision")) { setNotice("Your role cannot create controlled revisions"); return; }
+  async function submitVersion() {
+    const directRelease = can("approveRelease");
+    if (!directRelease && !can("requestRelease")) { setNotice("Your role cannot request a controlled version"); return; }
     if (pendingChangesRef.current.length || saveState === "saving") {
-      setNotice("Wait for the shared .ork to finish saving before creating a revision");
+      setNotice("Wait for the shared .ork to finish saving before submitting a version");
       return;
     }
-    const label = revisionName.trim() || `${selected.code} update`;
-    const newEntry: Activity = {
-      id: Date.now(),
-      person: user.name,
-      initials: user.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase(),
-      action: "created revision",
-      target: label,
-      detail: `${selected.code} · ${selected.name}`,
-      time: "Now",
-      tone: "cyan",
-    };
-    setActivity((items) => [newEntry, ...items]);
-    setComponents((items) =>
-      items.map((component) =>
-        component.id === selected.id ? { ...component, status: "review" } : component,
-      ),
-    );
-    setRevisionOpen(false);
-    setNotice(`Revision 29 created · ${label}`);
+    const label = revisionName.trim() || `${orkModel?.name || workspace.project.name} configuration`;
     try {
-      const response = await fetch("/api/revisions", {
+      const response = await fetch("/api/releases", {
         method: "POST",
         headers: { "content-type": "application/json", ...collaborationHeaders() },
-        body: JSON.stringify({ title: label, componentId: selected.id, componentCode: selected.code }),
+        body: JSON.stringify({ action: directRelease ? "release" : "request", title: label, notes: releaseNotes }),
       });
-      if (!response.ok) throw new Error("Revision could not be saved");
-      const payload = await response.json() as { snapshotVersion?: number | null };
-      setNotice(`Immutable revision saved · working version ${payload.snapshotVersion ?? workspaceVersion ?? "—"}`);
+      const payload = await responsePayload<{ releases?: ControlledRelease[]; requests?: ReleaseRequest[]; releaseNumber?: number }>(response);
+      if (!response.ok) throw new Error(payload.error || "Version could not be submitted");
+      setControlledReleases(payload.releases ?? []);
+      setReleaseRequests(payload.requests ?? []);
+      setActivity((items) => [{ id: Date.now(), person: user.name, initials: personInitials(user.name), action: directRelease ? "created version" : "requested version", target: label, detail: `Pinned from working update W${workspaceVersion ?? "—"}`, time: "Now", tone: "cyan" }, ...items]);
+      setRevisionOpen(false);
+      setReleaseNotes("");
+      setNotice(directRelease ? `Controlled V${payload.releaseNumber} created` : `Version request submitted from W${workspaceVersion ?? "—"}`);
       await refreshHistory();
-    } catch {
-      setNotice(`Revision could not be synchronised`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Version could not be submitted");
     }
+  }
+
+  async function handleReleaseAction(action: "approve" | "reject" | "restore", value: string | number) {
+    try {
+      const response = await fetch("/api/releases", { method: "POST", headers: { "content-type": "application/json", ...collaborationHeaders() }, body: JSON.stringify(action === "restore" ? { action, releaseNumber: value } : { action, requestId: value }) });
+      const payload = await responsePayload<{ releases?: ControlledRelease[]; requests?: ReleaseRequest[]; releaseNumber?: number; restoredVersion?: number }>(response);
+      if (!response.ok) throw new Error(payload.error || "Version action failed");
+      setControlledReleases(payload.releases ?? []);
+      setReleaseRequests(payload.requests ?? []);
+      if (action === "restore") {
+        setNotice(`V${value} restored as working update W${payload.restoredVersion}`);
+        await reloadSharedOrk();
+      } else setNotice(action === "approve" ? `Request approved as V${payload.releaseNumber}` : "Version request rejected");
+      await refreshHistory();
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Version action failed"); }
   }
 
   return (
@@ -1198,7 +1211,7 @@ export function MissionControl({
 
         <div className="topbar-actions">
           <div className={`sync-state sync-${saveState}`}><span className="pulse-dot" />{
-            mode === "demo" ? (saveState === "draft" ? "DEMO · LOCAL CHANGES" : "DEMO") : saveState === "saving" ? "SAVING" : saveState === "draft" ? "DRAFT" : saveState === "conflict" ? "CONFLICT" : saveState === "offline" ? "OFFLINE" : saveState === "loading" ? "CONNECTING" : `LIVE · V${workspaceVersion ?? "—"}`
+            mode === "demo" ? (saveState === "draft" ? "DEMO · LOCAL CHANGES" : "DEMO") : saveState === "saving" ? "SAVING" : saveState === "draft" ? "DRAFT" : saveState === "conflict" ? "CONFLICT" : saveState === "offline" ? "OFFLINE" : saveState === "loading" ? "CONNECTING" : "LIVE · SAVED"
           }</div>
           <div className="avatar-stack" aria-label="Team members">
             {(visibleMembers.length ? visibleMembers : collaborators).map((person, index) => (
@@ -1247,7 +1260,7 @@ export function MissionControl({
           <div className="breadcrumbs">{workspace.team.name.toUpperCase()} / {workspace.project.name.toUpperCase()} / <strong>{moduleLabel[workspaceModule]}</strong></div>
           <div className="workspace-title-row">
             <h1>{orkModel?.name || workspace.project.name}</h1>
-            <span className="revision-badge"><span /> {mode === "demo" ? "DEMO · LOCAL" : `WORKING · V${workspaceVersion ?? "—"}`}</span>
+            <span className="revision-badge"><span /> {mode === "demo" ? "DEMO · LOCAL" : latestRelease ? `WORKING COPY · BASELINE V${latestRelease.releaseNumber}` : "WORKING COPY · UNRELEASED"}</span>
           </div>
         </div>
         {workspaceModule === "configuration" && <div className="workspace-actions">
@@ -1258,8 +1271,8 @@ export function MissionControl({
           <button className="button button-secondary" type="button" onClick={downloadWorkingOrk} disabled={workspaceVersion === null}>
             <span>↓</span> Download .ORK
           </button>
-          <button className="button button-primary" type="button" onClick={() => setRevisionOpen(true)} disabled={!can("createRevision")} title={!can("createRevision") ? "Your role cannot create revisions" : undefined}>
-            <span>＋</span> Create revision
+          <button className="button button-primary" type="button" onClick={() => setRevisionOpen(true)} disabled={!can("requestRelease") && !can("approveRelease")} title={!can("requestRelease") && !can("approveRelease") ? "Your role cannot submit versions" : undefined}>
+            <span>＋</span> {can("approveRelease") ? "Create version" : "Request version"}
           </button>
         </div>}
       </section>
@@ -1276,7 +1289,7 @@ export function MissionControl({
           <div className="metric"><span>MAX DIAMETER</span><strong>{Math.round((orkModel?.maxRadius ?? 0) * 2000)} <small>mm</small></strong></div>
           <div className="metric"><span>PARSED COMPONENTS</span><strong>{orkModel?.components.length ?? 0} <small>items</small></strong></div>
           <div className="metric"><span>SAVED SIMULATIONS</span><strong>{orkModel?.simulations.length ?? 0} <small>cases</small></strong></div>
-          <div className="metric"><span>WORKING VERSION</span><strong>{workspaceVersion ?? "—"} <small>{saveState === "saved" ? "Current" : saveState}</small></strong></div>
+          <div className="metric"><span>RELEASE BASELINE</span><strong>{latestRelease ? `V${latestRelease.releaseNumber}` : "—"} <small>{pendingRelease ? `W${pendingRelease.workingVersion} awaiting approval` : latestRelease ? `working copy W${workspaceVersion ?? "—"}` : "not released"}</small></strong></div>
         </>}
       </section>
 
@@ -1367,7 +1380,7 @@ export function MissionControl({
                 <span>Max. velocity: {vehicleAnalysis.maxVelocity} m/s (Mach {vehicleAnalysis.maxMach})</span>
                 <span>Max. acceleration: {vehicleAnalysis.maxAcceleration} m/s²</span>
               </div>
-              <div className="analysis-state"><i />{analysisStateLabel[analysisState]}<small>{analysisState === "current" ? ` · V${workspaceVersion ?? "—"} · CORE ${analysisEngineVersion || "—"}` : analysisState === "calculating" ? " · last result shown" : analysisState === "stale" ? " · saves before calculation" : analysisState === "failed" ? " · saved result shown" : analysisCalculatedAt ? ` · ${new Date(analysisCalculatedAt).toLocaleTimeString()}` : ""}</small></div>
+              <div className="analysis-state"><i />{analysisStateLabel[analysisState]}<small>{analysisState === "current" ? ` · W${workspaceVersion ?? "—"} · CORE ${analysisEngineVersion || "—"}` : analysisState === "calculating" ? " · last result shown" : analysisState === "stale" ? " · saves before calculation" : analysisState === "failed" ? " · saved result shown" : analysisCalculatedAt ? ` · ${new Date(analysisCalculatedAt).toLocaleTimeString()}` : ""}</small></div>
             </section>}
             <div className="model-footer">
               <span>MODEL SOURCE <strong>{orkModel?.sourceName.toUpperCase() ?? "WAITING FOR .ORK"}</strong></span>
@@ -1388,7 +1401,7 @@ export function MissionControl({
             <div className="inspector-code">ENGINEERING RECORD · {selected.code}</div>
             <StatusDot status={selected.status} />
             <h2>{selected.name}</h2>
-            <p>{selected.type} · controlled against ORK V{workspaceVersion ?? "—"}</p>
+            <p>{selected.type} · working update W{workspaceVersion ?? "—"}</p>
           </div>
           <div className="inspector-tabs inspector-tabs-four">
             <button type="button" className={activePanel === "properties" ? "inspector-tab-active" : ""} onClick={() => setActivePanel("properties")}>DESIGN</button>
@@ -1433,7 +1446,7 @@ export function MissionControl({
             <div className="inspector-body record-panel-body">
               <div className="record-heading">
                 <div><span className="eyebrow">CONTROLLED EVIDENCE</span><h3>Part records</h3></div>
-                <span className="version-lock">ORK V{workspaceVersion ?? "—"}</span>
+                <span className="version-lock">WORKING W{workspaceVersion ?? "—"}</span>
               </div>
               <div className="record-metrics">
                 <div><strong>{componentRecord.artifacts.filter((item) => item.category === "drawing" && item.status === "current").length}</strong><span>drawings</span></div>
@@ -1454,7 +1467,7 @@ export function MissionControl({
               <div className="engineering-record-list">
                 {componentRecord.artifacts.filter((item) => item.category === "drawing").map((artifact) => (
                   <a key={artifact.id} href={`/api/component-records?projectId=${encodeURIComponent(workspace.project.id)}&componentId=${encodeURIComponent(selected.id)}&artifactId=${artifact.id}&download=1`} target="_blank" rel="noreferrer" className={artifact.status === "superseded" ? "record-superseded" : ""}>
-                    <span className="record-file-kind">DWG</span><div><strong>{artifact.title}</strong><small>REV {artifact.revision} · {artifact.status.toUpperCase()} · {recordSize(artifact.sizeBytes)}</small><em>{artifact.uploadedByName} · ORK V{artifact.orkVersion ?? "—"} · {recordDate(artifact.createdAt)}</em></div><b>↗</b>
+                    <span className="record-file-kind">DWG</span><div><strong>{artifact.title}</strong><small>REV {artifact.revision} · {artifact.status.toUpperCase()} · {recordSize(artifact.sizeBytes)}</small><em>{artifact.uploadedByName} · WORKING W{artifact.orkVersion ?? "—"} · {recordDate(artifact.createdAt)}</em></div><b>↗</b>
                   </a>
                 ))}
                 {!recordLoading && !componentRecord.artifacts.some((item) => item.category === "drawing") && <div className="record-empty"><strong>No controlled drawing yet</strong><span>Add the released or working drawing above. New revisions retain the earlier file.</span></div>}
@@ -1464,7 +1477,7 @@ export function MissionControl({
               <div className="engineering-record-list">
                 {componentRecord.artifacts.filter((item) => item.category !== "drawing").map((artifact) => (
                   <a key={artifact.id} href={`/api/component-records?projectId=${encodeURIComponent(workspace.project.id)}&componentId=${encodeURIComponent(selected.id)}&artifactId=${artifact.id}&download=1`} target="_blank" rel="noreferrer">
-                    <span className="record-file-kind">{artifact.category === "test-evidence" ? "TEST" : artifact.category === "photo" ? "IMG" : artifact.category === "video" ? "VID" : "DOC"}</span><div><strong>{artifact.title}</strong><small>{artifact.category.replace("-", " ").toUpperCase()} · REV {artifact.revision} · {recordSize(artifact.sizeBytes)}</small><em>{artifact.uploadedByName} · ORK V{artifact.orkVersion ?? "—"} · {recordDate(artifact.createdAt)}</em></div><b>↗</b>
+                    <span className="record-file-kind">{artifact.category === "test-evidence" ? "TEST" : artifact.category === "photo" ? "IMG" : artifact.category === "video" ? "VID" : "DOC"}</span><div><strong>{artifact.title}</strong><small>{artifact.category.replace("-", " ").toUpperCase()} · REV {artifact.revision} · {recordSize(artifact.sizeBytes)}</small><em>{artifact.uploadedByName} · WORKING W{artifact.orkVersion ?? "—"} · {recordDate(artifact.createdAt)}</em></div><b>↗</b>
                   </a>
                 ))}
                 {!recordLoading && !componentRecord.artifacts.some((item) => item.category !== "drawing") && <div className="record-empty"><strong>No supporting evidence yet</strong><span>Add analysis, test files, inspection photos or video.</span></div>}
@@ -1484,14 +1497,14 @@ export function MissionControl({
               <div className="record-section-title"><span>REQUIRED</span><small>{componentRecord.tests.filter((test) => test.status === "required").length}</small></div>
               <div className="test-list">
                 {componentRecord.tests.filter((test) => test.status === "required").map((test) => (
-                  <article key={test.id} className="test-card test-required"><div className="test-state">REQ</div><div><h4>{test.title}</h4><p>{test.requirement}</p><small>Owner {test.ownerName} · ORK V{test.orkVersion ?? "—"} · {recordDate(test.createdAt)}</small><button type="button" disabled={!can("completeTest")} onClick={() => completeRequiredTest(test)}>Mark test complete</button></div></article>
+                  <article key={test.id} className="test-card test-required"><div className="test-state">REQ</div><div><h4>{test.title}</h4><p>{test.requirement}</p><small>Owner {test.ownerName} · WORKING W{test.orkVersion ?? "—"} · {recordDate(test.createdAt)}</small><button type="button" disabled={!can("completeTest")} onClick={() => completeRequiredTest(test)}>Mark test complete</button></div></article>
                 ))}
                 {!recordLoading && !componentRecord.tests.some((test) => test.status === "required") && <div className="record-empty"><strong>No open test requirements</strong><span>Add one when this part needs verification before release.</span></div>}
               </div>
               <div className="record-section-title"><span>COMPLETE</span><small>{componentRecord.tests.filter((test) => test.status === "complete").length}</small></div>
               <div className="test-list">
                 {componentRecord.tests.filter((test) => test.status === "complete").map((test) => (
-                  <article key={test.id} className="test-card test-complete"><div className="test-state">✓</div><div><h4>{test.title}</h4><p>{test.completionNotes}</p><small>{test.completedByName} · ORK V{test.orkVersion ?? "—"} · {recordDate(test.completedAt)}</small></div></article>
+                  <article key={test.id} className="test-card test-complete"><div className="test-state">✓</div><div><h4>{test.title}</h4><p>{test.completionNotes}</p><small>{test.completedByName} · WORKING W{test.orkVersion ?? "—"} · {recordDate(test.completedAt)}</small></div></article>
                 ))}
               </div>
             </div>
@@ -1507,13 +1520,13 @@ export function MissionControl({
               </section>
               <div className="comment-thread">
                 {componentRecord.comments.map((comment) => (
-                  <article key={comment.id}><span className="comment-avatar">{personInitials(comment.authorName)}</span><div><header><strong>{comment.authorName}</strong><time>{recordDate(comment.createdAt)}</time></header><p>{comment.body}</p><footer><span>ORK V{comment.orkVersion ?? "—"}</span>{comment.mentions.map((mention) => <em key={mention}>@{mention}</em>)}</footer></div></article>
+                  <article key={comment.id}><span className="comment-avatar">{personInitials(comment.authorName)}</span><div><header><strong>{comment.authorName}</strong><time>{recordDate(comment.createdAt)}</time></header><p>{comment.body}</p><footer><span>WORKING W{comment.orkVersion ?? "—"}</span>{comment.mentions.map((mention) => <em key={mention}>@{mention}</em>)}</footer></div></article>
                 ))}
                 {!recordLoading && !componentRecord.comments.length && <div className="record-empty"><strong>No discussion yet</strong><span>Use this thread for engineering decisions and review questions—not transient chat.</span></div>}
               </div>
               <div className="record-section-title"><span>TRACE LOG</span><small>{componentRecord.events.length}</small></div>
               <div className="record-event-list">
-                {componentRecord.events.slice(0, 12).map((event) => <article key={event.id}><span>{event.action.toUpperCase()}</span><div><strong>{event.summary}</strong><small>{event.authorName} · ORK V{event.orkVersion ?? "—"} · {recordDate(event.createdAt)}</small></div></article>)}
+                {componentRecord.events.slice(0, 12).map((event) => <article key={event.id}><span>{event.action.toUpperCase()}</span><div><strong>{event.summary}</strong><small>{event.authorName} · WORKING W{event.orkVersion ?? "—"} · {recordDate(event.createdAt)}</small></div></article>)}
               </div>
             </div>
           )}
@@ -1522,7 +1535,7 @@ export function MissionControl({
       </div>}
 
       {workspaceModule === "simulation" && <SimulationWorkspace key={`${workspace.project.id}:${workspaceVersion ?? "none"}`} model={orkModel} mode={mode} workspaceVersion={workspaceVersion} headers={collaborationHeaders} canRun={can("editOrk") && (mode === "demo" || saveState === "saved")} runBlockedReason={!can("editOrk") ? "Your team role cannot edit or calculate this configuration." : saveState === "offline" ? "The simulation setup has not reached the shared file. Co-Roc will retry automatically when the connection recovers." : saveState === "conflict" ? "A teammate saved another version first. Resolve the shared-file conflict before calculating." : saveState !== "saved" ? "The simulation setup is still being written to the shared ORK." : undefined} onNotice={setNotice} onModelChange={updateSimulationModel} />}
-      {workspaceModule === "history" && <RevisionWorkspace changes={auditChanges} onOpenComponent={(componentId) => openComponentWorkspace(componentId)} />}
+      {workspaceModule === "history" && <RevisionWorkspace changes={auditChanges} releases={controlledReleases} requests={releaseRequests} canApprove={can("approveRelease")} onOpenComponent={(componentId) => openComponentWorkspace(componentId)} onReleaseAction={handleReleaseAction} />}
       {(workspaceModule === "tests" || workspaceModule === "documents") && <ProjectRecordWorkspace kind={workspaceModule} components={components} headers={collaborationHeaders} projectId={workspace.project.id} onSelectComponent={(componentId, panel) => openComponentWorkspace(componentId, panel)} onNotice={setNotice} />}
 
       {saveState === "conflict" && <div className="conflict-banner"><span><strong>Live save paused.</strong> {conflictMessage || "A teammate saved a newer working copy."}</span><button type="button" onClick={reloadSharedOrk}>Reload shared file</button></div>}
@@ -1531,24 +1544,25 @@ export function MissionControl({
         <div className="status-message"><span className="pulse-dot" />{notice}</div>
         <div className="statusbar-right">
           {user.preview && <span className="preview-pill">{mode === "demo" ? "DEMO · NOT SAVED" : `LOCAL ${workspace.team.role.toUpperCase()}`}</span>}
-          <span>{mode === "demo" ? "LOCAL ORK" : `LIVE ORK · V${workspaceVersion ?? "—"}`}</span><span>FORMAT 1.12</span><span>SI UNITS</span>
+          <span>{mode === "demo" ? "LOCAL ORK" : `LIVE WORKING COPY · W${workspaceVersion ?? "—"}`}</span><span>FORMAT 1.12</span><span>SI UNITS</span>
         </div>
       </footer>
 
       {revisionOpen && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setRevisionOpen(false)}>
           <section className="revision-modal" role="dialog" aria-modal="true" aria-labelledby="revision-title" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="modal-mark">R29</div>
-            <span className="eyebrow">CONTROLLED CHANGE</span>
-            <h2 id="revision-title">Create a new revision</h2>
-            <p>Capture the current draft as an immutable engineering record.</p>
-            <label className="field-label">Revision message<input autoFocus value={revisionName} onChange={(event) => setRevisionName(event.target.value)} onKeyDown={(event) => event.key === "Enter" && createRevision()} /></label>
+            <div className="modal-mark">{can("approveRelease") ? `V${(latestRelease?.releaseNumber ?? 0) + 1}` : "REQ"}</div>
+            <span className="eyebrow">CONFIGURATION CONTROL</span>
+            <h2 id="revision-title">{can("approveRelease") ? "Create controlled version" : "Request controlled version"}</h2>
+            <p>{can("approveRelease") ? `Release the exact saved state W${workspaceVersion ?? "—"} as the next immutable baseline. Later live edits remain in the working copy.` : `Submit the exact saved state W${workspaceVersion ?? "—"} for lead approval. Your pinned request will not change when the team continues editing.`}</p>
+            <label className="field-label">Version title<input autoFocus value={revisionName} onChange={(event) => setRevisionName(event.target.value)} /></label>
+            <label className="field-label">Release notes<textarea value={releaseNotes} onChange={(event) => setReleaseNotes(event.target.value)} placeholder="Scope, verification state, unresolved limitations and reason for release" /></label>
             <div className="change-preview">
-              <span>1</span><p><strong>{selected.code}</strong><small>{selected.name} · Properties and linked evidence</small></p><em>MODIFIED</em>
+              <span>W{workspaceVersion ?? "—"}</span><p><strong>{orkModel?.name || workspace.project.name}</strong><small>Saved ORK, simulations and linked records at submission time</small></p><em>PINNED</em>
             </div>
             <div className="modal-actions">
               <button className="button button-secondary" type="button" onClick={() => setRevisionOpen(false)}>Cancel</button>
-              <button className="button button-primary" type="button" onClick={createRevision}>Create revision</button>
+              <button className="button button-primary" type="button" onClick={submitVersion}>{can("approveRelease") ? `Create V${(latestRelease?.releaseNumber ?? 0) + 1}` : "Send approval request"}</button>
             </div>
           </section>
         </div>

@@ -50,6 +50,42 @@ export async function ensureOrkSchema() {
     )`),
     DB.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS ork_snapshots_project_version_unique
       ON ork_snapshots (project_id, version)`),
+    DB.prepare(`CREATE TABLE IF NOT EXISTS ork_release_requests (
+      id TEXT PRIMARY KEY NOT NULL,
+      project_id TEXT NOT NULL,
+      working_version INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      notes TEXT DEFAULT '' NOT NULL,
+      status TEXT DEFAULT 'pending' NOT NULL,
+      object_key TEXT NOT NULL,
+      sha256 TEXT NOT NULL,
+      requested_by_name TEXT NOT NULL,
+      requested_by_email TEXT NOT NULL,
+      requested_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL,
+      reviewed_by_name TEXT,
+      reviewed_by_email TEXT,
+      reviewed_at TEXT,
+      release_number INTEGER
+    )`),
+    DB.prepare(`CREATE INDEX IF NOT EXISTS ork_release_requests_project_idx
+      ON ork_release_requests (project_id, requested_at)`),
+    DB.prepare(`CREATE TABLE IF NOT EXISTS ork_releases (
+      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+      project_id TEXT NOT NULL,
+      release_number INTEGER NOT NULL,
+      working_version INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      notes TEXT DEFAULT '' NOT NULL,
+      object_key TEXT NOT NULL,
+      sha256 TEXT NOT NULL,
+      created_by_name TEXT NOT NULL,
+      created_by_email TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL
+    )`),
+    DB.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS ork_releases_project_number_unique
+      ON ork_releases (project_id, release_number)`),
+    DB.prepare(`CREATE INDEX IF NOT EXISTS ork_releases_project_idx
+      ON ork_releases (project_id, created_at)`),
   ]);
 }
 

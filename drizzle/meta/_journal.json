@@ -57,6 +57,13 @@
       "when": 1785318380388,
       "tag": "0007_pink_champions",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1785344705687,
+      "tag": "0008_yummy_ben_urich",
+      "breakpoints": true
     }
   ]
 }

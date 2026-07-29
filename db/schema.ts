@@ -183,6 +183,43 @@ export const orkSnapshots = sqliteTable("ork_snapshots", {
   uniqueIndex("ork_snapshots_project_version_unique").on(table.projectId, table.version),
 ]);
 
+export const orkReleaseRequests = sqliteTable("ork_release_requests", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id").notNull(),
+  workingVersion: integer("working_version").notNull(),
+  title: text("title").notNull(),
+  notes: text("notes").notNull().default(""),
+  status: text("status").notNull().default("pending"),
+  objectKey: text("object_key").notNull(),
+  sha256: text("sha256").notNull(),
+  requestedByName: text("requested_by_name").notNull(),
+  requestedByEmail: text("requested_by_email").notNull(),
+  requestedAt: text("requested_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  reviewedByName: text("reviewed_by_name"),
+  reviewedByEmail: text("reviewed_by_email"),
+  reviewedAt: text("reviewed_at"),
+  releaseNumber: integer("release_number"),
+}, (table) => [
+  index("ork_release_requests_project_idx").on(table.projectId, table.requestedAt),
+]);
+
+export const orkReleases = sqliteTable("ork_releases", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  projectId: text("project_id").notNull(),
+  releaseNumber: integer("release_number").notNull(),
+  workingVersion: integer("working_version").notNull(),
+  title: text("title").notNull(),
+  notes: text("notes").notNull().default(""),
+  objectKey: text("object_key").notNull(),
+  sha256: text("sha256").notNull(),
+  createdByName: text("created_by_name").notNull(),
+  createdByEmail: text("created_by_email").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("ork_releases_project_number_unique").on(table.projectId, table.releaseNumber),
+  index("ork_releases_project_idx").on(table.projectId, table.createdAt),
+]);
+
 export const simulationRuns = sqliteTable("simulation_runs", {
   id: text("id").primaryKey(),
   projectId: text("project_id").notNull(),
