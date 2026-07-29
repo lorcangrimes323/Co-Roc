@@ -445,8 +445,9 @@ export function MissionControl({
     const dryMass = simulation.launchMass - simulation.launchMotorMass;
     const stabilityPercent = simulation.referenceStability * (orkModel.maxRadius * 2) / orkModel.length * 100;
     const shown = (value: number, digits = 1) => Number.isFinite(value) ? value.toFixed(digits) : "—";
+    const configuredName = simulation.branchName && simulation.branchName !== "Flight configuration" ? simulation.branchName : simulation.name;
     return {
-      configuration: simulation.branchName || simulation.name,
+      configuration: configuredName,
       dryMass: shown(dryMass, 3),
       loadedMass: shown(simulation.launchMass, 3),
       cg: shown(simulation.referenceCg * 1000, 0),
@@ -1271,19 +1272,6 @@ export function MissionControl({
             </div>
           </div>
 
-          {vehicleAnalysis && <section className="vehicle-analysis" data-state={analysisState} aria-label="OpenRocket vehicle analysis">
-            <header><span>OPENROCKET VEHICLE ANALYSIS</span><strong><i />{analysisStateLabel[analysisState]}</strong><small>{analysisState === "current" ? `ORK V${workspaceVersion ?? "—"} · CORE ${analysisEngineVersion || "—"}` : analysisState === "calculating" ? "Last valid result remains visible" : analysisState === "failed" ? "Saved result shown · retry after the next save" : analysisState === "stale" ? "Recalculation starts after autosave" : analysisCalculatedAt ? new Date(analysisCalculatedAt).toLocaleString() : "Read from working ORK"}</small></header>
-            <div className="vehicle-analysis-grid">
-              <div><span>FLIGHT CONFIGURATION</span><strong>{vehicleAnalysis.configuration}</strong><small>Active motor configuration</small></div>
-              <div><span>MASS</span><strong>{vehicleAnalysis.dryMass} <small>kg dry</small></strong><small>{vehicleAnalysis.loadedMass} kg with motors</small></div>
-              <div><span>CG / CP</span><strong>{vehicleAnalysis.cg} / {vehicleAnalysis.cp} <small>mm</small></strong><small>at Mach {vehicleAnalysis.referenceMach}</small></div>
-              <div><span>STABILITY</span><strong>{vehicleAnalysis.stability} <small>cal</small></strong><small>{vehicleAnalysis.stabilityPercent}% of vehicle length</small></div>
-              <div><span>APOGEE</span><strong>{vehicleAnalysis.apogee} <small>m</small></strong><small>OpenRocket calculation</small></div>
-              <div><span>MAX SPEED</span><strong>{vehicleAnalysis.maxVelocity} <small>m/s</small></strong><small>Mach {vehicleAnalysis.maxMach}</small></div>
-              <div><span>MAX ACCELERATION</span><strong>{vehicleAnalysis.maxAcceleration} <small>m/s²</small></strong><small>OpenRocket calculation</small></div>
-            </div>
-          </section>}
-
           <div className="model-stage">
             <div className="rocket-wrap">
               {viewMode === "components" ? (
@@ -1293,6 +1281,27 @@ export function MissionControl({
               )}
               {!orkModel && <div className="model-loading">{saveState === "loading" ? "READING OPENROCKET GEOMETRY…" : "NO .ORK FILE · IMPORT ONE TO INITIALISE THIS PROJECT"}</div>}
             </div>
+            {vehicleAnalysis && <section className="vehicle-analysis" data-state={analysisState} aria-label="OpenRocket vehicle analysis">
+              <div className="analysis-readout analysis-vehicle">
+                <strong>{orkModel?.name ?? "Vehicle"}</strong>
+                <span>Length {Math.round((orkModel?.length ?? 0) * 1000)} mm · max diameter {Math.round((orkModel?.maxRadius ?? 0) * 2000)} mm</span>
+                <span>Mass without motors {vehicleAnalysis.dryMass} kg</span>
+                <span>Mass with motors {vehicleAnalysis.loadedMass} kg</span>
+              </div>
+              <div className="analysis-readout analysis-stability">
+                <strong>Stability {vehicleAnalysis.stability} cal / {vehicleAnalysis.stabilityPercent}%</strong>
+                <span><b className="analysis-marker marker-cg" />CG: {vehicleAnalysis.cg} mm</span>
+                <span><b className="analysis-marker marker-cp" />CP: {vehicleAnalysis.cp} mm</span>
+                <small>at M={vehicleAnalysis.referenceMach}</small>
+              </div>
+              <div className="analysis-readout analysis-flight">
+                <strong>Flight configuration: {vehicleAnalysis.configuration}</strong>
+                <span>Apogee: {vehicleAnalysis.apogee} m</span>
+                <span>Max. velocity: {vehicleAnalysis.maxVelocity} m/s (Mach {vehicleAnalysis.maxMach})</span>
+                <span>Max. acceleration: {vehicleAnalysis.maxAcceleration} m/s²</span>
+              </div>
+              <div className="analysis-state"><i />{analysisStateLabel[analysisState]}<small>{analysisState === "current" ? ` · V${workspaceVersion ?? "—"} · CORE ${analysisEngineVersion || "—"}` : analysisState === "calculating" ? " · last result shown" : analysisState === "stale" ? " · saves before calculation" : analysisState === "failed" ? " · saved result shown" : analysisCalculatedAt ? ` · ${new Date(analysisCalculatedAt).toLocaleTimeString()}` : ""}</small></div>
+            </section>}
             <div className="model-footer">
               <span>MODEL SOURCE <strong>{orkModel?.sourceName.toUpperCase() ?? "WAITING FOR .ORK"}</strong></span>
               <span>LAST SAVED BY <strong>{lastSavedBy || "CONNECTING"}</strong></span>

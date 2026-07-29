@@ -364,6 +364,9 @@ public final class SimulationServer {
         summary.put("launchRodVelocity", finite(data.getLaunchRodVelocity()));
         summary.put("deploymentVelocity", finite(data.getDeploymentVelocity()));
         summary.put("optimumDelay", finite(data.getOptimumDelay()));
+        summary.put("launchMass", value(branch, FlightDataType.TYPE_MASS, 0));
+        summary.put("launchMotorMass", value(branch, FlightDataType.TYPE_MOTOR_MASS, 0));
+        summary.put("launchCg", value(branch, FlightDataType.TYPE_CG_LOCATION, 0));
 
         FlightEvent railExit = branch.getFirstEvent(FlightEvent.Type.LAUNCHROD);
         int railIndex = nearestIndex(branch, railExit == null ? 0 : railExit.getTime());
