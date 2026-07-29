@@ -126,7 +126,10 @@ export async function POST(request: Request) {
         ...(encodedOptions(options) ? { "x-openrocket-options": encodedOptions(options) } : {}),
       },
       body: previewBytes ?? await ork!.arrayBuffer(),
-      signal: AbortSignal.timeout(120_000),
+      // Free solver instances have a small CPU allocation and may need several
+      // minutes for complex high-power configurations. Keep the request bounded,
+      // but do not discard a valid OpenRocket run at the former two-minute limit.
+      signal: AbortSignal.timeout(600_000),
     });
   } catch {
     return Response.json({ error: "The OpenRocket Core service could not be reached.", code: "SOLVER_OFFLINE" }, { status: 503 });
