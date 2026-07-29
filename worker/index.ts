@@ -27,12 +27,22 @@ interface ExecutionContext {
 
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const url = new URL(request.url);
+    const publicHost = request.headers.get("x-co-roc-public-host")?.toLowerCase();
+    const originalContentType = request.headers.get("x-co-roc-original-content-type");
+    let routedRequest = request;
+    if ((publicHost === "co-roc.com" || publicHost === "www.co-roc.com")
+      && originalContentType?.toLowerCase().startsWith("multipart/form-data;")) {
+      const headers = new Headers(request.headers);
+      headers.set("content-type", originalContentType);
+      headers.delete("x-co-roc-original-content-type");
+      routedRequest = new Request(request, { headers });
+    }
+    const url = new URL(routedRequest.url);
 
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
-      return handleImageOptimization(request, {
-        fetchAsset: (path) => env.ASSETS.fetch(new Request(new URL(path, request.url))),
+      return handleImageOptimization(routedRequest, {
+        fetchAsset: (path) => env.ASSETS.fetch(new Request(new URL(path, routedRequest.url))),
         transformImage: async (body, { width, format, quality }) => {
           const result = await env.IMAGES.input(body).transform(width > 0 ? { width } : {}).output({ format, quality });
           return result.response();
@@ -40,7 +50,7 @@ const worker = {
       }, allowedWidths);
     }
 
-    return handler.fetch(request, env, ctx);
+    return handler.fetch(routedRequest, env, ctx);
   },
 };
 

@@ -41,6 +41,11 @@ export default async function handler(request, response) {
   }
   headers.set("x-forwarded-host", request.headers.host || "co-roc.com");
   headers.set("x-co-roc-public-host", request.headers.host || "co-roc.com");
+  const incomingContentType = headers.get("content-type") || "";
+  if (incomingContentType.toLowerCase().startsWith("multipart/form-data;")) {
+    headers.set("x-co-roc-original-content-type", incomingContentType);
+    headers.set("content-type", "application/octet-stream");
+  }
 
   const upstream = await fetch(upstreamUrl, {
     method: request.method,
