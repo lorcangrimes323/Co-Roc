@@ -5,7 +5,7 @@ import { encodeOpenRocketAsync, saveOpenRocketSimulation, type OpenRocketModel, 
 
 type SimulationOptionsInput = OpenRocketSimulationSetup;
 
-type LiveResult = {
+export type LiveResult = {
   engine: string;
   engineVersion: string;
   calculatedAt: string;
@@ -74,15 +74,27 @@ function optionsFromSimulation(simulation: OpenRocketSimulation, name = simulati
   };
 }
 
-function liveToSimulation(result: LiveResult, base: OpenRocketSimulation): OpenRocketSimulation {
+export function liveToSimulation(result: LiveResult, base: OpenRocketSimulation, modelDiameter?: number): OpenRocketSimulation {
   const summary = result.summary;
   const condition = (key: string, fallback: number) => finite(result.conditions[key], fallback);
+  const referenceSample = result.series
+    .filter((sample) => Number.isFinite(sample.mach) && Number.isFinite(sample.stability) && Number.isFinite(sample.cg) && Number.isFinite(sample.cp))
+    .sort((left, right) => Math.abs(left.mach - 0.3) - Math.abs(right.mach - 0.3))[0];
+  const launchSample = result.series.find((sample) => Number.isFinite(sample.mass));
+  const referenceCg = finite(launchSample?.cg, base.referenceCg);
+  const referenceCp = finite(referenceSample?.cp, finite(summary.railExitCp, base.referenceCp));
+  const referenceDiameter = Number.isFinite(modelDiameter) && modelDiameter! > 0
+    ? modelDiameter!
+    : (base.referenceCp - base.referenceCg) / base.referenceStability;
+  const referenceStability = Number.isFinite(referenceCg) && Number.isFinite(referenceCp) && Number.isFinite(referenceDiameter) && referenceDiameter > 0
+    ? (referenceCp - referenceCg) / referenceDiameter
+    : finite(referenceSample?.stability, finite(summary.railExitStability, base.referenceStability));
   return {
     ...base,
     id: `run-${result.simulationIndex}-${result.calculatedAt}`,
     name: result.name,
     status: result.status,
-    branchName: result.branchName,
+    branchName: base.branchName || result.branchName,
     windSpeed: condition("windSpeed", base.windSpeed),
     launchRodLength: condition("launchRodLength", base.launchRodLength),
     launchAltitude: condition("launchAltitude", base.launchAltitude),
@@ -100,6 +112,12 @@ function liveToSimulation(result: LiveResult, base: OpenRocketSimulation): OpenR
     railExitStability: finite(summary.railExitStability, Number.NaN),
     railExitCg: finite(summary.railExitCg, Number.NaN),
     railExitCp: finite(summary.railExitCp, Number.NaN),
+    launchMass: finite(launchSample?.mass, base.launchMass),
+    launchMotorMass: finite(launchSample?.motorMass, base.launchMotorMass),
+    referenceMach: finite(referenceSample?.mach, base.referenceMach),
+    referenceStability,
+    referenceCg,
+    referenceCp,
     warnings: result.warnings,
     events: result.events,
     series: result.series,
@@ -185,12 +203,13 @@ function SimulationEditor({ initial, title, onCancel, onSave }: { initial: Simul
   </div>;
 }
 
-export function SimulationWorkspace({ model, mode, workspaceVersion, headers, canRun, onNotice, onModelChange }: {
+export function SimulationWorkspace({ model, mode, workspaceVersion, headers, canRun, runBlockedReason, onNotice, onModelChange }: {
   model: OpenRocketModel | null;
   mode: "live" | "demo";
   workspaceVersion: number | null;
   headers: () => Record<string, string>;
   canRun: boolean;
+  runBlockedReason?: string;
   onNotice: (message: string) => void;
   onModelChange: (model: OpenRocketModel, change: { simulationId: string; name: string; editing: boolean }) => void;
 }) {
@@ -316,8 +335,9 @@ export function SimulationWorkspace({ model, mode, workspaceVersion, headers, ca
       <footer>Saved definitions come from the working OpenRocket file. New cases use the selected flight configuration.</footer>
     </aside>
     <div className="simulation-content">
-      <header className="module-titlebar"><div><span className="eyebrow">OPENROCKET CORE</span><h2>{selected?.name ?? "Simulation"}</h2><p>{selected ? `${selected.branchName} · ${selected.windSpeed.toFixed(1)} m/s wind · ${selected.launchRodLength.toFixed(1)} m rail` : "Import a configured .ork file."}</p></div><div className="simulation-actions"><span className={`simulation-state ${selected?.status === "outdated" ? "warning" : ""}`}>{status}</span>{selectedCase?.draft && <button className="button button-secondary" type="button" onClick={() => setEditor({ initial: selectedCase.options, draftId: selectedCase.id })}>Edit setup</button>}<button className="button button-primary" type="button" disabled={!selected || !canRun || !configured || running} onClick={runSimulation}>{running ? "Running OpenRocket…" : "Run simulation"}</button></div></header>
+      <header className="module-titlebar"><div><span className="eyebrow">OPENROCKET CORE</span><h2>{selected?.name ?? "Simulation"}</h2><p>{selected ? `${selected.branchName} · ${selected.windSpeed.toFixed(1)} m/s wind · ${selected.launchRodLength.toFixed(1)} m rail` : "Import a configured .ork file."}</p></div><div className="simulation-actions"><span className={`simulation-state ${selected?.status === "outdated" ? "warning" : ""}`}>{status}</span>{selectedCase?.draft && <button className="button button-secondary" type="button" onClick={() => setEditor({ initial: selectedCase.options, draftId: selectedCase.id })}>Edit setup</button>}<button className="button button-primary" type="button" disabled={!selected || !canRun || !configured || running} title={!configured ? "OpenRocket Core is not connected" : !canRun ? runBlockedReason : undefined} onClick={runSimulation}>{running ? "Running OpenRocket…" : "Run simulation"}</button></div></header>
       {!configured && <div className="solver-banner"><strong>Saved OpenRocket results are available.</strong><span>{mode === "demo" ? "Start the local OpenRocket Core service to execute new demo runs." : "Deploy and connect the verified Core service before executing new runs."}</span></div>}
+      {configured && !canRun && runBlockedReason && <div className="solver-banner"><strong>Save the working ORK before calculation.</strong><span>{runBlockedReason}</span></div>}
       {configured && mode === "demo" && <div className="solver-banner"><strong>OpenRocket Core connected.</strong><span>Demo calculations use the hosted Java solver but are not written to team run history.</span></div>}
       {error && <div className="solver-error">{error}</div>}
       {selected ? <>

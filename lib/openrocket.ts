@@ -46,6 +46,8 @@ export type OpenRocketSimulationSample = {
   stability: number;
   cg: number;
   cp: number;
+  mass: number;
+  motorMass: number;
 };
 
 export type OpenRocketSimulation = {
@@ -88,6 +90,12 @@ export type OpenRocketSimulation = {
   railExitStability: number;
   railExitCg: number;
   railExitCp: number;
+  launchMass: number;
+  launchMotorMass: number;
+  referenceMach: number;
+  referenceStability: number;
+  referenceCg: number;
+  referenceCp: number;
   warnings: Array<{ type: string; priority: string; description: string }>;
   events: Array<{ type: string; time: number }>;
   series: OpenRocketSimulationSample[];
@@ -197,7 +205,11 @@ function finiteNumber(value: string | null | undefined, fallback = Number.NaN) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function parseSimulations(document: XMLDocument): OpenRocketSimulation[] {
+function parseSimulations(document: XMLDocument, referenceDiameter: number): OpenRocketSimulation[] {
+  const configurationNames = new Map(Array.from(document.querySelectorAll("openrocket > rocket > motorconfiguration")).map((configuration) => [
+    configuration.getAttribute("configid") || "",
+    text(configuration, "name", "Flight configuration"),
+  ]));
   return Array.from(document.querySelectorAll("openrocket > simulations > simulation")).flatMap((simulation, simulationIndex) => {
     const flightData = child(simulation, "flightdata");
     const conditions = child(simulation, "conditions");
@@ -218,6 +230,8 @@ function parseSimulations(document: XMLDocument): OpenRocketSimulation[] {
         stability: value("Stability margin calibers"),
         cg: value("CG location"),
         cp: value("CP location"),
+        mass: value("Mass"),
+        motorMass: value("Motor mass"),
       };
     }).filter((sample) => Number.isFinite(sample.time));
     const stride = Math.max(1, Math.ceil(allSamples.length / 420));
@@ -232,18 +246,28 @@ function parseSimulations(document: XMLDocument): OpenRocketSimulation[] {
       if (!nearest || Math.abs(sample.time - railExitTime) < Math.abs(nearest.time - railExitTime)) return sample;
       return nearest;
     }, null);
+    const launchSample = allSamples.find((sample) => Number.isFinite(sample.mass) && Number.isFinite(sample.cg)) ?? null;
+    const referenceSample = allSamples
+      .filter((sample) => Number.isFinite(sample.cp) && Number.isFinite(sample.cg) && Number.isFinite(sample.stability) && Number.isFinite(sample.mach))
+      .reduce<OpenRocketSimulationSample | null>((nearest, sample) => !nearest || Math.abs(sample.mach - 0.3) < Math.abs(nearest.mach - 0.3) ? sample : nearest, null);
     const wind = conditions ? child(conditions, "wind") : null;
     const winds = conditions ? children(conditions, "wind") : [];
     const averageWind = winds.find((item) => item.getAttribute("model") === "average") ?? wind;
     const multiLevelWind = winds.find((item) => item.getAttribute("model") === "multilevel");
     const atmosphere = conditions ? child(conditions, "atmosphere") : null;
     const summary = (attribute: string) => finiteNumber(flightData?.getAttribute(attribute));
+    const configurationId = text(conditions, "configid");
+    const referenceCg = launchSample?.cg ?? Number.NaN;
+    const referenceCp = referenceSample?.cp ?? Number.NaN;
+    const referenceStability = Number.isFinite(referenceCg) && Number.isFinite(referenceCp) && referenceDiameter > 0
+      ? (referenceCp - referenceCg) / referenceDiameter
+      : referenceSample?.stability ?? Number.NaN;
     return [{
       id: simulation.querySelector(":scope > id")?.textContent?.trim() || `simulation-${simulationIndex + 1}`,
       name: text(simulation, "name", `Simulation ${simulationIndex + 1}`),
       status: simulation.getAttribute("status") || "unknown",
-      configurationId: text(conditions, "configid"),
-      branchName: branch?.getAttribute("name") || "Flight configuration",
+      configurationId,
+      branchName: configurationNames.get(configurationId) || branch?.getAttribute("name") || "Flight configuration",
       windSpeed: number(averageWind, "speed", number(conditions, "windaverage")),
       launchRodLength: number(conditions, "launchrodlength"),
       launchIntoWind: text(conditions, "launchintowind", "true") !== "false",
@@ -283,6 +307,12 @@ function parseSimulations(document: XMLDocument): OpenRocketSimulation[] {
       railExitStability: railExit?.stability ?? Number.NaN,
       railExitCg: railExit?.cg ?? Number.NaN,
       railExitCp: railExit?.cp ?? Number.NaN,
+      launchMass: launchSample?.mass ?? Number.NaN,
+      launchMotorMass: launchSample?.motorMass ?? Number.NaN,
+      referenceMach: referenceSample?.mach ?? Number.NaN,
+      referenceStability,
+      referenceCg,
+      referenceCp,
       warnings: children(flightData, "warning").map((warning) => ({
         type: warning.getAttribute("type") || "Warning",
         priority: text(warning, "priority", "NORMAL"),
@@ -551,7 +581,7 @@ export async function parseOpenRocket(buffer: ArrayBuffer, sourceName: string): 
   const maxRadius = components
     .filter((component) => component.parentId === null && AXIAL_KINDS.has(component.kind))
     .reduce((max, component) => Math.max(max, component.foreRadius, component.aftRadius), 0);
-  const simulations = parseSimulations(document);
+  const simulations = parseSimulations(document, maxRadius * 2);
 
   return {
     name: text(rocket, "name", sourceName.replace(/\.ork$/i, "")),
@@ -736,7 +766,7 @@ export function saveOpenRocketSimulation(
       ...model,
       rawXml,
       archiveEntries: { ...model.archiveEntries, [model.sourceEntryName]: strToU8(rawXml) },
-      simulations: parseSimulations(document),
+    simulations: parseSimulations(document, model.maxRadius * 2),
     },
   };
 }

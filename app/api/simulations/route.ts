@@ -64,6 +64,10 @@ function isDemoRequest(request: Request) {
   return new URL(request.url).searchParams.get("demo") === "1";
 }
 
+function isPreviewRequest(request: Request) {
+  return new URL(request.url).searchParams.get("preview") === "1";
+}
+
 export async function GET(request: Request) {
   const service = serviceConfiguration(request);
   const requestUrl = new URL(request.url);
@@ -71,6 +75,7 @@ export async function GET(request: Request) {
   if (solverJobId) {
     if (!service.url) return Response.json({ error: "The official OpenRocket Core service is not configured for this deployment." }, { status: 503 });
     const demoRequest = isDemoRequest(request);
+    const previewRequest = isPreviewRequest(request);
     const access = demoRequest ? null : await requireProjectAccess(request, "view");
     if (access && !access.ok) return access.response;
     let solverResponse: Response;
@@ -91,7 +96,7 @@ export async function GET(request: Request) {
     }
     const completed = JSON.parse(solverPayload) as { result?: SimulationResponse };
     if (!completed.result) return Response.json({ error: "The solver returned an incomplete job result." }, { status: 502 });
-    if (demoRequest) return Response.json({ result: completed.result, demo: true });
+    if (demoRequest || previewRequest) return Response.json({ result: completed.result, preview: true });
 
     await ensureSimulationSchema();
     const { DB, FILES } = getSimulationEnvironment();
@@ -159,6 +164,7 @@ export async function POST(request: Request) {
   const contentType = request.headers.get("content-type") || "";
   const previewBytes = contentType.includes("application/octet-stream") ? await request.arrayBuffer() : null;
   const demoRequest = Boolean(previewBytes) && isDemoRequest(request);
+  const previewRequest = isPreviewRequest(request);
   const access = demoRequest ? null : await requireProjectAccess(request, "editOrk");
   if (access && !access.ok) return access.response;
   const body = previewBytes ? {} : await request.json().catch(() => ({})) as { simulationIndex?: unknown; options?: unknown };
@@ -210,7 +216,7 @@ export async function POST(request: Request) {
 
   const queued = JSON.parse(payload) as { jobId?: string; status?: string };
   if (!queued.jobId) return Response.json({ error: "The solver did not create a background job." }, { status: 502 });
-  if (previewBytes) return Response.json(queued, { status: 202 });
+  if (previewBytes || previewRequest) return Response.json(queued, { status: 202 });
   try {
     await DB.prepare(`INSERT INTO simulation_jobs (
       id, project_id, ork_version, ork_sha256, simulation_index, run_by_name, run_by_email

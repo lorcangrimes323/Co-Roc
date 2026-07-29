@@ -5,7 +5,7 @@ import { orkChanges, orkWorkspaces } from "../../../db/schema";
 import { releaseProjectStorage, reserveProjectStorage, STORAGE_LIMITS } from "../../../db/access-store";
 import { requireProjectAccess } from "../access";
 
-const EDITABLE_FIELDS = new Set(["name", "length", "diameter", "wallThickness", "mass", "material", "file.imported", "file.replaced"]);
+const EDITABLE_FIELDS = new Set(["name", "length", "diameter", "wallThickness", "mass", "material", "simulationSetup", "file.imported", "file.replaced"]);
 
 type ChangePayload = {
   componentId: string;
