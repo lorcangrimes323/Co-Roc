@@ -37,6 +37,9 @@ test("keeps OpenRocket geometry and live edits traceable", async () => {
   assert.match(openRocket, /angleoffset/);
   assert.match(orkRoute, /status: 409/);
   assert.match(orkRoute, /sha256Hex/);
+  assert.match(orkRoute, /application\/vnd\.co-roc\.ork/);
+  assert.match(missionControl, /x-co-roc-file-name/);
+  assert.match(missionControl, /responsePayload/);
   assert.match(schema, /orkChanges/);
   assert.match(schema, /orkSnapshots/);
 });

@@ -91,6 +91,13 @@ type EngineeringEvent = {
   createdAt: string;
 };
 
+async function responsePayload<T extends object>(response: Response): Promise<T & { error?: string }> {
+  const text = await response.text();
+  if (!text) return { error: `Request failed (${response.status})` } as T & { error?: string };
+  try { return JSON.parse(text) as T & { error?: string }; }
+  catch { return { error: text.slice(0, 240) || `Request failed (${response.status})` } as T & { error?: string }; }
+}
+
 type ComponentRecord = {
   artifacts: EngineeringArtifact[];
   tests: EngineeringTest[];
@@ -718,12 +725,13 @@ export function MissionControl({
       setSaveState("saving");
       try {
         const bytes = await encodeOpenRocketAsync(orkModel);
-        const form = new FormData();
-        form.set("file", new File([bytes], orkModel.sourceName, { type: "application/zip" }));
-        form.set("baseVersion", String(workspaceVersion));
-        form.set("changes", JSON.stringify(batch.map(({ id: _id, ...change }) => change)));
-        const response = await fetch("/api/ork", { method: "PUT", headers: collaborationHeaders(), body: form });
-        const payload = await response.json() as { error?: string; workspace?: { version: number; updatedByName: string } };
+        const headers = new Headers(collaborationHeaders());
+        headers.set("content-type", "application/vnd.co-roc.ork");
+        headers.set("x-co-roc-file-name", encodeURIComponent(orkModel.sourceName));
+        headers.set("x-co-roc-base-version", String(workspaceVersion));
+        headers.set("x-co-roc-changes", encodeURIComponent(JSON.stringify(batch.map(({ id: _id, ...change }) => change))));
+        const response = await fetch("/api/ork", { method: "PUT", headers, body: bytes });
+        const payload = await responsePayload<{ workspace?: { version: number; updatedByName: string } }>(response);
         if (response.status === 409) {
           setSaveState("conflict");
           setConflictMessage(payload.error || "A teammate saved a newer working copy.");
@@ -770,11 +778,12 @@ export function MissionControl({
         setNotice(`${file.name} loaded locally; demo data is not saved`);
         return;
       }
-      const form = new FormData();
-      form.set("file", new File([buffer], file.name, { type: "application/zip" }));
-      form.set("baseVersion", String(workspaceVersionRef.current ?? 0));
-      const response = await fetch("/api/ork", { method: "POST", headers: collaborationHeaders(), body: form });
-      const payload = await response.json() as { error?: string; workspace?: { version: number; updatedByName: string } };
+      const headers = new Headers(collaborationHeaders());
+      headers.set("content-type", "application/vnd.co-roc.ork");
+      headers.set("x-co-roc-file-name", encodeURIComponent(file.name));
+      headers.set("x-co-roc-base-version", String(workspaceVersionRef.current ?? 0));
+      const response = await fetch("/api/ork", { method: "POST", headers, body: buffer });
+      const payload = await responsePayload<{ workspace?: { version: number; updatedByName: string } }>(response);
       if (response.status === 409) {
         setSaveState("conflict");
         setConflictMessage(payload.error || "The shared file changed before import completed.");

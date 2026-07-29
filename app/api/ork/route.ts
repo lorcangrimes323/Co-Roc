@@ -48,6 +48,32 @@ function validOrk(file: File) {
   return file.size > 0 && file.size <= STORAGE_LIMITS.maxOrkBytes && file.name.toLowerCase().endsWith(".ork");
 }
 
+const ORK_BINARY_CONTENT_TYPE = "application/vnd.co-roc.ork";
+
+function decodedHeader(request: Request, name: string) {
+  const value = request.headers.get(name) ?? "";
+  try { return decodeURIComponent(value); } catch { return ""; }
+}
+
+async function readOrkUpload(request: Request) {
+  if (request.headers.get("content-type")?.toLowerCase().startsWith(ORK_BINARY_CONTENT_TYPE)) {
+    const sourceName = decodedHeader(request, "x-co-roc-file-name");
+    const bytes = await request.arrayBuffer();
+    return {
+      file: new File([bytes], sourceName, { type: "application/zip" }),
+      baseVersion: Number(request.headers.get("x-co-roc-base-version") ?? 0),
+      changes: decodedHeader(request, "x-co-roc-changes"),
+    };
+  }
+
+  const form = await request.formData();
+  return {
+    file: form.get("file"),
+    baseVersion: Number(form.get("baseVersion") ?? 0),
+    changes: String(form.get("changes") ?? "[]"),
+  };
+}
+
 export async function GET(request: Request) {
   const result = await requireProjectAccess(request, "view");
   if (!result.ok) return result.response;
@@ -78,14 +104,14 @@ export async function POST(request: Request) {
   const { user, project } = result.access;
   const projectId = project.id;
   await ensureOrkSchema();
-  const form = await request.formData();
-  const file = form.get("file");
+  const upload = await readOrkUpload(request);
+  const file = upload.file;
   if (!(file instanceof File) || !validOrk(file)) {
     return Response.json({ error: "A valid .ork file no larger than 25 MB is required." }, { status: 400 });
   }
 
   const existing = await workspaceRow(projectId);
-  const requestedBase = Number(form.get("baseVersion") ?? 0);
+  const requestedBase = upload.baseVersion;
   if (existing && requestedBase !== existing.version) {
     return Response.json({ error: "The shared file changed before this import completed.", workspace: metadata(existing) }, { status: 409 });
   }
@@ -164,11 +190,11 @@ export async function PUT(request: Request) {
   const { user, project } = result.access;
   const projectId = project.id;
   await ensureOrkSchema();
-  const form = await request.formData();
-  const file = form.get("file");
-  const baseVersion = Number(form.get("baseVersion"));
+  const upload = await readOrkUpload(request);
+  const file = upload.file;
+  const baseVersion = upload.baseVersion;
   let changes: ChangePayload[] = [];
-  try { changes = JSON.parse(String(form.get("changes") ?? "[]")) as ChangePayload[]; } catch { /* validated below */ }
+  try { changes = JSON.parse(upload.changes || "[]") as ChangePayload[]; } catch { /* validated below */ }
   const uniqueChanges = Array.from(new Map(changes.map((change) => [`${change.componentId}:${change.field}`, change])).values());
   if (!(file instanceof File) || !validOrk(file) || !Number.isInteger(baseVersion) || !uniqueChanges.length || uniqueChanges.length > 50) {
     return Response.json({ error: "The update payload is incomplete." }, { status: 400 });

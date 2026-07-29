@@ -760,6 +760,117 @@ button { color: inherit; }
 .accent-presets button { width: 25px; height: 25px; border: 2px solid var(--panel); outline: 1px solid var(--line-strong); cursor: pointer; }
 .theme-panel > p { margin: 15px 0 0; color: var(--faint); font-size: 10px; }
 
+/* Engineering screens favour legibility over ultra-dense dashboard typography. */
+.breadcrumbs,
+.revision-badge,
+.metric > span,
+.tree-filter,
+.tree-branch,
+.tree-index,
+.component-copy small,
+.tree-legend,
+.model-controls span,
+.roll-control label,
+.roll-control output,
+.axis-label,
+.model-loading,
+.section-hint,
+.model-footer,
+.inspector-code,
+.inspector-tabs button,
+.section-label,
+.version-lock,
+.record-section-title,
+.statusbar { font-size: 11px; }
+
+.panel-heading { height: 66px; }
+.panel-heading h2,
+.inspector-identity h2 { font-size: 17px; }
+.component-row { height: 54px; }
+.component-copy strong { font-size: 14px; }
+.view-tab { font-size: 12px; }
+.model-toolbar { height: 56px; }
+.model-controls,
+.roll-control { height: 32px; }
+.section-hint { line-height: 1.45; }
+.inspector-identity p { font-size: 13px; }
+.inspector-tabs { height: 46px; }
+.inspector-body { padding: 18px 18px 28px; }
+.field-label { font-size: 13px; }
+.field-label > input,
+.unit-field,
+.field-label > select { height: 42px; font-size: 14px; }
+.unit-field span { font-size: 10px; }
+.status-card strong,
+.evidence-mini strong,
+.document-list strong,
+.record-upload-button strong,
+.engineering-record-list a strong,
+.record-empty strong,
+.test-card h4,
+.comment-thread header strong,
+.record-event-list strong { font-size: 13px; }
+.status-card small,
+.document-summary > span,
+.record-metrics span,
+.record-coverage span,
+.record-uploader label,
+.test-create-card label,
+.record-upload-button small,
+.record-empty span,
+.test-card p,
+.comment-thread p,
+.activity-list h3 { font-size: 11px; }
+.status-card button,
+.test-create-card > button,
+.comment-submit,
+.test-card button { font-size: 11px; }
+
+.module-tree h2,
+.run-history h2 { font-size: 18px; }
+.module-tree-list strong,
+.run-history article strong { font-size: 13px; }
+.module-tree-list small,
+.module-tree > footer,
+.run-history > footer,
+.module-titlebar p,
+.module-empty,
+.solver-banner,
+.solver-error,
+.simulation-detail-grid dl > div,
+.simulation-warnings p,
+.simulation-editor > header p,
+.simulation-field,
+.simulation-check,
+.record-register-metrics span,
+.register-table > a strong,
+.test-register article p,
+.revision-index a span,
+.revision-timeline button strong,
+.revision-timeline code { font-size: 11px; }
+.simulation-metrics > div > span,
+.simulation-metrics strong small,
+.simulation-metrics em,
+.chart-card > header > span,
+.run-history article span,
+.run-history article small,
+.simulation-field small,
+.wind-levels > header,
+.simulation-editor > footer > span,
+.register-head,
+.register-table > a small,
+.register-current,
+.register-muted,
+.test-register-state,
+.test-register article small,
+.revision-timeline header p,
+.revision-timeline button small { font-size: 10px; }
+.simulation-field input,
+.simulation-field select,
+.wind-levels input { font-size: 13px; }
+.register-table > a strong,
+.revision-timeline button strong { font-size: 12px; }
+
 [data-theme="light"] .field-label > input,
 [data-theme="light"] .unit-field,
 [data-theme="light"] .field-label > select { background: #fff; color: #181718; }
