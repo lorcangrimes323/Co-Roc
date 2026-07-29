@@ -35,5 +35,17 @@ export async function ensureSimulationSchema() {
     )`),
     DB.prepare(`CREATE INDEX IF NOT EXISTS simulation_runs_project_idx
       ON simulation_runs (project_id, created_at)`),
+    DB.prepare(`CREATE TABLE IF NOT EXISTS simulation_jobs (
+      id TEXT PRIMARY KEY NOT NULL,
+      project_id TEXT NOT NULL,
+      ork_version INTEGER NOT NULL,
+      ork_sha256 TEXT NOT NULL,
+      simulation_index INTEGER NOT NULL,
+      run_by_name TEXT NOT NULL,
+      run_by_email TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL
+    )`),
+    DB.prepare(`CREATE INDEX IF NOT EXISTS simulation_jobs_project_idx
+      ON simulation_jobs (project_id, created_at)`),
   ]);
 }

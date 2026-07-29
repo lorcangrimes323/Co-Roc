@@ -31,6 +31,9 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public final class SimulationServer {
@@ -39,6 +42,16 @@ public final class SimulationServer {
     private static final Object SIMULATION_LOCK = new Object();
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final String SERVICE_TOKEN = System.getenv().getOrDefault("SIMULATION_SERVICE_TOKEN", "");
+    private static final ExecutorService JOB_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
+    private static final Map<String, SimulationJob> JOBS = new ConcurrentHashMap<>();
+
+    private static final class SimulationJob {
+        private final Instant createdAt = Instant.now();
+        private volatile String status = "queued";
+        private volatile Map<String, Object> result;
+        private volatile Map<String, Object> error;
+        private volatile int errorStatus = 422;
+    }
 
     private SimulationServer() {}
 
@@ -53,6 +66,7 @@ public final class SimulationServer {
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
         server.createContext("/health", SimulationServer::health);
         server.createContext("/simulate", SimulationServer::simulate);
+        server.createContext("/jobs", SimulationServer::jobs);
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.start();
         System.out.printf("OpenRocket Core 24.12 service listening on %d%n", port);
@@ -110,6 +124,80 @@ public final class SimulationServer {
                     "detail", error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage()
             ));
         }
+    }
+
+    private static void jobs(HttpExchange exchange) throws IOException {
+        if (!authorized(exchange)) {
+            send(exchange, 401, Map.of("error", "Invalid simulation service token"));
+            return;
+        }
+        cleanupJobs();
+        if ("GET".equals(exchange.getRequestMethod())) {
+            String id = queryValue(exchange.getRequestURI().getRawQuery(), "id");
+            SimulationJob job = id == null ? null : JOBS.get(id);
+            if (job == null) {
+                send(exchange, 404, Map.of("error", "Simulation job not found"));
+                return;
+            }
+            if (job.result != null) {
+                send(exchange, 200, Map.of("jobId", id, "status", "complete", "result", job.result));
+            } else if (job.error != null) {
+                send(exchange, job.errorStatus, Map.of("jobId", id, "status", "failed", "failure", job.error));
+            } else {
+                send(exchange, 202, Map.of("jobId", id, "status", job.status));
+            }
+            return;
+        }
+        if (!"POST".equals(exchange.getRequestMethod())) {
+            send(exchange, 405, Map.of("error", "Method not allowed"));
+            return;
+        }
+
+        byte[] ork = exchange.getRequestBody().readNBytes(MAX_ORK_BYTES + 1);
+        if (ork.length == 0 || ork.length > MAX_ORK_BYTES) {
+            send(exchange, 413, Map.of("error", "A non-empty .ork file no larger than 25 MB is required"));
+            return;
+        }
+        final int requestedIndex;
+        final Map<String, Object> overrides;
+        try {
+            requestedIndex = simulationIndex(exchange.getRequestURI().getRawQuery());
+            overrides = simulationOverrides(exchange);
+        } catch (IllegalArgumentException error) {
+            send(exchange, 400, Map.of("error", error.getMessage()));
+            return;
+        }
+
+        String id = UUID.randomUUID().toString();
+        SimulationJob job = new SimulationJob();
+        JOBS.put(id, job);
+        JOB_EXECUTOR.submit(() -> {
+            job.status = "running";
+            try {
+                synchronized (SIMULATION_LOCK) {
+                    job.result = run(ork, requestedIndex, overrides);
+                }
+                job.status = "complete";
+            } catch (IndexOutOfBoundsException error) {
+                job.errorStatus = 404;
+                job.error = Map.of("error", error.getMessage());
+                job.status = "failed";
+            } catch (Exception error) {
+                error.printStackTrace();
+                job.error = Map.of(
+                        "error", "OpenRocket could not run this simulation",
+                        "detail", error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage()
+                );
+                job.status = "failed";
+            }
+        });
+        send(exchange, 202, Map.of("jobId", id, "status", "queued"));
+    }
+
+    private static void cleanupJobs() {
+        Instant cutoff = Instant.now().minusSeconds(7200);
+        JOBS.entrySet().removeIf(entry -> entry.getValue().createdAt.isBefore(cutoff)
+                && !"running".equals(entry.getValue().status));
     }
 
     private static Map<String, Object> run(byte[] ork, int simulationIndex, Map<String, Object> overrides) throws Exception {
@@ -339,6 +427,15 @@ public final class SimulationServer {
             }
         }
         return 0;
+    }
+
+    private static String queryValue(String query, String name) {
+        if (query == null || query.isBlank()) return null;
+        for (String item : query.split("&")) {
+            String[] parts = item.split("=", 2);
+            if (parts.length == 2 && name.equals(parts[0]) && !parts[1].isBlank()) return parts[1];
+        }
+        return null;
     }
 
     @SuppressWarnings("unchecked")
