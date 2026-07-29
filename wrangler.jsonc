@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "co-roc",
+  "account_id": "ca3a280002fff04815b9b149f05dcf71",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-05-22",
+  "compatibility_flags": ["nodejs_compat"],
+  "preview_urls": false,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "co-roc-production",
+      "database_id": "e9eb0472-9e49-47c3-98a0-cc6d81b739d6",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "co-roc-files"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

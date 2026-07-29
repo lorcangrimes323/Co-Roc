@@ -29,6 +29,7 @@ yarn-error.log*
 .pnpm-debug.log*
 .sites-dev.*.log
 .sites-*.log
+.local-ui.*.log
 .ork-*.tmp
 .simulation-ui.*.log
 /openrocket-service/target/
