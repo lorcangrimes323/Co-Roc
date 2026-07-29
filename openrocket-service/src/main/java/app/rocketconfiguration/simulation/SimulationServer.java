@@ -56,6 +56,7 @@ public final class SimulationServer {
     private SimulationServer() {}
 
     public static void main(String[] args) throws IOException {
+        prepareRuntimeDirectories();
         OpenRocketCore.initialize(new PluginModule(), new AbstractModule() {
             @Override
             protected void configure() {
@@ -70,6 +71,18 @@ public final class SimulationServer {
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.start();
         System.out.printf("OpenRocket Core 24.12 service listening on %d%n", port);
+    }
+
+    private static void prepareRuntimeDirectories() throws IOException {
+        String configuredHome = System.getenv("OPENROCKET_RUNTIME_HOME");
+        Path runtimeHome = configuredHome == null || configuredHome.isBlank()
+                ? Path.of(System.getProperty("java.io.tmpdir"), "co-roc-openrocket")
+                : Path.of(configuredHome);
+        Path preferences = runtimeHome.resolve("preferences");
+        Files.createDirectories(runtimeHome.resolve(".openrocket"));
+        Files.createDirectories(preferences);
+        System.setProperty("user.home", runtimeHome.toString());
+        System.setProperty("java.util.prefs.userRoot", preferences.toString());
     }
 
     private static void health(HttpExchange exchange) throws IOException {
