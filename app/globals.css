@@ -113,7 +113,7 @@ button { color: inherit; }
 .user-name { font-size: 12px; color: var(--text); }
 .user-name small { display: block; margin-top: 2px; color: var(--muted); font: 8px var(--font-geist-mono); letter-spacing: .08em; text-transform: uppercase; text-align: left; }
 
-.access-page { min-height: 100vh; overflow: auto; display: grid; grid-template-rows: 78px 1fr 52px; background: #f3f3f1; color: #171617; }
+.access-page { height: 100vh; height: 100dvh; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; display: grid; grid-template-rows: auto minmax(min-content, 1fr) auto; background: #f3f3f1; color: #171617; }
 .workspace-gate { height: 100vh; overflow: auto; display: grid; place-items: center; padding: 40px 22px; background: #f4f4f2; color: #181718; }
 .gate-card { width: min(560px, 100%); background: #fff; border: 1px solid #d7d5d3; padding: clamp(30px, 6vw, 58px); box-shadow: 0 18px 55px rgba(20,18,18,.08); }
 .account-header { display: flex; align-items: center; justify-content: space-between; padding: 0 clamp(28px, 4.5vw, 92px); background: #fff; border-bottom: 1px solid #d7d5d3; }
@@ -236,8 +236,13 @@ button { color: inherit; }
   .account-panel { width: min(540px, 100%); }
 }
 
+@media (max-height: 760px) {
+  .account-main { align-items: start; padding-top: 28px; padding-bottom: 28px; }
+}
+
 @media (max-width: 700px) {
-  .access-page { grid-template-rows: 58px 1fr 36px; }
+  .account-header { min-height: 58px; padding: 0 16px; }
+  .account-wordmark strong { font-size: 15px; }
   .account-main { width: min(100% - 28px, 560px); grid-template-columns: 1fr; gap: 34px; padding: 35px 0; }
   .account-context h1 { font-size: 31px; }
   .account-context > p { font-size: 15px; }
@@ -247,6 +252,16 @@ button { color: inherit; }
   .inline-team-form, .project-form, .project-admin-list, .invite-code-form, .project-check-grid { grid-template-columns: 1fr; }
   .invite-code-list > div { grid-template-columns: 78px 1fr; padding: 8px 0; }
   .invite-code-list button { grid-column: 2; grid-row: auto; justify-self: start; }
+}
+
+@media (max-width: 420px) {
+  .account-wordmark > span { width: 34px; height: 34px; }
+  .account-wordmark strong { font-size: 13px; }
+  .account-header > a { font-size: 12px; }
+  .account-main { width: min(100% - 20px, 560px); gap: 24px; padding: 24px 0; }
+  .account-context h1 { margin: 15px 0 18px; font-size: 28px; }
+  .account-form { padding: 24px 18px; }
+  .account-page-footer { min-height: 36px; padding: 0 14px; }
 }
 
 .rail {
