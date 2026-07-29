@@ -81,6 +81,7 @@ export function liveToSimulation(result: LiveResult, base: OpenRocketSimulation,
     .filter((sample) => Number.isFinite(sample.mach) && Number.isFinite(sample.stability) && Number.isFinite(sample.cg) && Number.isFinite(sample.cp))
     .sort((left, right) => Math.abs(left.mach - 0.3) - Math.abs(right.mach - 0.3))[0];
   const launchSample = result.series.find((sample) => Number.isFinite(sample.mass));
+  const motorMassSample = result.series.find((sample) => Number.isFinite(sample.motorMass));
   const referenceCg = finite(launchSample?.cg, finite(summary.launchCg, finite(summary.railExitCg, base.referenceCg)));
   const referenceCp = finite(referenceSample?.cp, finite(summary.railExitCp, base.referenceCp));
   const referenceDiameter = Number.isFinite(modelDiameter) && modelDiameter! > 0
@@ -113,7 +114,7 @@ export function liveToSimulation(result: LiveResult, base: OpenRocketSimulation,
     railExitCg: finite(summary.railExitCg, Number.NaN),
     railExitCp: finite(summary.railExitCp, Number.NaN),
     launchMass: finite(launchSample?.mass, finite(summary.launchMass, base.launchMass)),
-    launchMotorMass: finite(launchSample?.motorMass, finite(summary.launchMotorMass, base.launchMotorMass)),
+    launchMotorMass: finite(motorMassSample?.motorMass, finite(summary.launchMotorMass, base.launchMotorMass)),
     referenceMach: finite(referenceSample?.mach, base.referenceMach),
     referenceStability,
     referenceCg,
