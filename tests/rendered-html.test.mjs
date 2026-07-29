@@ -58,8 +58,9 @@ test("keeps OpenRocket geometry and live edits traceable", async () => {
   assert.match(missionControl, /CALCULATING/);
   assert.match(missionControl, /api\/simulations\?preview=1/);
   assert.match(styles, /--analysis-top-zone: 108px/);
-  assert.match(styles, /--analysis-bottom-zone: 128px/);
+  assert.match(styles, /--analysis-bottom-zone: 64px/);
   assert.match(styles, /inset: var\(--analysis-top-zone\) 0 var\(--analysis-bottom-zone\)/);
+  assert.match(styles, /\.analysis-flight \{ top: 14px; left: 50%; max-width: 32%; transform: translateX\(-50%\)/);
   assert.match(simulationRoute, /isPreviewRequest/);
   assert.match(simulationRoute, /demoRequest \|\| previewRequest/);
   assert.match(simulationWorkspace, /referenceSample/);
