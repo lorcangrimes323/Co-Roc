@@ -56,6 +56,8 @@ test("keeps OpenRocket geometry and live edits traceable", async () => {
   assert.match(simulationRoute, /demoRequest \|\| previewRequest/);
   assert.match(simulationWorkspace, /referenceSample/);
   assert.match(solver, /TYPE_MOTOR_MASS/);
+  assert.match(solver, /awaitCore/);
+  assert.match(solver, /initialising/);
   assert.match(schema, /orkChanges/);
   assert.match(schema, /orkSnapshots/);
 });
