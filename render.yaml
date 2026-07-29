@@ -3,7 +3,7 @@ services:
     name: co-roc-openrocket
     runtime: docker
     repo: https://github.com/lorcangrimes323/Co-Roc
-    branch: agent/openrocket-simulation-workspace
+    branch: master
     plan: free
     region: frankfurt
     dockerfilePath: ./openrocket-service/Dockerfile
