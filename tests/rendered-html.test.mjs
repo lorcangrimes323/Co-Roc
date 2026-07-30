@@ -245,6 +245,32 @@ test("provides a persistent, accessible dark mode across account and engineering
   assert.match(css, /input:-webkit-autofill/);
 });
 
+test("provides a paced first-run guided demo across the engineering workflow", async () => {
+  const [portal, missionControl, tour, css] = await Promise.all([
+    source("app/access-portal.tsx"),
+    source("app/mission-control.tsx"),
+    source("app/guided-demo-tour.tsx"),
+    source("app/globals.css"),
+  ]);
+
+  assert.match(portal, /\/demo\?tour=1/);
+  assert.match(missionControl, /co-roc:guided-demo-v1/);
+  assert.match(missionControl, /Replay guided demo/);
+  assert.match(missionControl, /data-tour="component-tree"/);
+  assert.match(missionControl, /data-tour="rocket-viewport"/);
+  assert.match(missionControl, /data-tour="engineering-record"/);
+  assert.match(tour, /Welcome to Co-Roc/);
+  assert.match(tour, /Run and compare traceable flight cases/);
+  assert.match(tour, /Live work is not the same as a release/);
+  assert.match(tour, /Build and release a launch checklist/);
+  assert.match(tour, /scrollIntoView/);
+  assert.match(tour, /prefers-reduced-motion/);
+  assert.match(tour, /ArrowRight/);
+  assert.match(css, /\.guided-tour-spotlight/);
+  assert.match(css, /transition: left \.72s/);
+  assert.match(css, /@media \(max-width: 720px\)/);
+});
+
 test("provides controlled launch checklists with part references and printable sign-offs", async () => {
   const [missionControl, checklist, route, access, css, migration] = await Promise.all([
     source("app/mission-control.tsx"),

@@ -38,7 +38,7 @@ export function AccessPortal() {
       <header className="account-header">
         <div className="account-wordmark"><span>RC</span><strong>Rocket Configuration</strong></div>
         <div className="account-header-actions">
-          <Link href="/demo">View demo</Link>
+          <Link href="/demo?tour=1">View demo</Link>
         </div>
       </header>
       <section className="account-main">

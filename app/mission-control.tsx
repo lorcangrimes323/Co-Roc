@@ -9,6 +9,7 @@ import { RevisionWorkspace, type ControlledRelease, type ReleaseRequest } from "
 import { SimulationWorkspace, liveToSimulation, type LiveResult } from "./simulation-workspace";
 import { ThemeModeSelector, useThemePreference } from "./theme-preference";
 import { WorkspaceIcon } from "./workspace-icon";
+import { GuidedDemoTour, type GuidedDemoModule } from "./guided-demo-tour";
 import {
   OpenRocketEditableField,
   OpenRocketModel,
@@ -22,7 +23,7 @@ import type { ActiveWorkspace, WorkspaceIdentity, WorkspaceTeam } from "./worksp
 type ComponentStatus = "verified" | "review" | "draft";
 type SaveState = "loading" | "saved" | "draft" | "saving" | "conflict" | "offline";
 type AnalysisState = "saved" | "stale" | "calculating" | "current" | "failed";
-type WorkspaceModule = "configuration" | "simulation" | "history" | "tests" | "documents" | "checklists";
+type WorkspaceModule = GuidedDemoModule;
 type PaneSide = "tree" | "record";
 
 const defaultPaneWidths = { tree: 280, record: 460 };
@@ -408,6 +409,7 @@ export function MissionControl({
   const { mode: themeMode, resolved: resolvedTheme, setMode: setThemeMode } = useThemePreference();
   const [accent, setAccent] = useState("#c92335");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [guidedTourOpen, setGuidedTourOpen] = useState(false);
   const canvasAccent = useMemo(() => displayAccent(accent, resolvedTheme === "dark"), [accent, resolvedTheme]);
   const [rollDegrees, setRollDegrees] = useState(0);
   const [paneWidths, setPaneWidths] = useState(defaultPaneWidths);
@@ -465,6 +467,27 @@ export function MissionControl({
     catch { /* Resizing still works for the current session. */ }
   }, [paneWidths]);
 
+  useEffect(() => {
+    if (mode !== "demo") return;
+    const params = new URLSearchParams(window.location.search);
+    const forced = params.get("tour") === "1";
+    let seen = false;
+    try { seen = Boolean(window.localStorage.getItem("co-roc:guided-demo-v1")); }
+    catch { /* The tour can still run for this visit. */ }
+    if (forced) {
+      params.delete("tour");
+      const query = params.toString();
+      window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+    }
+    if (!forced && seen) return;
+    const timer = window.setTimeout(() => {
+      setSettingsOpen(false);
+      setWorkspaceModule("configuration");
+      setGuidedTourOpen(true);
+    }, 850);
+    return () => window.clearTimeout(timer);
+  }, [mode]);
+
   const constrainedPaneWidths = useCallback((side: PaneSide, requested: number, fixed: typeof defaultPaneWidths, total: number) => {
     const centreMinimum = 420;
     if (side === "tree") return { ...fixed, tree: Math.max(220, Math.min(requested, total - fixed.record - centreMinimum)) };
@@ -510,6 +533,20 @@ export function MissionControl({
     documents: "DOCUMENTATION",
     checklists: "LAUNCH CHECKLISTS",
   };
+
+  function startGuidedTour() {
+    setSettingsOpen(false);
+    setWorkspaceModule("configuration");
+    setGuidedTourOpen(true);
+  }
+
+  function closeGuidedTour(completed: boolean) {
+    try { window.localStorage.setItem("co-roc:guided-demo-v1", completed ? "completed" : "dismissed"); }
+    catch { /* Dismissing still works for the current visit. */ }
+    setGuidedTourOpen(false);
+    setSettingsOpen(false);
+    setWorkspaceModule("configuration");
+  }
   const vehicleAnalysis = useMemo(() => {
     if (!orkModel) return null;
     const simulation = liveAnalysis ?? orkModel.simulations.find((item) => Number.isFinite(item.maxAltitude) || Number.isFinite(item.launchMass)) ?? orkModel.simulations[0];
@@ -1235,7 +1272,7 @@ export function MissionControl({
         <button className={`rail-button ${workspaceModule === "documents" ? "rail-active" : ""}`} type="button" aria-label="Documentation" data-label="Documentation" onClick={() => setWorkspaceModule("documents")}><WorkspaceIcon name="documents" /></button>
         <button className={`rail-button ${workspaceModule === "checklists" ? "rail-active" : ""}`} type="button" aria-label="Launch checklists" data-label="Checklists" onClick={() => setWorkspaceModule("checklists")}><WorkspaceIcon name="checklists" /></button>
         <div className="rail-spacer" />
-        <button className={`rail-button ${settingsOpen ? "rail-settings-active" : ""}`} type="button" aria-label="Workspace settings" data-label="Settings" aria-expanded={settingsOpen} aria-controls="workspace-settings" onClick={() => setSettingsOpen((open) => !open)}><WorkspaceIcon name="settings" /></button>
+        <button data-tour="workspace-settings-button" className={`rail-button ${settingsOpen ? "rail-settings-active" : ""}`} type="button" aria-label="Workspace settings" data-label="Settings" aria-expanded={settingsOpen} aria-controls="workspace-settings" onClick={() => setSettingsOpen((open) => !open)}><WorkspaceIcon name="settings" /></button>
       </aside>
 
       {settingsOpen && (
@@ -1248,11 +1285,12 @@ export function MissionControl({
           <div className="accent-presets" aria-label="Accent presets">
             {["#c92335", "#e5484d", "#b42318", "#6d2633"].map((colour) => <button key={colour} type="button" aria-label={`Use ${colour}`} aria-pressed={accent.toLowerCase() === colour} style={{ backgroundColor: colour }} onClick={() => setAccent(colour)} />)}
           </div>
+          {mode === "demo" && <button className="replay-tour-button" type="button" onClick={startGuidedTour}><span>▶</span><div><strong>Replay guided demo</strong><small>Walk through the engineering workflow</small></div></button>}
           <p>Theme choices are stored in this browser.</p>
         </section>
       )}
 
-      <section className="workspace-header">
+      <section className="workspace-header" data-tour="project-context">
         <div>
           <div className="breadcrumbs">{workspace.team.name.toUpperCase()} / {workspace.project.name.toUpperCase()} / <strong>{moduleLabel[workspaceModule]}</strong></div>
           <div className="workspace-title-row">
@@ -1274,7 +1312,7 @@ export function MissionControl({
         </div>}
       </section>
 
-      <section className="metrics-strip" aria-label="Vehicle summary">
+      <section className="metrics-strip" aria-label="Vehicle summary" data-tour="vehicle-summary">
         {workspaceModule === "simulation" ? <>
           <div className="metric"><span>SAVED CASES</span><strong>{orkModel?.simulations.length ?? 0} <small>runs</small></strong></div>
           <div className="metric"><span>APOGEE · CASE 1</span><strong>{orkModel?.simulations[0] ? Math.round(orkModel.simulations[0].maxAltitude).toLocaleString() : "—"} <small>m</small></strong></div>
@@ -1297,7 +1335,7 @@ export function MissionControl({
       >
         <div className="pane-resizer pane-resizer-tree" role="separator" aria-label="Resize component tree" aria-orientation="vertical" tabIndex={0} style={{ left: `${paneWidths.tree - 5}px` }} onPointerDown={(event) => beginPaneResize("tree", event)} onKeyDown={(event) => resizePaneWithKeyboard("tree", event)} onDoubleClick={() => setPaneWidths(defaultPaneWidths)} />
         <div className="pane-resizer pane-resizer-record" role="separator" aria-label="Resize engineering record" aria-orientation="vertical" tabIndex={0} style={{ right: `${paneWidths.record - 5}px` }} onPointerDown={(event) => beginPaneResize("record", event)} onKeyDown={(event) => resizePaneWithKeyboard("record", event)} onDoubleClick={() => setPaneWidths(defaultPaneWidths)} />
-        <aside className="component-panel panel">
+        <aside className="component-panel panel" data-tour="component-tree">
           <div className="panel-heading">
             <div><span className="eyebrow">STRUCTURE</span><h2>Component tree</h2></div>
             <button className="quiet-button" type="button" aria-label="Component options">•••</button>
@@ -1329,7 +1367,7 @@ export function MissionControl({
           </div>
         </aside>
 
-        <section className="model-panel panel">
+        <section className="model-panel panel" data-tour="rocket-viewport">
           <div className="model-toolbar">
             <div className="view-tabs">
               <button className={`view-tab ${viewMode === "components" ? "view-tab-active" : ""}`} type="button" onClick={() => setViewMode("components")}>COMPONENTS</button>
@@ -1387,7 +1425,7 @@ export function MissionControl({
           </div>
         </section>
 
-        <aside className={`inspector-panel panel ${selectedId ? "" : "inspector-empty"}`}>
+        <aside className={`inspector-panel panel ${selectedId ? "" : "inspector-empty"}`} data-tour="engineering-record">
           {!selectedId ? (
             <div className="empty-selection">
               <span>NO COMPONENT SELECTED</span>
@@ -1535,6 +1573,16 @@ export function MissionControl({
       {workspaceModule === "history" && <RevisionWorkspace changes={auditChanges} releases={controlledReleases} requests={releaseRequests} canApprove={can("approveRelease")} onOpenComponent={(componentId) => openComponentWorkspace(componentId)} onReleaseAction={handleReleaseAction} />}
       {(workspaceModule === "tests" || workspaceModule === "documents") && <ProjectRecordWorkspace kind={workspaceModule} components={components} headers={collaborationHeaders} projectId={workspace.project.id} onSelectComponent={(componentId, panel) => openComponentWorkspace(componentId, panel)} onNotice={setNotice} />}
       {workspaceModule === "checklists" && <LaunchChecklistWorkspace parts={components.map(({ id, code, name, type }) => ({ id, code, name, type }))} releases={controlledReleases.map(({ releaseNumber, title }) => ({ releaseNumber, title }))} mode={mode} headers={collaborationHeaders} canEdit={can("editChecklist")} canRelease={can("releaseChecklist")} onNotice={setNotice} />}
+
+      {mode === "demo" && guidedTourOpen && <GuidedDemoTour
+        currentModule={workspaceModule}
+        onModuleChange={(module) => {
+          setSettingsOpen(false);
+          setWorkspaceModule(module);
+          if (module === "history") void refreshHistory();
+        }}
+        onClose={closeGuidedTour}
+      />}
 
       {saveState === "conflict" && <div className="conflict-banner"><span><strong>Live save paused.</strong> {conflictMessage || "A teammate saved a newer working copy."}</span><button type="button" onClick={reloadSharedOrk}>Reload shared file</button></div>}
 
