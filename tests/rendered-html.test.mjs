@@ -293,7 +293,7 @@ test("provides a paced first-run guided demo across the engineering workflow", a
 });
 
 test("reviews externally edited ORK files before promoting them to the working copy", async () => {
-  const [missionControl, proposalModal, revisionWorkspace, proposalRoute, directOrkRoute, diff, schema, access, tour] = await Promise.all([
+  const [missionControl, proposalModal, revisionWorkspace, proposalRoute, directOrkRoute, diff, schema, access, tour, styles] = await Promise.all([
     source("app/mission-control.tsx"),
     source("app/ork-change-proposal-modal.tsx"),
     source("app/revision-workspace.tsx"),
@@ -303,6 +303,7 @@ test("reviews externally edited ORK files before promoting them to the working c
     source("db/schema.ts"),
     source("db/access-store.ts"),
     source("app/guided-demo-tour.tsx"),
+    source("app/globals.css"),
   ]);
 
   assert.match(missionControl, /compareOrkModels/);
@@ -321,6 +322,9 @@ test("reviews externally edited ORK files before promoting them to the working c
   assert.match(proposalModal, /Proposal not submitted/);
   assert.match(proposalModal, /scrollIntoView/);
   assert.match(revisionWorkspace, /Approve into working ORK/);
+  assert.match(revisionWorkspace, /ork-review-approve/);
+  assert.match(styles, /\.ork-review-actions \.ork-review-approve \{[^}]*background: #1f7048;[^}]*color: #fff;/);
+  assert.match(styles, /\[data-theme="dark"\] \.ork-review-actions \.ork-review-approve/);
   assert.match(revisionWorkspace, /Download proposed \.ORK/);
   assert.match(revisionWorkspace, /fresh pull, rebase and proposal|download the current file/i);
   assert.match(proposalRoute, /requireProjectAccess\(request, "editOrk"\)/);

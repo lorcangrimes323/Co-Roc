@@ -665,6 +665,10 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .ork-review-actions label { color: var(--muted); font: 10px var(--font-geist-mono); letter-spacing: .07em; }
 .ork-review-actions textarea { width: 100%; min-height: 58px; margin-top: 6px; resize: vertical; }
 .ork-review-actions > div { display: flex; gap: 8px; }
+.ork-review-actions .ork-review-approve { min-width: 210px; border-color: #1f7048; background: #1f7048; color: #fff; }
+.ork-review-actions .ork-review-approve:hover { background: #195d3c; filter: none; }
+[data-theme="dark"] .ork-review-actions .ork-review-approve { border-color: #82d2a9; background: #82d2a9; color: #09120d; }
+[data-theme="dark"] .ork-review-actions .ork-review-approve:hover { background: #9bdfba; }
 .release-summary { padding: 16px; }
 .release-summary > p { margin: 0 0 14px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .release-summary dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; border: 1px solid var(--line); }
