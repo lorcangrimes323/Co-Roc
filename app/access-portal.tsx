@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import { CoRocLogo } from "./co-roc-logo";
 import { useThemePreference } from "./theme-preference";
 
 export function AccessPortal() {
@@ -44,7 +45,6 @@ export function AccessPortal() {
   return (
     <main className="access-page">
       <header className="account-header">
-        <div className="account-wordmark"><strong>Co-Roc</strong><small>Configuration control for launch vehicles</small></div>
         <nav className="account-header-actions" aria-label="Account actions">
           <div className="account-theme-toggle" role="group" aria-label="Colour mode">
             <button type="button" aria-pressed={resolvedTheme === "light"} onClick={() => setThemeMode("light")}>Light</button>
@@ -58,6 +58,7 @@ export function AccessPortal() {
       <section className="account-main">
         <div className="account-context">
           <section className="account-hero">
+            <CoRocLogo className="account-hero-logo" />
             <span className="account-section-label">CO-ROC / CONFIGURATION CONTROL</span>
             <h1>The working OpenRocket file, with its engineering record attached.</h1>
             <p>One controlled workspace for geometry, evidence, simulation, approvals and launch readiness. Every decision stays attributable to the vehicle configuration it affected.</p>

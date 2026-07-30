@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CoRocLogo } from "./co-roc-logo";
 import { RocketViewer, RocketViewerHandle } from "./rocket-viewer";
 import { RocketSectionHandle, RocketSectionView } from "./rocket-section-view";
 import { ProjectRecordWorkspace } from "./project-record-workspace";
@@ -1422,10 +1423,7 @@ export function MissionControl({
     <main className="app-shell">
       <header className="topbar">
         <div className="brand-lockup">
-          <div>
-            <div className="brand-name">ROCKET CONFIGURATION</div>
-            <div className="brand-subtitle">ENGINEERING WORKSPACE</div>
-          </div>
+          <CoRocLogo className="workspace-brand-logo" />
         </div>
 
         <div className="project-switcher">

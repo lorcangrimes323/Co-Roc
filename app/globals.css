@@ -98,7 +98,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .topbar {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: 250px 1fr auto;
+  grid-template-columns: 310px 1fr auto;
   align-items: center;
   min-width: 0;
   border-bottom: 1px solid var(--line-strong);
@@ -114,8 +114,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   border-right: 1px solid var(--line);
 }
 
-.brand-name { font-size: 14px; letter-spacing: .18em; font-weight: 750; }
-.brand-subtitle { margin-top: 4px; color: var(--muted); font: 10px/1 var(--font-geist-mono); letter-spacing: .13em; }
+.workspace-brand-logo { display: block; width: 270px; max-width: 100%; height: auto; color: var(--text); font-family: var(--font-geist-sans), Arial, sans-serif; }
 
 .project-switcher { min-width: 0; padding-left: 28px; }
 .project-kicker, .eyebrow { display: block; color: var(--muted); font: 10px/1.2 var(--font-geist-mono); letter-spacing: .11em; }
@@ -164,15 +163,10 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .mention-empty strong { font-size: 13px; }
 .mention-empty span { max-width: 290px; margin: 7px auto 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
 
-.access-page { --accent: #c92335; --accent-ink: #ffffff; height: 100vh; height: 100dvh; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; display: grid; grid-template-rows: auto minmax(min-content, 1fr) auto; background: var(--ink); color: var(--text); scroll-behavior: smooth; }
-[data-theme="dark"] .access-page { --accent: #ff6876; --accent-ink: #0b0b0d; }
+.access-page { height: 100vh; height: 100dvh; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; display: grid; grid-template-rows: auto minmax(min-content, 1fr) auto; background: var(--ink); color: var(--text); scroll-behavior: smooth; }
 .workspace-gate { height: 100vh; overflow: auto; display: grid; place-items: center; padding: 40px 22px; background: var(--ink); color: var(--text); }
 .gate-card { width: min(560px, 100%); background: var(--panel); border: 1px solid var(--line-strong); padding: clamp(30px, 6vw, 58px); box-shadow: 0 18px 55px var(--shadow); }
-.account-header { position: sticky; z-index: 20; top: 0; min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 0 max(24px, calc((100vw - 1120px) / 2)); background: color-mix(in srgb, var(--ink-2) 97%, transparent); border-bottom: 1px solid var(--line-strong); backdrop-filter: blur(12px); }
-.account-wordmark { display: flex; align-items: center; gap: 11px; }
-.account-wordmark strong, .account-wordmark small { display: block; }
-.account-wordmark strong { padding-right: 13px; border-right: 1px solid var(--line-strong); font-size: 18px; line-height: 1; letter-spacing: -.01em; }
-.account-wordmark small { color: var(--muted); font: 10px/1.1 var(--font-geist-mono); letter-spacing: .06em; text-transform: uppercase; }
+.account-header { position: sticky; z-index: 20; top: 0; min-height: 64px; display: flex; align-items: center; justify-content: flex-end; gap: 18px; padding: 0 max(24px, calc((100vw - 1120px) / 2)); background: color-mix(in srgb, var(--ink-2) 97%, transparent); border-bottom: 1px solid var(--line-strong); backdrop-filter: blur(12px); }
 .account-header-actions { display: flex; align-items: center; gap: 18px; }
 .account-header-actions > a, .account-header-actions > button { min-height: 36px; display: inline-flex; align-items: center; border: 0; background: transparent; color: var(--text); padding: 0; font-size: 13px; font-weight: 680; text-decoration: none; cursor: pointer; }
 .account-header-actions > a { color: var(--muted); }
@@ -183,6 +177,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .account-theme-toggle button[aria-pressed="true"] { background: var(--text); color: var(--ink-2); }
 .account-main { width: min(1240px, calc(100% - 64px)); min-height: calc(100vh - 112px); min-height: calc(100dvh - 112px); margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) 400px; grid-template-areas: "hero access"; align-items: center; column-gap: clamp(54px, 7vw, 100px); padding: 40px 0; }
 .account-context { grid-area: hero; min-width: 0; }
+.account-hero-logo { display: block; width: min(500px, 78%); height: auto; margin: 0 0 30px -3px; color: var(--text); font-family: var(--font-geist-sans), Arial, sans-serif; }
 .account-section-label { color: var(--accent); font: 11px var(--font-geist-mono); letter-spacing: .14em; }
 .account-hero h1 { max-width: 680px; margin: 17px 0 19px; font-size: clamp(38px, 3.6vw, 48px); line-height: 1.045; letter-spacing: -.034em; font-weight: 640; text-wrap: balance; }
 .account-hero > p { max-width: 660px; margin: 0; color: var(--muted); font-size: 16px; line-height: 1.58; }
@@ -314,9 +309,8 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 
 @media (max-width: 700px) {
   .account-header { min-height: 58px; padding: 0 16px; }
-  .account-wordmark strong { font-size: 15px; }
-  .account-wordmark small { display: none; }
   .account-main { width: min(100% - 28px, 620px); grid-template-columns: 1fr; gap: 36px; padding: 38px 0 50px; }
+  .account-hero-logo { width: min(430px, 92%); margin-bottom: 24px; }
   .account-hero h1 { margin: 17px 0 19px; font-size: clamp(34px, 8vw, 42px); line-height: 1.04; }
   .account-hero > p { font-size: 15px; }
   .account-hero-actions { margin-top: 26px; }
@@ -329,7 +323,6 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 }
 
 @media (max-width: 420px) {
-  .account-wordmark strong { font-size: 13px; }
   .account-header { padding: 0 12px; }
   .account-header-actions { gap: 10px; }
   .account-header-actions > a { font-size: 12px; }
@@ -338,6 +331,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .theme-mode-selector-compact .theme-choice-copy { display: none; }
   .account-header-actions > a { display: none; }
   .account-main { width: min(100% - 20px, 560px); gap: 30px; padding: 28px 0 40px; }
+  .account-hero-logo { width: min(330px, 96%); margin-bottom: 20px; }
   .account-hero h1 { margin: 14px 0 17px; font-size: 31px; }
   .account-hero-actions { align-items: stretch; flex-direction: column; }
   .account-hero-actions a { justify-content: space-between; }
@@ -1492,8 +1486,8 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
     min-width: 0;
   }
   .brand-lockup { min-width: 0; padding: 0 14px; border-right: 0; }
-  .brand-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
-  .brand-subtitle, .project-kicker, .project-switcher, .avatar-stack, .sync-state, .user-name { display: none; }
+  .workspace-brand-logo { width: 190px; }
+  .project-kicker, .project-switcher, .avatar-stack, .sync-state, .user-name { display: none; }
   .topbar-actions { gap: 0; padding: 0 12px 0 0; }
   .mention-centre { margin-right: 6px; }
   .mention-inbox-button { width: 40px; height: 40px; }
@@ -1922,6 +1916,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .account-header { padding: 0 12px; }
   .account-header-actions { gap: 9px; }
   .account-header-actions > a { font-size: 12px; }
+  .workspace-brand-logo { width: 170px; }
   .theme-mode-selector-compact { gap: 2px; }
   .theme-mode-selector-compact button { grid-template-columns: 18px; padding: 5px; }
   .theme-mode-selector-compact .theme-choice-copy { display: none; }
@@ -1941,6 +1936,10 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .member-row select, .member-row .role-badge { grid-column: 2; justify-self: start; }
   .member-access { margin-left: 0; }
   .generated-code { align-items: flex-start; flex-direction: column; }
+}
+
+@media (max-width: 360px) {
+  .account-header-actions > button { display: none; }
 }
 
 /* Keep responsive overrides from reducing operational text below the legible floor. */
