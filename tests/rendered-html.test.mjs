@@ -302,6 +302,7 @@ test("reviews externally edited ORK files before promoting them to the working c
 
   assert.match(missionControl, /compareOrkModels/);
   assert.match(missionControl, /setOrkProposalDraft/);
+  assert.match(missionControl, /orkProposalError/);
   assert.match(missionControl, /Upload \.ORK/);
   assert.match(missionControl, /pendingOrkProposals/);
   assert.match(proposalModal, /The live ORK has not changed/);
@@ -311,6 +312,9 @@ test("reviews externally edited ORK files before promoting them to the working c
   assert.match(proposalModal, /excluded from engineering rationale/);
   assert.match(proposalModal, /remain pinned to W/);
   assert.match(proposalModal, /Submit for lead review/);
+  assert.match(proposalModal, /Change summary required/);
+  assert.match(proposalModal, /Proposal not submitted/);
+  assert.match(proposalModal, /scrollIntoView/);
   assert.match(revisionWorkspace, /Approve into working ORK/);
   assert.match(revisionWorkspace, /Download proposed \.ORK/);
   assert.match(revisionWorkspace, /fresh pull, rebase and proposal|download the current file/i);

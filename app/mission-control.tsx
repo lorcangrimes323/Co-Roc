@@ -442,6 +442,7 @@ export function MissionControl({
   const [orkProposals, setOrkProposals] = useState<OrkChangeProposal[]>([]);
   const [orkProposalDraft, setOrkProposalDraft] = useState<OrkProposalDraft | null>(null);
   const [orkProposalSubmitting, setOrkProposalSubmitting] = useState(false);
+  const [orkProposalError, setOrkProposalError] = useState("");
   const [releaseNotes, setReleaseNotes] = useState("");
   const [lastSavedBy, setLastSavedBy] = useState<string>("");
   const [conflictMessage, setConflictMessage] = useState("");
@@ -1021,6 +1022,7 @@ export function MissionControl({
           setNotice(`${file.name} contains no engineering changes compared with W${workspaceVersionRef.current}`);
           return;
         }
+        setOrkProposalError("");
         setOrkProposalDraft({ file, comparison });
         setNotice(`${comparison.changedComponents} changed record${comparison.changedComponents === 1 ? "" : "s"} detected; rationale is required for intentional changes`);
         return;
@@ -1055,6 +1057,7 @@ export function MissionControl({
   async function submitOrkProposal(summary: string, rationales: Record<string, string>) {
     if (!orkProposalDraft || workspaceVersionRef.current === null) return;
     setOrkProposalSubmitting(true);
+    setOrkProposalError("");
     try {
       const form = new FormData();
       form.set("file", orkProposalDraft.file);
@@ -1072,11 +1075,14 @@ export function MissionControl({
       }
       setOrkProposals(payload.proposals ?? []);
       setOrkProposalDraft(null);
+      setOrkProposalError("");
       setWorkspaceModule("history");
       setNotice(`ORK change proposal submitted against W${workspaceVersionRef.current}; the live file is unchanged`);
       await refreshHistory();
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "The ORK change proposal could not be submitted");
+      const message = error instanceof Error ? error.message : "The ORK change proposal could not be submitted";
+      setOrkProposalError(message);
+      setNotice(message);
     } finally {
       setOrkProposalSubmitting(false);
     }
@@ -1701,7 +1707,7 @@ export function MissionControl({
 
       {saveState === "conflict" && <div className="conflict-banner"><span><strong>Live save paused.</strong> {conflictMessage || "A teammate saved a newer working copy."}</span><button type="button" onClick={reloadSharedOrk}>Reload shared file</button></div>}
 
-      {orkProposalDraft && <OrkChangeProposalModal fileName={orkProposalDraft.file.name} baseVersion={workspaceVersion ?? 0} comparison={orkProposalDraft.comparison} submitting={orkProposalSubmitting} onCancel={() => !orkProposalSubmitting && setOrkProposalDraft(null)} onSubmit={submitOrkProposal} />}
+      {orkProposalDraft && <OrkChangeProposalModal fileName={orkProposalDraft.file.name} baseVersion={workspaceVersion ?? 0} comparison={orkProposalDraft.comparison} submitting={orkProposalSubmitting} submissionError={orkProposalError} onCancel={() => { if (!orkProposalSubmitting) { setOrkProposalDraft(null); setOrkProposalError(""); } }} onSubmit={submitOrkProposal} />}
 
       <footer className="statusbar">
         <div className="status-message"><span className="pulse-dot" />{notice}</div>
