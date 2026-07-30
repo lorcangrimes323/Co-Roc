@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import { useThemePreference } from "./theme-preference";
 
 export function AccessPortal() {
+  const { resolved: resolvedTheme, setMode: setThemeMode } = useThemePreference();
   const [mode, setMode] = useState<"signin" | "signup">("signup");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -44,6 +46,10 @@ export function AccessPortal() {
       <header className="account-header">
         <div className="account-wordmark"><strong>Co-Roc</strong><small>Configuration control for launch vehicles</small></div>
         <nav className="account-header-actions" aria-label="Account actions">
+          <div className="account-theme-toggle" role="group" aria-label="Colour mode">
+            <button type="button" aria-pressed={resolvedTheme === "light"} onClick={() => setThemeMode("light")}>Light</button>
+            <button type="button" aria-pressed={resolvedTheme === "dark"} onClick={() => setThemeMode("dark")}>Dark</button>
+          </div>
           <Link href="/demo?tour=1">Guided demo</Link>
           <button type="button" onClick={() => chooseMode("signin")}>Sign in</button>
         </nav>
@@ -52,24 +58,27 @@ export function AccessPortal() {
       <section className="account-main">
         <div className="account-context">
           <section className="account-hero">
-            <span className="account-section-label">OPENROCKET TEAM WORKSPACE</span>
-            <h1>Control the configuration. Keep the engineering record.</h1>
-            <p>Co-Roc gives a launch team one working ORK, a review path for every change, and a controlled record from design through launch day.</p>
+            <span className="account-section-label">OPENROCKET CONFIGURATION CONTROL</span>
+            <h1>OpenRocket files, controlled as engineering data.</h1>
+            <p>Keep one authoritative vehicle file, review external changes before they land, and retain the evidence behind every approved configuration.</p>
             <div className="account-hero-actions">
               <Link className="account-primary-link" href="/demo?tour=1">Open guided demo <span aria-hidden="true">→</span></Link>
               <a href="#capabilities">See the workflow</a>
             </div>
-            <dl className="account-summary" aria-label="Co-Roc engineering controls">
-              <div><dt>Working file</dt><dd>Upload, inspect and download the authoritative ORK.</dd></div>
-              <div><dt>Change control</dt><dd>Compare geometry, explain intent and route approval.</dd></div>
-              <div><dt>Engineering record</dt><dd>Keep drawings, tests, media and discussion with each part.</dd></div>
-              <div><dt>Launch readiness</dt><dd>Retain simulations, releases and printable launch checklists.</dd></div>
-            </dl>
+            <section className="account-register" aria-label="Controlled engineering record">
+              <header><span>CONTROLLED RECORD</span><span>TRACEABLE BY DEFAULT</span></header>
+              <ol>
+                <li><b>01</b><span><strong>Working ORK</strong><small>Authoritative geometry and live working changes</small></span></li>
+                <li><b>02</b><span><strong>Review</strong><small>Compared uploads, rationale and lead approval</small></span></li>
+                <li><b>03</b><span><strong>Evidence</strong><small>Drawings, tests, media and part discussions</small></span></li>
+                <li><b>04</b><span><strong>Release</strong><small>Recoverable baselines, simulations and launch procedures</small></span></li>
+              </ol>
+            </section>
           </section>
         </div>
 
         <section className="account-capabilities" id="capabilities">
-            <header><span>CONTROLLED WORKFLOW</span><h2>One record from ORK upload to launch approval</h2></header>
+            <header><span>ENGINEERING WORKFLOW</span><h2>What Co-Roc controls</h2></header>
             <ol>
               <li><span>01</span><div><strong>Work from the real ORK</strong><p>Upload, inspect and download the working OpenRocket file. Review the assembly in 2D or 3D.</p></div></li>
               <li><span>02</span><div><strong>Review changes before they land</strong><p>Compare a re-upload against the working copy, isolate intentional geometry changes and send them to a lead with engineering rationale.</p></div></li>

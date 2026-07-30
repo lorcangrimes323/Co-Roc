@@ -20,7 +20,10 @@ test("presents the complete Co-Roc workflow on a restrained landing page", async
     source("app/page.tsx"),
     source("app/layout.tsx"),
   ]);
-  assert.match(portal, /Control the configuration\. Keep the engineering record/);
+  assert.match(portal, /OpenRocket files, controlled as engineering data/);
+  assert.match(portal, /account-theme-toggle/);
+  assert.match(portal, /setThemeMode\("light"\)/);
+  assert.match(portal, /setThemeMode\("dark"\)/);
   assert.match(portal, /Review changes before they land/);
   assert.match(portal, /Run traceable simulations/);
   assert.match(portal, /Keep the record with the part/);
