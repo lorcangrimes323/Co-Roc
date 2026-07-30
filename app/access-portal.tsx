@@ -42,7 +42,7 @@ export function AccessPortal() {
   return (
     <main className="access-page">
       <header className="account-header">
-        <div className="account-wordmark"><strong>Co-Roc</strong><small>Launch vehicle configuration control</small></div>
+        <div className="account-wordmark"><strong>Co-Roc</strong><small>Configuration control for launch vehicles</small></div>
         <nav className="account-header-actions" aria-label="Account actions">
           <Link href="/demo?tour=1">Guided demo</Link>
           <button type="button" onClick={() => chooseMode("signin")}>Sign in</button>
@@ -52,20 +52,26 @@ export function AccessPortal() {
       <section className="account-main">
         <div className="account-context">
           <section className="account-hero">
-            <span className="account-section-label">OPENROCKET ENGINEERING WORKSPACE</span>
-            <h1>Configuration control for launch teams.</h1>
-            <p>Review changes to the working ORK, attach evidence to parts, approve releases, run simulations and prepare launch checklists.</p>
+            <span className="account-section-label">OPENROCKET TEAM WORKSPACE</span>
+            <h1>Control the configuration. Keep the engineering record.</h1>
+            <p>Co-Roc gives a launch team one working ORK, a review path for every change, and a controlled record from design through launch day.</p>
             <div className="account-hero-actions">
-              <Link className="account-primary-link" href="/demo?tour=1">Open the guided demo <span aria-hidden="true">→</span></Link>
-              <a href="#capabilities">Review the workflow</a>
+              <Link className="account-primary-link" href="/demo?tour=1">Open guided demo <span aria-hidden="true">→</span></Link>
+              <a href="#capabilities">See the workflow</a>
             </div>
+            <dl className="account-summary" aria-label="Co-Roc engineering controls">
+              <div><dt>Working file</dt><dd>Upload, inspect and download the authoritative ORK.</dd></div>
+              <div><dt>Change control</dt><dd>Compare geometry, explain intent and route approval.</dd></div>
+              <div><dt>Engineering record</dt><dd>Keep drawings, tests, media and discussion with each part.</dd></div>
+              <div><dt>Launch readiness</dt><dd>Retain simulations, releases and printable launch checklists.</dd></div>
+            </dl>
           </section>
         </div>
 
         <section className="account-capabilities" id="capabilities">
-            <header><span>WORKFLOW</span><h2>From geometry to launch day</h2></header>
+            <header><span>CONTROLLED WORKFLOW</span><h2>One record from ORK upload to launch approval</h2></header>
             <ol>
-              <li><span>01</span><div><strong>Work from the real ORK</strong><p>Upload, inspect and download the working OpenRocket file. Review the assembly in 2D or 3D and keep edits live.</p></div></li>
+              <li><span>01</span><div><strong>Work from the real ORK</strong><p>Upload, inspect and download the working OpenRocket file. Review the assembly in 2D or 3D.</p></div></li>
               <li><span>02</span><div><strong>Review changes before they land</strong><p>Compare a re-upload against the working copy, isolate intentional geometry changes and send them to a lead with engineering rationale.</p></div></li>
               <li><span>03</span><div><strong>Run traceable simulations</strong><p>Create OpenRocket cases, retain results against the configuration that produced them, and surface stability and performance data.</p></div></li>
               <li><span>04</span><div><strong>Keep the record with the part</strong><p>Attach drawings, test evidence, documents, photos and videos to components. Discuss decisions and tag the teammate who needs to act.</p></div></li>

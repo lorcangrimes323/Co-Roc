@@ -13,14 +13,15 @@ export const metadata: Metadata = {
     "Configuration control for OpenRocket teams: working geometry, simulations, component evidence, approvals, releases and launch checklists.",
 };
 
-export default async function Home({ searchParams }: { searchParams?: Promise<{ local_role?: string }> }) {
+export default async function Home({ searchParams }: { searchParams?: Promise<{ local_role?: string; access_preview?: string }> }) {
   const user = await getAccountUser();
   const host = (await headers()).get("host") ?? "";
   const local = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host);
-  const roleValue = (await searchParams)?.local_role;
+  const resolvedSearchParams = await searchParams;
+  const roleValue = resolvedSearchParams?.local_role;
   const localRole: TeamRole | null = roleValue === "lead" || roleValue === "engineer" || roleValue === "viewer" ? roleValue : null;
 
-  if (!user && !(local && localRole)) return <AccessPortal />;
+  if ((local && resolvedSearchParams?.access_preview === "1") || (!user && !(local && localRole))) return <AccessPortal />;
 
   return (
     <WorkspaceApp user={user ? { name: user.displayName, email: user.email, preview: false } : localIdentityByRole[localRole!]} />
