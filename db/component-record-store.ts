@@ -65,6 +65,24 @@ export async function ensureComponentRecordSchema() {
     )`),
     DB.prepare(`CREATE INDEX IF NOT EXISTS component_comments_component_idx
       ON component_comments (project_id, component_id, id)`),
+    DB.prepare(`CREATE TABLE IF NOT EXISTS component_mentions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+      project_id TEXT NOT NULL,
+      component_id TEXT NOT NULL,
+      component_code TEXT NOT NULL,
+      comment_id INTEGER NOT NULL,
+      recipient_name TEXT NOT NULL,
+      recipient_email TEXT NOT NULL,
+      author_name TEXT NOT NULL,
+      author_email TEXT NOT NULL,
+      body_excerpt TEXT NOT NULL,
+      read_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL
+    )`),
+    DB.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS component_mentions_comment_recipient_unique
+      ON component_mentions (comment_id, recipient_email)`),
+    DB.prepare(`CREATE INDEX IF NOT EXISTS component_mentions_recipient_idx
+      ON component_mentions (project_id, recipient_email, read_at, id)`),
     DB.prepare(`CREATE TABLE IF NOT EXISTS component_record_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
       project_id TEXT NOT NULL,

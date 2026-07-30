@@ -115,6 +115,18 @@ type EngineeringComment = {
   createdAt: string;
 };
 
+type MentionNotification = {
+  id: number;
+  componentId: string;
+  componentCode: string;
+  commentId: number;
+  recipientName: string;
+  authorName: string;
+  bodyExcerpt: string;
+  readAt: string | null;
+  createdAt: string;
+};
+
 type EngineeringEvent = {
   id: number;
   action: string;
@@ -454,6 +466,8 @@ export function MissionControl({
   const [testTitle, setTestTitle] = useState("");
   const [testRequirement, setTestRequirement] = useState("");
   const [commentDraft, setCommentDraft] = useState("");
+  const [mentionNotifications, setMentionNotifications] = useState<MentionNotification[]>([]);
+  const [mentionsOpen, setMentionsOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const documentInput = useRef<HTMLInputElement>(null);
   const viewerRef = useRef<RocketViewerHandle>(null);
@@ -467,6 +481,11 @@ export function MissionControl({
   const can = (permission: WorkspaceTeam["permissions"][number]) => mode === "demo" ? ["view", "editOrk", "editChecklist"].includes(permission) : workspace.team.permissions.includes(permission);
   const availableProjects = teams.flatMap((team) => team.projects.map((project) => ({ ...project, teamName: team.name })));
   const visibleMembers = workspace.team.members.slice(0, 3);
+  const mentionableMembers = workspace.team.members.filter((member) =>
+    member.email.toLowerCase() !== user.email.toLowerCase()
+    && (member.role === "lead" || member.projectScope === "all" || member.projectIds.includes(workspace.project.id))
+  );
+  const unreadMentions = mentionNotifications.filter((mention) => !mention.readAt).length;
   const latestRelease = controlledReleases[0] ?? null;
   const pendingRelease = releaseRequests.find((request) => request.status === "pending") ?? null;
   const pendingOrkProposals = orkProposals.filter((proposal) => proposal.status === "pending");
@@ -593,10 +612,52 @@ export function MissionControl({
     };
   }, [liveAnalysis, orkModel]);
 
-  function openComponentWorkspace(componentId: string, panel: "records" | "tests" | "properties" = "properties") {
+  function openComponentWorkspace(componentId: string, panel: "records" | "tests" | "properties" | "comments" = "properties") {
     setSelectedId(componentId);
     setActivePanel(panel);
     setWorkspaceModule("configuration");
+  }
+
+  async function refreshMentions() {
+    if (mode !== "live") return;
+    try {
+      const response = await fetch("/api/mentions", { headers: collaborationHeaders(), cache: "no-store" });
+      if (!response.ok) return;
+      const payload = await response.json() as { notifications?: MentionNotification[] };
+      setMentionNotifications(payload.notifications ?? []);
+    } catch { /* Mention delivery is non-blocking while the workspace reconnects. */ }
+  }
+
+  async function openMention(notification: MentionNotification) {
+    setMentionsOpen(false);
+    setMentionNotifications((items) => items.map((item) => item.id === notification.id
+      ? { ...item, readAt: item.readAt || new Date().toISOString() }
+      : item));
+    if (components.some((component) => component.id === notification.componentId)) {
+      openComponentWorkspace(notification.componentId, "comments");
+      setNotice(`Opened ${notification.componentCode} discussion from ${notification.authorName}`);
+    } else {
+      setNotice(`${notification.componentCode} is not present in the current working ORK`);
+    }
+    try {
+      await fetch("/api/mentions", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...collaborationHeaders() },
+        body: JSON.stringify({ action: "mark-read", id: notification.id }),
+      });
+    } catch { /* The optimistic read state will reconcile on the next poll. */ }
+  }
+
+  async function markAllMentionsRead() {
+    setMentionNotifications((items) => items.map((item) => ({ ...item, readAt: item.readAt || new Date().toISOString() })));
+    try {
+      const response = await fetch("/api/mentions", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...collaborationHeaders() },
+        body: JSON.stringify({ action: "mark-all-read" }),
+      });
+      if (!response.ok) await refreshMentions();
+    } catch { await refreshMentions(); }
   }
 
   useEffect(() => {
@@ -624,6 +685,20 @@ export function MissionControl({
       } catch { /* retain the last known-good working copy */ }
     }, 2500);
     return () => window.clearInterval(poll);
+  }, [mode, workspace.project.id]);
+
+  useEffect(() => {
+    if (mode !== "live") return;
+    setMentionNotifications([]);
+    setMentionsOpen(false);
+    void refreshMentions();
+    const poll = window.setInterval(() => { void refreshMentions(); }, 12000);
+    const onVisibility = () => { if (document.visibilityState === "visible") void refreshMentions(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearInterval(poll);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [mode, workspace.project.id]);
 
   useEffect(() => {
@@ -1362,6 +1437,22 @@ export function MissionControl({
           <div className={`sync-state sync-${saveState}`}><span className="pulse-dot" />{
             mode === "demo" ? (saveState === "draft" ? "DEMO · LOCAL CHANGES" : "DEMO") : saveState === "saving" ? "SAVING" : saveState === "draft" ? "DRAFT" : saveState === "conflict" ? "CONFLICT" : saveState === "offline" ? "OFFLINE" : saveState === "loading" ? "CONNECTING" : "LIVE · SAVED"
           }</div>
+          {mode === "live" && <div className="mention-centre">
+            <button className={`mention-inbox-button ${unreadMentions ? "has-unread" : ""}`} type="button" aria-label={unreadMentions ? `${unreadMentions} unread mention${unreadMentions === 1 ? "" : "s"}` : "Mention inbox"} aria-expanded={mentionsOpen} aria-controls="mention-inbox" onClick={() => setMentionsOpen((open) => !open)}>
+              <span aria-hidden="true">@</span>{unreadMentions > 0 && <strong>{unreadMentions > 99 ? "99+" : unreadMentions}</strong>}
+            </button>
+            {mentionsOpen && <section id="mention-inbox" className="mention-inbox" aria-label="Your mentions">
+              <header><div><span>TEAM MENTIONS</span><h2>Tagged for your attention</h2></div><button type="button" aria-label="Close mention inbox" onClick={() => setMentionsOpen(false)}>&times;</button></header>
+              {unreadMentions > 0 && <button className="mention-read-all" type="button" onClick={markAllMentionsRead}>Mark all as read</button>}
+              <div className="mention-inbox-list">
+                {mentionNotifications.map((notification) => <button key={notification.id} className={notification.readAt ? "" : "mention-unread"} type="button" onClick={() => { void openMention(notification); }}>
+                  <span className="mention-author">{personInitials(notification.authorName)}</span>
+                  <span><strong>{notification.authorName} <em>mentioned you</em></strong><small>{notification.componentCode} / {recordDate(notification.createdAt)}</small><q>{notification.bodyExcerpt}</q></span>
+                </button>)}
+                {!mentionNotifications.length && <div className="mention-empty"><strong>No mentions yet</strong><span>When a teammate tags you in a component discussion, it will appear here.</span></div>}
+              </div>
+            </section>}
+          </div>}
           <div className="avatar-stack" aria-label="Team members">
             {(visibleMembers.length ? visibleMembers : collaborators).map((person, index) => (
               <span key={"email" in person ? person.email : person.initials} className={`avatar avatar-${["amber", "violet", "cyan"][index % 3]}`} title={"displayName" in person ? person.displayName : person.name}>
@@ -1663,7 +1754,7 @@ export function MissionControl({
               <div className="record-heading"><div><span className="eyebrow">TEAM THREAD</span><h3>Discussion &amp; decisions</h3></div><span className="version-lock">{componentRecord.comments.length} NOTES</span></div>
               <section className="comment-composer">
                 <textarea value={commentDraft} disabled={!can("comment")} onChange={(event) => setCommentDraft(event.target.value)} placeholder={can("comment") ? "Record a decision, ask a question, or type @ to tag a teammate…" : "Viewer access; comments are read-only."} />
-                <div className="mention-row"><span>MENTION</span>{workspace.team.members.map((member) => member.displayName).filter((name) => name !== user.name).map((name) => <button key={name} type="button" disabled={!can("comment")} onClick={() => insertMention(name)}>@{personInitials(name)}</button>)}</div>
+                <div className="mention-row"><span>MENTION</span>{mentionableMembers.map((member) => <button key={member.email} type="button" title={`Mention ${member.displayName}`} aria-label={`Mention ${member.displayName}`} disabled={!can("comment")} onClick={() => insertMention(member.displayName)}>@{personInitials(member.displayName)}</button>)}</div>
                 <button className="comment-submit" type="button" disabled={!commentDraft.trim() || !can("comment")} onClick={postComment}>Post to part record</button>
               </section>
               <div className="comment-thread">

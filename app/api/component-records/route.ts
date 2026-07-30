@@ -5,6 +5,7 @@ import { requireProjectAccess } from "../access";
 const ARTIFACT_CATEGORIES = new Set(["drawing", "document", "test-evidence", "photo", "video"]);
 
 type RecordUser = { displayName: string; email: string };
+type MentionableMember = { email: string; display_name: string };
 
 function textValue(value: unknown, max = 500) {
   return String(value ?? "").trim().slice(0, max);
@@ -13,6 +14,45 @@ function textValue(value: unknown, max = 500) {
 function numberValue(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
+}
+
+function regexEscape(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function resolveMentionedMembers(DB: D1Database, teamId: string, projectId: string, comment: string, authorEmail: string) {
+  const rows = await DB.prepare(`SELECT m.email, m.display_name FROM team_members m
+    WHERE m.team_id = ? AND m.status IN ('active', 'invited')
+      AND lower(m.email) <> lower(?)
+      AND (m.role = 'lead' OR m.project_scope = 'all' OR EXISTS (
+        SELECT 1 FROM member_project_access mpa
+        WHERE mpa.team_id = m.team_id AND lower(mpa.member_email) = lower(m.email) AND mpa.project_id = ?
+      ))`)
+    .bind(teamId, authorEmail, projectId)
+    .all<MentionableMember>();
+  const groups = new Map<string, MentionableMember[]>();
+  for (const member of rows.results) {
+    const key = member.display_name.trim().toLocaleLowerCase();
+    if (!key) continue;
+    groups.set(key, [...(groups.get(key) ?? []), member]);
+  }
+  const names = [...groups.keys()].sort((left, right) => right.length - left.length);
+  const occupied: Array<[number, number]> = [];
+  const mentioned: MentionableMember[] = [];
+  for (const key of names) {
+    const displayName = groups.get(key)?.[0]?.display_name.trim();
+    if (!displayName) continue;
+    const pattern = new RegExp(`(^|[\\s([{])(@${regexEscape(displayName)})(?=$|[\\s.,!?;:)\\]{}])`, "giu");
+    for (const match of comment.matchAll(pattern)) {
+      const start = Number(match.index) + match[1].length;
+      const end = start + match[2].length;
+      if (occupied.some(([from, to]) => start < to && end > from)) continue;
+      occupied.push([start, end]);
+      mentioned.push(...(groups.get(key) ?? []));
+      break;
+    }
+  }
+  return mentioned;
 }
 
 function mapRow(row: Record<string, unknown>) {
@@ -188,7 +228,7 @@ export async function POST(request: Request) {
   const permission = action === "create-test" ? "createTest" : action === "complete-test" ? "completeTest" : "comment";
   const accessResult = await requireProjectAccess(request, permission);
   if (!accessResult.ok) return accessResult.response;
-  const { user, project } = accessResult.access;
+  const { user, project, team } = accessResult.access;
   const projectId = project.id;
   const componentId = textValue(body.componentId, 160);
   const componentCode = textValue(body.componentCode, 80);
@@ -238,9 +278,8 @@ export async function POST(request: Request) {
   if (action === "add-comment") {
     const comment = textValue(body.body, 3000);
     if (!comment) return Response.json({ error: "Comment cannot be empty." }, { status: 400 });
-    const mentions = Array.from(comment.matchAll(/@([A-Za-z][A-Za-z .'-]{1,40})/g), (match) => match[1].trim())
-      .filter((name, index, items) => items.indexOf(name) === index)
-      .slice(0, 12);
+    const mentionedMembers = (await resolveMentionedMembers(DB, team.id, projectId, comment, user.email)).slice(0, 12);
+    const mentions = [...new Set(mentionedMembers.map((member) => member.display_name.trim()))];
     const result = await DB.prepare(`INSERT INTO component_comments (
       project_id, component_id, component_code, body, mentions_json, ork_version,
       author_name, author_email
@@ -248,6 +287,14 @@ export async function POST(request: Request) {
       .bind(projectId, componentId, componentCode, comment, JSON.stringify(mentions), orkVersion, user.displayName, user.email)
       .run();
     const commentId = Number(result.meta.last_row_id);
+    if (mentionedMembers.length) {
+      const excerpt = comment.length > 240 ? `${comment.slice(0, 237)}...` : comment;
+      await DB.batch(mentionedMembers.map((member) => DB.prepare(`INSERT OR IGNORE INTO component_mentions (
+        project_id, component_id, component_code, comment_id, recipient_name, recipient_email,
+        author_name, author_email, body_excerpt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .bind(projectId, componentId, componentCode, commentId, member.display_name, member.email.toLowerCase(), user.displayName, user.email, excerpt)));
+    }
     await addEvent({
       projectId, componentId, componentCode, action: "commented", entityType: "comment", entityId: commentId,
       summary: mentions.length ? `Commented and mentioned ${mentions.join(", ")}` : "Comment added",

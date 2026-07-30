@@ -382,6 +382,24 @@ export const componentComments = sqliteTable("component_comments", {
   index("component_comments_component_idx").on(table.projectId, table.componentId, table.id),
 ]);
 
+export const componentMentions = sqliteTable("component_mentions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  projectId: text("project_id").notNull(),
+  componentId: text("component_id").notNull(),
+  componentCode: text("component_code").notNull(),
+  commentId: integer("comment_id").notNull(),
+  recipientName: text("recipient_name").notNull(),
+  recipientEmail: text("recipient_email").notNull(),
+  authorName: text("author_name").notNull(),
+  authorEmail: text("author_email").notNull(),
+  bodyExcerpt: text("body_excerpt").notNull(),
+  readAt: text("read_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("component_mentions_comment_recipient_unique").on(table.commentId, table.recipientEmail),
+  index("component_mentions_recipient_idx").on(table.projectId, table.recipientEmail, table.readAt, table.id),
+]);
+
 export const componentRecordEvents = sqliteTable("component_record_events", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   projectId: text("project_id").notNull(),

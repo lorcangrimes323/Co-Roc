@@ -14,7 +14,7 @@
   --line-strong: rgba(17, 17, 18, 0.20);
   --text: #181718;
   --muted: #676366;
-  --faint: #918c8f;
+  --faint: #706c6f;
   --cyan: var(--accent);
   --cyan-dark: #f7e7e9;
   --amber: #a94a2f;
@@ -43,7 +43,7 @@
   --line-strong: rgba(255, 255, 255, 0.21);
   --text: #f4f4f5;
   --muted: #b9b5b8;
-  --faint: #8d898c;
+  --faint: #aaa6a9;
   --cyan-dark: color-mix(in srgb, var(--accent) 15%, var(--panel));
   --amber: #ffad7a;
   --amber-dark: #321d19;
@@ -137,6 +137,32 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .user-menu > span:first-child { width: 30px; height: 30px; border-radius: 3px; display: grid; place-items: center; background: var(--cyan-dark); color: var(--cyan); font: 10px var(--font-geist-mono); }
 .user-name { font-size: 12px; color: var(--text); }
 .user-name small { display: block; margin-top: 2px; color: var(--muted); font: 8px var(--font-geist-mono); letter-spacing: .08em; text-transform: uppercase; text-align: left; }
+
+.mention-centre { position: relative; }
+.mention-inbox-button { position: relative; width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid var(--line-strong); background: var(--panel); color: var(--muted); cursor: pointer; }
+.mention-inbox-button > span { font: 700 17px/1 var(--font-geist-sans); }
+.mention-inbox-button:hover, .mention-inbox-button[aria-expanded="true"], .mention-inbox-button.has-unread { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--panel)); }
+.mention-inbox-button strong { position: absolute; top: -7px; right: -8px; min-width: 20px; height: 20px; display: grid; place-items: center; padding: 0 5px; border: 2px solid var(--ink-2); border-radius: 10px; background: var(--red); color: #fff; font: 700 9px/1 var(--font-geist-mono); }
+.mention-inbox { position: absolute; z-index: 80; top: calc(100% + 12px); right: 0; width: min(410px, calc(100vw - 24px)); max-height: min(620px, calc(100vh - 86px)); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line-strong); background: var(--panel); box-shadow: 0 18px 54px var(--shadow); color: var(--text); }
+.mention-inbox > header { min-height: 72px; display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 17px 18px 14px; border-bottom: 1px solid var(--line); }
+.mention-inbox > header span { display: block; color: var(--accent); font: 10px/1.2 var(--font-geist-mono); letter-spacing: .11em; }
+.mention-inbox > header h2 { margin: 6px 0 0; font-size: 17px; line-height: 1.2; }
+.mention-inbox > header button { width: 30px; height: 30px; border: 0; background: transparent; color: var(--muted); font-size: 22px; cursor: pointer; }
+.mention-read-all { min-height: 36px; border: 0; border-bottom: 1px solid var(--line); background: var(--panel-2); color: var(--accent); text-align: right; padding: 0 16px; font-size: 11px; font-weight: 700; cursor: pointer; }
+.mention-inbox-list { min-height: 120px; overflow-y: auto; overscroll-behavior: contain; }
+.mention-inbox-list > button { width: 100%; display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 11px; padding: 14px 16px; border: 0; border-bottom: 1px solid var(--line); background: var(--panel); color: var(--text); text-align: left; cursor: pointer; }
+.mention-inbox-list > button:hover { background: var(--hover-fill); }
+.mention-inbox-list > button.mention-unread { background: color-mix(in srgb, var(--accent) 7%, var(--panel)); box-shadow: inset 3px 0 var(--accent); }
+.mention-author { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: var(--text); color: var(--panel); font: 700 9px/1 var(--font-geist-mono); }
+.mention-inbox-list strong, .mention-inbox-list small, .mention-inbox-list q { display: block; }
+.mention-inbox-list strong { font-size: 12px; line-height: 1.35; }
+.mention-inbox-list strong em { color: var(--accent); font-style: normal; font-weight: 650; }
+.mention-inbox-list small { margin-top: 3px; color: var(--muted); font-size: 10px; }
+.mention-inbox-list q { margin-top: 8px; color: var(--muted); font-size: 11px; line-height: 1.45; quotes: none; overflow-wrap: anywhere; }
+.mention-empty { padding: 28px 22px; text-align: center; }
+.mention-empty strong, .mention-empty span { display: block; }
+.mention-empty strong { font-size: 13px; }
+.mention-empty span { max-width: 290px; margin: 7px auto 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
 
 .access-page { height: 100vh; height: 100dvh; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; display: grid; grid-template-rows: auto minmax(min-content, 1fr) auto; background: var(--ink); color: var(--text); }
 .workspace-gate { height: 100vh; overflow: auto; display: grid; place-items: center; padding: 40px 22px; background: var(--ink); color: var(--text); }
@@ -1261,6 +1287,113 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .register-table > a strong,
 .revision-timeline button strong { font-size: 12px; }
 
+/* Maintain a legible floor for dense engineering metadata without enlarging the workspace structure. */
+.user-name small,
+.optional-label,
+.team-role-summary strong,
+.role-badge,
+.invite-code-form > label,
+.invite-code-form > label > span,
+.invite-code-form legend,
+.generated-code span,
+.invite-code-list span,
+.invite-code-list small,
+.member-access summary,
+.project-admin-list small,
+.team-event-list small,
+.proposal-review-link span,
+.metric-alert em,
+.checklist-list small,
+.checklist-status,
+.checklist-summary span,
+.checklist-summary small,
+.checklist-metadata label,
+.step-editor label,
+.checklist-phase-tabs span,
+.checklist-phase-tabs small,
+.step-copy > header span,
+.step-copy > header b,
+.step-copy > small,
+.step-copy > footer,
+.checklist-library p,
+.library-tabs button,
+.library-list > button > span,
+.library-list small,
+.library-list p,
+.simulation-state,
+.simulation-warnings article > span,
+.record-register-metrics span,
+.test-register article button,
+.revision-total,
+.ork-review-position-group strong,
+.ork-review-items summary b,
+.ork-review-diff span small,
+.release-summary dt,
+.viewer-hint,
+.viewer-axis,
+.model-callout,
+.model-callout small,
+.evidence-mini small,
+.document-list small,
+.upload-zone small,
+.engineering-record-list a small,
+.engineering-record-list a em,
+.record-file-kind,
+.test-state,
+.test-card small,
+.mention-row > span,
+.mention-row button,
+.comment-thread time,
+.comment-thread footer span,
+.comment-thread footer em,
+.record-event-list article > span,
+.record-event-list small,
+.activity-list p,
+.activity-list small,
+.activity-list time,
+.proposal-summary-field > span,
+.proposal-field-row > span small,
+.change-preview strong,
+.change-preview small,
+.change-preview em,
+.theme-panel-heading span,
+.theme-panel > label,
+.theme-choice-copy small,
+.replay-tour-button small,
+.guided-tour-header span,
+.guided-tour-header small,
+.guided-tour-copy aside span,
+.guided-tour-account { font-size: 10px; }
+
+.generated-code button,
+.invite-code-list button,
+.member-access button,
+.test-card button,
+.mention-row button,
+.test-register article button,
+.library-tabs button { min-height: 32px; font-size: 11px; }
+
+.checklist-library p,
+.library-list p,
+.step-copy > small,
+.engineering-record-list a em,
+.activity-list small,
+.guided-tour-account { line-height: 1.5; }
+
+.axis-label,
+.dimension-top span,
+.ork-centreline::after,
+.ork-stations,
+.marker { font-size: 9px; }
+
+.avatar { font-size: 10px; }
+.analysis-readout,
+.analysis-readout strong,
+.analysis-readout span,
+.analysis-state { font-size: 10px; line-height: 1.45; }
+.analysis-readout small,
+.analysis-state small { font-size: 10px; }
+
 [data-theme="light"] .field-label > input,
 [data-theme="light"] .field-label > textarea,
 [data-theme="light"] .unit-field,
@@ -1333,6 +1466,9 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .brand-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
   .brand-subtitle, .project-kicker, .project-switcher, .avatar-stack, .sync-state, .user-name { display: none; }
   .topbar-actions { gap: 0; padding: 0 12px 0 0; }
+  .mention-centre { margin-right: 6px; }
+  .mention-inbox-button { width: 40px; height: 40px; }
+  .mention-inbox { position: fixed; top: 64px; right: 8px; left: 8px; width: auto; max-height: min(70vh, 620px); max-height: min(70dvh, 620px); }
   .user-menu { min-width: 44px; min-height: 44px; padding-left: 11px; }
   .user-menu > span:first-child { width: 34px; height: 34px; }
 
@@ -1374,7 +1510,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
     border: 0;
     background: transparent;
     color: currentColor;
-    font: 8px/1.1 var(--font-geist-sans);
+    font: 9px/1.1 var(--font-geist-sans);
     opacity: 1;
     transform: none;
     overflow: hidden;
@@ -1504,7 +1640,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .vehicle-analysis .analysis-flight { display: flex; }
   .vehicle-analysis .analysis-flight { flex-direction: column; }
   .rocket-wrap { min-height: 260px; }
-  .section-hint { max-width: calc(100% - 24px); font-size: 8px; }
+  .section-hint { max-width: calc(100% - 24px); font-size: 10px; }
   .model-footer { height: 44px; gap: 10px; padding: 0 10px; }
   .model-footer > span:first-child { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .model-footer > span:nth-child(2) { display: none; }
@@ -1513,7 +1649,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .inspector-panel { min-height: 0; border-left: 0; border-top: 0; overflow: visible; }
   .inspector-identity { min-height: 96px; }
   .inspector-tabs { position: sticky; top: 0; z-index: 8; height: 48px; background: var(--panel); }
-  .inspector-tabs button { min-width: 0; font-size: 9px; }
+  .inspector-tabs button { min-width: 0; font-size: 10px; }
   .inspector-body { padding-bottom: 34px; }
 
   .module-tree {

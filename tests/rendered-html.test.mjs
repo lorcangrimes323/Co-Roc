@@ -190,12 +190,14 @@ test("provides a complete touch-first mobile engineering workspace", async () =>
 });
 
 test("provides a focused engineering record for every component", async () => {
-  const [missionControl, recordRoute, recordStore, css, migration] = await Promise.all([
+  const [missionControl, recordRoute, mentionRoute, recordStore, css, migration, mentionMigration] = await Promise.all([
     source("app/mission-control.tsx"),
     source("app/api/component-records/route.ts"),
+    source("app/api/mentions/route.ts"),
     source("db/component-record-store.ts"),
     source("app/globals.css"),
     source("drizzle/0001_outstanding_alex_wilder.sql"),
+    source("drizzle/0011_large_jane_foster.sql"),
   ]);
 
   assert.match(missionControl, /ENGINEERING RECORD/);
@@ -205,6 +207,9 @@ test("provides a focused engineering record for every component", async () => {
   assert.match(missionControl, /Photo/);
   assert.match(missionControl, /Video/);
   assert.match(missionControl, /type @ to tag a teammate/);
+  assert.match(missionControl, /Tagged for your attention/);
+  assert.match(missionControl, /mark-all-read/);
+  assert.match(missionControl, /setInterval\(\(\) => \{ void refreshMentions\(\); \}, 12000\)/);
   assert.match(missionControl, /TRACE LOG/);
 
   assert.match(recordRoute, /component_artifacts/);
@@ -213,13 +218,21 @@ test("provides a focused engineering record for every component", async () => {
   assert.match(recordRoute, /component_record_events/);
   assert.match(recordRoute, /status = 'superseded'/);
   assert.match(recordRoute, /mentions_json/);
+  assert.match(recordRoute, /resolveMentionedMembers/);
+  assert.match(recordRoute, /INSERT OR IGNORE INTO component_mentions/);
+  assert.match(mentionRoute, /lower\(recipient_email\) = lower\(\?\)/);
+  assert.match(mentionRoute, /read_at IS NULL/);
+  assert.match(mentionRoute, /mark-all-read/);
   assert.match(recordStore, /CREATE TABLE IF NOT EXISTS component_record_events/);
+  assert.match(recordStore, /CREATE TABLE IF NOT EXISTS component_mentions/);
   assert.match(migration, /CREATE TABLE `component_artifacts`/);
+  assert.match(mentionMigration, /CREATE TABLE `component_mentions`/);
 
   assert.match(css, /--ink-2:\s*#ffffff/);
   assert.match(css, /--user-accent:\s*#c92335/);
   assert.match(css, /\.inspector-tabs-four/);
   assert.match(css, /\.engineering-record-list/);
+  assert.match(css, /\.mention-inbox/);
 });
 
 test("provides a persistent, accessible dark mode across account and engineering surfaces", async () => {
