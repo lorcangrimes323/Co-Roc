@@ -257,7 +257,7 @@ test("provides a paced first-run guided demo across the engineering workflow", a
   ]);
 
   assert.match(portal, /\/demo\?tour=1/);
-  assert.match(missionControl, /co-roc:guided-demo-v1/);
+  assert.match(missionControl, /co-roc:guided-demo-v2/);
   assert.match(missionControl, /Replay guided demo/);
   assert.match(missionControl, /const tourComponent = components\.find/);
   assert.match(missionControl, /setSelectedId\(tourComponent\.id\)/);
@@ -294,7 +294,7 @@ test("reviews externally edited ORK files before promoting them to the working c
 
   assert.match(missionControl, /compareOrkModels/);
   assert.match(missionControl, /setOrkProposalDraft/);
-  assert.match(missionControl, /Propose \.ORK changes/);
+  assert.match(missionControl, /Upload \.ORK/);
   assert.match(missionControl, /pendingOrkProposals/);
   assert.match(proposalModal, /The live ORK has not changed/);
   assert.match(proposalModal, /ENGINEERING RATIONALE · REQUIRED/);

@@ -64,8 +64,8 @@ const steps: TourStep[] = [
   {
     id: "ork-push-pull",
     eyebrow: "05 · CONTROLLED ORK PUSH / PULL",
-    title: "Download, edit and propose—without overwriting the team",
-    description: "Pull the current working ORK, make detailed changes in OpenRocket, then upload it as a proposal. Co-Roc compares components, geometry, mass, materials and flight setups against the exact W version you downloaded.",
+    title: "Download, edit and upload—without overwriting the team",
+    description: "Download the current working ORK, make detailed changes in OpenRocket, then use Upload .ORK to submit it as a proposal. Co-Roc compares components, geometry, mass, materials and flight setups against the exact W version you downloaded.",
     detail: "Every changed part requires an engineering rationale. The proposed file remains separate until an authorised lead reviews the component-level differences and approves or rejects the upload. Approval creates a new working update; it does not create a V release. If the working copy advanced in the meantime, Co-Roc blocks the push as a conflict and requires a fresh pull, rebase and proposal.",
     target: "[data-tour='ork-sync-actions']",
     module: "configuration",

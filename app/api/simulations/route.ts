@@ -187,7 +187,7 @@ export async function POST(request: Request) {
   const projectId = access?.access.project.id ?? "demo-banshee";
   const workspace = previewBytes ? null : await DB.prepare(`SELECT current_object_key, version, sha256 FROM ork_workspaces WHERE project_id = ?`)
     .bind(projectId).first<WorkspaceRow>();
-  if (!previewBytes && !workspace) return Response.json({ error: "Import an .ork file before running a simulation." }, { status: 404 });
+  if (!previewBytes && !workspace) return Response.json({ error: "Upload an .ork file before running a simulation." }, { status: 404 });
   const ork = workspace ? await FILES.get(workspace.current_object_key) : null;
   if (!previewBytes && !ork) return Response.json({ error: "The current .ork file is missing." }, { status: 503 });
   if (previewBytes && !demoRequest) {

@@ -135,7 +135,7 @@ export async function POST(request: Request) {
   }
   const workspace = await DB.prepare(`SELECT version, sha256 FROM ork_workspaces WHERE project_id = ?`)
     .bind(project.id).first<{ version: number; sha256: string }>();
-  if (!workspace) return Response.json({ error: "Import the first project ORK before proposing a replacement." }, { status: 409 });
+  if (!workspace) return Response.json({ error: "Upload the first project ORK before proposing a replacement." }, { status: 409 });
   if (workspace.version !== baseVersion) return Response.json({ error: `The working copy advanced to W${workspace.version}. Download it and rebuild this proposal before submitting.`, currentVersion: workspace.version }, { status: 409 });
   const bytes = await file.arrayBuffer();
   const sha256 = await sha256Hex(bytes);

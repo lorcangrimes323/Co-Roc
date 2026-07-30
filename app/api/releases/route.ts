@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   const { project, user } = result.access;
   const workspace = await DB.prepare(`SELECT version, current_object_key AS objectKey, sha256 FROM ork_workspaces WHERE project_id = ?`)
     .bind(project.id).first<{ version: number; objectKey: string; sha256: string }>();
-  if (!workspace) return Response.json({ error: "Import an .ork file before creating a controlled version." }, { status: 409 });
+  if (!workspace) return Response.json({ error: "Upload an .ork file before creating a controlled version." }, { status: 409 });
 
   if (action === "request") {
     const existing = await DB.prepare(`SELECT id FROM ork_release_requests WHERE project_id = ? AND working_version = ? AND status = 'pending'`)

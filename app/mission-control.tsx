@@ -489,7 +489,7 @@ export function MissionControl({
     const params = new URLSearchParams(window.location.search);
     const forced = params.get("tour") === "1";
     let seen = false;
-    try { seen = Boolean(window.localStorage.getItem("co-roc:guided-demo-v1")); }
+    try { seen = Boolean(window.localStorage.getItem("co-roc:guided-demo-v2")); }
     catch { /* The tour can still run for this visit. */ }
     if (forced) {
       params.delete("tour");
@@ -558,7 +558,7 @@ export function MissionControl({
   }
 
   function closeGuidedTour(completed: boolean) {
-    try { window.localStorage.setItem("co-roc:guided-demo-v1", completed ? "completed" : "dismissed"); }
+    try { window.localStorage.setItem("co-roc:guided-demo-v2", completed ? "completed" : "dismissed"); }
     catch { /* Dismissing still works for the current visit. */ }
     setGuidedTourOpen(false);
     setSettingsOpen(false);
@@ -787,7 +787,7 @@ export function MissionControl({
           setSelectedId("vehicle");
           setWorkspaceVersion(0);
           setSaveState("saved");
-          setNotice("No OpenRocket file yet; import an .ork file to initialise this project");
+          setNotice("No OpenRocket file yet; upload an .ork file to initialise this project");
           return;
         }
         throw new Error("Workspace unavailable");
@@ -1407,8 +1407,8 @@ export function MissionControl({
         </div>
         {workspaceModule === "configuration" && <div className="workspace-actions" data-tour="ork-sync-actions">
           <input ref={fileInput} className="visually-hidden" type="file" accept=".ork" onChange={importOrk} />
-          <button className="button button-secondary" type="button" onClick={() => fileInput.current?.click()} disabled={!can("editOrk")} title={workspaceVersion ? "Compare an edited OpenRocket file and submit it for review" : "Import the first OpenRocket file"}>
-            <span>⇧</span> {workspaceVersion ? "Propose .ORK changes" : "Import .ORK"}
+          <button className="button button-secondary" type="button" onClick={() => fileInput.current?.click()} disabled={!can("editOrk")} title={workspaceVersion ? "Compare an edited OpenRocket file and submit it for review" : "Upload the first OpenRocket file"}>
+            <span>⇧</span> Upload .ORK
           </button>
           <button className="button button-secondary" type="button" onClick={downloadWorkingOrk} disabled={workspaceVersion === null}>
             <span>↓</span> Download .ORK
