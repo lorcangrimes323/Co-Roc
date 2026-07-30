@@ -1,5 +1,5 @@
 export type TeamRole = "lead" | "engineer" | "viewer";
-export type WorkspacePermission = "view" | "editOrk" | "uploadEvidence" | "createTest" | "completeTest" | "comment" | "requestRelease" | "approveRelease" | "manageTeam" | "manageProjects";
+export type WorkspacePermission = "view" | "editOrk" | "uploadEvidence" | "createTest" | "completeTest" | "comment" | "requestRelease" | "approveRelease" | "editChecklist" | "releaseChecklist" | "manageTeam" | "manageProjects";
 
 export type WorkspaceMember = {
   id: number;

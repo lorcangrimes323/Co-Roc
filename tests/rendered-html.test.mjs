@@ -211,3 +211,32 @@ test("provides a focused engineering record for every component", async () => {
   assert.match(css, /\.inspector-tabs-four/);
   assert.match(css, /\.engineering-record-list/);
 });
+
+test("provides controlled launch checklists with part references and printable sign-offs", async () => {
+  const [missionControl, checklist, route, access, css, migration] = await Promise.all([
+    source("app/mission-control.tsx"),
+    source("app/launch-checklist-workspace.tsx"),
+    source("app/api/checklists/route.ts"),
+    source("db/access-store.ts"),
+    source("app/globals.css"),
+    source("drizzle/0009_sleepy_madame_web.sql"),
+  ]);
+
+  assert.match(missionControl, /LaunchChecklistWorkspace/);
+  assert.match(missionControl, /LAUNCH CHECKLISTS/);
+  assert.match(checklist, /Arming procedure/);
+  assert.match(checklist, /Independent dual sign-off/);
+  assert.match(checklist, /ORK parts/);
+  assert.match(checklist, /Other equipment/);
+  assert.match(checklist, /Print \/ Save PDF/);
+  assert.match(checklist, /window\.print\(\)/);
+  assert.match(route, /at least one controlled arming action/);
+  assert.match(route, /baseUpdatedAt/);
+  assert.match(access, /editChecklist/);
+  assert.match(access, /releaseChecklist/);
+  assert.match(migration, /CREATE TABLE `launch_checklists`/);
+  assert.match(migration, /CREATE TABLE `checklist_custom_parts`/);
+  assert.match(css, /\.checklist-module \{ grid-template-columns:/);
+  assert.match(css, /\.checklist-print-sheet \{ display: block !important;/);
+  assert.match(css, /@media print/);
+});

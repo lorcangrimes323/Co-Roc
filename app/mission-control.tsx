@@ -4,6 +4,7 @@ import { ChangeEvent, CSSProperties, KeyboardEvent as ReactKeyboardEvent, Pointe
 import { RocketViewer, RocketViewerHandle } from "./rocket-viewer";
 import { RocketSectionHandle, RocketSectionView } from "./rocket-section-view";
 import { ProjectRecordWorkspace } from "./project-record-workspace";
+import { LaunchChecklistWorkspace } from "./launch-checklist-workspace";
 import { RevisionWorkspace, type ControlledRelease, type ReleaseRequest } from "./revision-workspace";
 import { SimulationWorkspace, liveToSimulation, type LiveResult } from "./simulation-workspace";
 import { WorkspaceIcon } from "./workspace-icon";
@@ -21,7 +22,7 @@ type ComponentStatus = "verified" | "review" | "draft";
 type ThemeMode = "light" | "dark" | "system";
 type SaveState = "loading" | "saved" | "draft" | "saving" | "conflict" | "offline";
 type AnalysisState = "saved" | "stale" | "calculating" | "current" | "failed";
-type WorkspaceModule = "configuration" | "simulation" | "history" | "tests" | "documents";
+type WorkspaceModule = "configuration" | "simulation" | "history" | "tests" | "documents" | "checklists";
 type PaneSide = "tree" | "record";
 
 const defaultPaneWidths = { tree: 280, record: 460 };
@@ -436,7 +437,7 @@ export function MissionControl({
   const orkModelRef = useRef<OpenRocketModel | null>(null);
   const calculatedVersionRef = useRef<number | null>(null);
   const analysisSequenceRef = useRef(0);
-  const can = (permission: WorkspaceTeam["permissions"][number]) => mode === "demo" ? permission === "view" || permission === "editOrk" : workspace.team.permissions.includes(permission);
+  const can = (permission: WorkspaceTeam["permissions"][number]) => mode === "demo" ? ["view", "editOrk", "editChecklist"].includes(permission) : workspace.team.permissions.includes(permission);
   const availableProjects = teams.flatMap((team) => team.projects.map((project) => ({ ...project, teamName: team.name })));
   const visibleMembers = workspace.team.members.slice(0, 3);
   const latestRelease = controlledReleases[0] ?? null;
@@ -499,6 +500,7 @@ export function MissionControl({
     history: "REVISION HISTORY",
     tests: "TEST REGISTER",
     documents: "DOCUMENTATION",
+    checklists: "LAUNCH CHECKLISTS",
   };
   const vehicleAnalysis = useMemo(() => {
     if (!orkModel) return null;
@@ -1233,6 +1235,7 @@ export function MissionControl({
         <button className={`rail-button ${workspaceModule === "history" ? "rail-active" : ""}`} type="button" aria-label="Revision history" data-label="Revision history" onClick={() => { setWorkspaceModule("history"); void refreshHistory(); }}><WorkspaceIcon name="history" /></button>
         <button className={`rail-button ${workspaceModule === "tests" ? "rail-active" : ""}`} type="button" aria-label="Tests" data-label="Tests" onClick={() => setWorkspaceModule("tests")}><WorkspaceIcon name="tests" /></button>
         <button className={`rail-button ${workspaceModule === "documents" ? "rail-active" : ""}`} type="button" aria-label="Documentation" data-label="Documentation" onClick={() => setWorkspaceModule("documents")}><WorkspaceIcon name="documents" /></button>
+        <button className={`rail-button ${workspaceModule === "checklists" ? "rail-active" : ""}`} type="button" aria-label="Launch checklists" data-label="Checklists" onClick={() => setWorkspaceModule("checklists")}><WorkspaceIcon name="checklists" /></button>
         <div className="rail-spacer" />
         <button className={`rail-button ${settingsOpen ? "rail-settings-active" : ""}`} type="button" aria-label="Theme settings" data-label="Appearance" aria-expanded={settingsOpen} onClick={() => setSettingsOpen((open) => !open)}><WorkspaceIcon name="settings" /></button>
       </aside>
@@ -1537,6 +1540,7 @@ export function MissionControl({
       {workspaceModule === "simulation" && <SimulationWorkspace key={`${workspace.project.id}:${workspaceVersion ?? "none"}`} model={orkModel} mode={mode} workspaceVersion={workspaceVersion} headers={collaborationHeaders} canRun={can("editOrk") && (mode === "demo" || saveState === "saved")} runBlockedReason={!can("editOrk") ? "Your team role cannot edit or calculate this configuration." : saveState === "offline" ? "The simulation setup has not reached the shared file. Co-Roc will retry automatically when the connection recovers." : saveState === "conflict" ? "A teammate saved another version first. Resolve the shared-file conflict before calculating." : saveState !== "saved" ? "The simulation setup is still being written to the shared ORK." : undefined} onNotice={setNotice} onModelChange={updateSimulationModel} />}
       {workspaceModule === "history" && <RevisionWorkspace changes={auditChanges} releases={controlledReleases} requests={releaseRequests} canApprove={can("approveRelease")} onOpenComponent={(componentId) => openComponentWorkspace(componentId)} onReleaseAction={handleReleaseAction} />}
       {(workspaceModule === "tests" || workspaceModule === "documents") && <ProjectRecordWorkspace kind={workspaceModule} components={components} headers={collaborationHeaders} projectId={workspace.project.id} onSelectComponent={(componentId, panel) => openComponentWorkspace(componentId, panel)} onNotice={setNotice} />}
+      {workspaceModule === "checklists" && <LaunchChecklistWorkspace parts={components.map(({ id, code, name, type }) => ({ id, code, name, type }))} releases={controlledReleases.map(({ releaseNumber, title }) => ({ releaseNumber, title }))} mode={mode} headers={collaborationHeaders} canEdit={can("editChecklist")} canRelease={can("releaseChecklist")} onNotice={setNotice} />}
 
       {saveState === "conflict" && <div className="conflict-banner"><span><strong>Live save paused.</strong> {conflictMessage || "A teammate saved a newer working copy."}</span><button type="button" onClick={reloadSharedOrk}>Reload shared file</button></div>}
 

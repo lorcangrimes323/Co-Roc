@@ -242,6 +242,45 @@ export const simulationRuns = sqliteTable("simulation_runs", {
   index("simulation_runs_project_idx").on(table.projectId, table.createdAt),
 ]);
 
+export const launchChecklists = sqliteTable("launch_checklists", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id").notNull(),
+  title: text("title").notNull(),
+  mission: text("mission").notNull().default(""),
+  launchSite: text("launch_site").notNull().default(""),
+  scheduledFor: text("scheduled_for"),
+  status: text("status").notNull().default("draft"),
+  revision: integer("revision").notNull().default(1),
+  baselineReleaseNumber: integer("baseline_release_number"),
+  definitionJson: text("definition_json").notNull().default("{\"sections\":[]}"),
+  createdByName: text("created_by_name").notNull(),
+  createdByEmail: text("created_by_email").notNull(),
+  updatedByName: text("updated_by_name").notNull(),
+  updatedByEmail: text("updated_by_email").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  releasedByName: text("released_by_name"),
+  releasedByEmail: text("released_by_email"),
+  releasedAt: text("released_at"),
+}, (table) => [
+  index("launch_checklists_project_idx").on(table.projectId, table.updatedAt),
+]);
+
+export const checklistCustomParts = sqliteTable("checklist_custom_parts", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id").notNull(),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  category: text("category").notNull().default("Ground support equipment"),
+  description: text("description").notNull().default(""),
+  createdByName: text("created_by_name").notNull(),
+  createdByEmail: text("created_by_email").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("checklist_custom_parts_project_code_unique").on(table.projectId, table.code),
+  index("checklist_custom_parts_project_idx").on(table.projectId, table.name),
+]);
+
 export const componentArtifacts = sqliteTable("component_artifacts", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   projectId: text("project_id").notNull(),
