@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-labelledby="title">
+  <title id="title">Co-Roc Orbit Datum</title>
+  <style>
+    .orbit { stroke: #181718; }
+    @media (prefers-color-scheme: dark) { .orbit { stroke: #f4f4f5; } }
+  </style>
+  <g fill="none" stroke-linecap="square" stroke-linejoin="miter">
+    <path class="orbit" d="M21.5 5.5A10.5 10.5 0 1 0 21.5 26.5" stroke-width="3.8"/>
+    <path d="M17 16h12" stroke="#c92335" stroke-width="3"/>
+    <path d="M24 12.5 30 16l-6 3.5z" fill="#c92335" stroke="none"/>
+    <circle cx="10.5" cy="16" r="1.6" fill="#c92335" stroke="none"/>
+  </g>
+</svg>

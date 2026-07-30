@@ -54,12 +54,14 @@ test("ships three deterministic Orbit Datum refinements", async () => {
 });
 
 test("uses the selected Orbit Datum logo across light, dark and live themes", async () => {
-  const [component, light, dark, portal, missionControl, styles] = await Promise.all([
+  const [component, light, dark, favicon, portal, missionControl, layout, styles] = await Promise.all([
     source("app/co-roc-logo.tsx"),
     source("public/brand/co-roc-orbit-datum-light.svg"),
     source("public/brand/co-roc-orbit-datum-dark.svg"),
+    source("public/favicon.svg"),
     source("app/access-portal.tsx"),
     source("app/mission-control.tsx"),
+    source("app/layout.tsx"),
     source("app/globals.css"),
   ]);
 
@@ -74,6 +76,9 @@ test("uses the selected Orbit Datum logo across light, dark and live themes", as
   assert.match(component, /fontFamily="inherit"/);
   assert.match(portal, /<CoRocLogo className="account-hero-logo"/);
   assert.match(missionControl, /<CoRocLogo className="workspace-brand-logo"/);
+  assert.match(favicon, /Co-Roc Orbit Datum/);
+  assert.match(favicon, /prefers-color-scheme: dark/);
+  assert.match(layout, /url: "\/favicon\.svg"/);
   assert.match(styles, /\.account-hero-logo[^}]+font-family: var\(--font-geist-sans\)/);
   assert.match(styles, /\.workspace-brand-logo[^}]+font-family: var\(--font-geist-sans\)/);
   assert.doesNotMatch(styles, /\.access-page \{ --accent:/);

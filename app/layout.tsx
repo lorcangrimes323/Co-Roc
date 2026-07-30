@@ -28,6 +28,10 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     description:
       "Configuration control for OpenRocket teams: geometry, simulation, component evidence, approvals, releases and launch procedures.",
+    icons: {
+      icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+      shortcut: "/favicon.svg",
+    },
     openGraph: {
       title: "Co-Roc — Launch vehicle configuration control",
       description:
