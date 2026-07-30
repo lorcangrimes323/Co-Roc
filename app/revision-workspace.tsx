@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
+import { isPositionOnlyChangeSet } from "../lib/ork-change-diff";
 
 export type WorkingChange = { id: number; version: number; componentId: string; componentCode: string; field: string; previousValue: string; nextValue: string; authorName: string; authorEmail: string; createdAt: string };
 export type ControlledRelease = { id: number; releaseNumber: number; workingVersion: number; title: string; notes: string; sha256: string; createdByName: string; createdByEmail: string; createdAt: string };
@@ -11,6 +12,12 @@ export type OrkChangeProposal = { id: string; baseVersion: number; sourceName: s
 function displayDate(value: string) {
   const parsed = new Date(value.includes("T") ? value : `${value.replace(" ", "T")}Z`);
   return Number.isNaN(parsed.valueOf()) ? value : parsed.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+}
+
+function orderedProposalItems(items: OrkChangeProposalItem[]) {
+  return items
+    .map((item, originalIndex) => ({ item, originalIndex, positionOnly: isPositionOnlyChangeSet(item.changes) }))
+    .sort((left, right) => Number(left.positionOnly) - Number(right.positionOnly) || left.originalIndex - right.originalIndex);
 }
 
 export function RevisionWorkspace({ changes, releases, requests, proposals, canApprove, canReviewOrk, onOpenComponent, onReleaseAction, onProposalAction, onDownloadProposal }: {
@@ -49,10 +56,13 @@ export function RevisionWorkspace({ changes, releases, requests, proposals, canA
             <div className="ork-review-heading"><div><span className={`proposal-status status-${proposal.status}`}>{proposal.status}</span><h4>{proposal.summary}</h4></div><button type="button" className="button button-secondary" onClick={() => onDownloadProposal(proposal)}>Download proposed .ORK</button></div>
             <dl className="ork-review-metrics"><div><dt>Compared against</dt><dd>W{proposal.baseVersion}</dd></div><div><dt>Changed records</dt><dd>{proposal.changedComponents}</dd></div><div><dt>Geometry impacts</dt><dd>{proposal.geometryChanges}</dd></div><div><dt>Integrity</dt><dd>{proposal.sha256.slice(0, 12)}…</dd></div></dl>
             <div className="ork-review-items">
-              {proposal.items.map((item) => <details key={item.id}>
-                <summary><span><strong>{item.componentName}</strong><small>{item.componentCode} · {item.componentKind}</small></span><em>{item.changeType}</em>{item.geometryChanged && <b>GEOMETRY</b>}<i>{item.changes.length}</i></summary>
-                <div><p><strong>Uploader rationale</strong>{item.rationale}</p><div className="ork-review-diff">{item.changes.map((change) => <div key={change.field}><span><strong>{change.label}</strong><small>{change.category}</small></span><code>{change.previousValue}</code><b>→</b><code>{change.nextValue}</code></div>)}</div></div>
-              </details>)}
+              {orderedProposalItems(proposal.items).map(({ item, positionOnly }, index, orderedItems) => <Fragment key={item.id}>
+                {positionOnly && (index === 0 || !orderedItems[index - 1].positionOnly) && <div className="ork-review-position-group"><strong>DEPENDENT POSITION SHIFTS</strong><span>Knock-on position changes are listed after the intentional engineering changes.</span></div>}
+                <details className={positionOnly ? "ork-review-position-only" : undefined}>
+                  <summary><span><strong>{item.componentName}</strong><small>{item.componentCode} · {item.componentKind}</small></span><em>{item.changeType}</em>{positionOnly ? <b className="position-shift-badge">POSITION SHIFT</b> : item.geometryChanged && <b>GEOMETRY</b>}<i>{item.changes.length}</i></summary>
+                  <div><p><strong>{positionOnly ? "Automatic trace note" : "Uploader rationale"}</strong>{item.rationale}</p><div className="ork-review-diff">{item.changes.map((change) => <div key={change.field}><span><strong>{change.label}</strong><small>{change.category}</small></span><code>{change.previousValue}</code><b>→</b><code>{change.nextValue}</code></div>)}</div></div>
+                </details>
+              </Fragment>)}
             </div>
             {proposal.status === "conflict" && <div className="proposal-conflict"><strong>Cannot apply automatically.</strong><span>The working ORK advanced after this upload. The author must download the current file, repeat the change and submit a new comparison.</span></div>}
             {proposal.status !== "pending" && proposal.reviewedByName && <div className="proposal-decision"><strong>{proposal.status === "approved" ? `Applied as W${proposal.appliedVersion}` : proposal.status === "rejected" ? "Rejected" : "Marked as conflict"}</strong><span>{proposal.reviewedByName} · {displayDate(proposal.reviewedAt ?? "")} · {proposal.reviewNotes || "No additional review note."}</span></div>}

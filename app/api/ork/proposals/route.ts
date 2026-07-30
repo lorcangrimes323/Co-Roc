@@ -1,5 +1,6 @@
 import { ensureOrkSchema, getOrkEnvironment, sha256Hex } from "../../../../db/ork-store";
 import { releaseProjectStorage, reserveProjectStorage, STORAGE_LIMITS } from "../../../../db/access-store";
+import { isPositionOnlyChangeSet } from "../../../../lib/ork-change-diff";
 import { requireProjectAccess } from "../../access";
 
 type ProposalField = {
@@ -52,22 +53,33 @@ function safeItems(value: string) {
   if (!Array.isArray(parsed) || !parsed.length || parsed.length > 80) return null;
   const items = parsed as ProposalItem[];
   if (new Set(items.map((item) => item?.componentId)).size !== items.length) return null;
-  const valid = items.every((item) =>
-    item && typeof item.componentId === "string" && item.componentId.length <= 160
-    && typeof item.componentCode === "string" && item.componentCode.length <= 40
-    && typeof item.componentName === "string" && item.componentName.length <= 200
-    && typeof item.componentKind === "string" && item.componentKind.length <= 100
-    && ["added", "removed", "modified"].includes(item.changeType)
-    && typeof item.geometryChanged === "boolean"
-    && typeof item.rationale === "string" && item.rationale.trim().length >= 5 && item.rationale.trim().length <= 2000
-    && Array.isArray(item.changes) && item.changes.length > 0 && item.changes.length <= 40
-    && item.changes.every((change) => change && typeof change.field === "string" && change.field.length <= 100
-      && typeof change.label === "string" && change.label.length <= 160
-      && typeof change.previousValue === "string" && change.previousValue.length <= 5000
-      && typeof change.nextValue === "string" && change.nextValue.length <= 5000
-      && ["geometry", "mass", "material", "configuration", "structure"].includes(change.category))
-  );
-  return valid ? items.map((item) => ({ ...item, rationale: item.rationale.trim() })) : null;
+  const valid = items.every((item) => {
+    const changesValid = Array.isArray(item?.changes) && item.changes.length > 0 && item.changes.length <= 40
+      && item.changes.every((change) => change && typeof change.field === "string" && change.field.length <= 100
+        && typeof change.label === "string" && change.label.length <= 160
+        && typeof change.previousValue === "string" && change.previousValue.length <= 5000
+        && typeof change.nextValue === "string" && change.nextValue.length <= 5000
+        && ["geometry", "mass", "material", "configuration", "structure"].includes(change.category));
+    const positionOnly = changesValid && isPositionOnlyChangeSet(item.changes);
+    return item && typeof item.componentId === "string" && item.componentId.length <= 160
+      && typeof item.componentCode === "string" && item.componentCode.length <= 40
+      && typeof item.componentName === "string" && item.componentName.length <= 200
+      && typeof item.componentKind === "string" && item.componentKind.length <= 100
+      && ["added", "removed", "modified"].includes(item.changeType)
+      && typeof item.geometryChanged === "boolean"
+      && typeof item.rationale === "string" && item.rationale.trim().length <= 2000
+      && (positionOnly || item.rationale.trim().length >= 5)
+      && changesValid;
+  });
+  return valid ? items.map((item) => {
+    const positionOnly = isPositionOnlyChangeSet(item.changes);
+    return {
+      ...item,
+      rationale: positionOnly
+        ? "Position shifted automatically following an upstream geometry change; no separate engineering rationale was required."
+        : item.rationale.trim(),
+    };
+  }) : null;
 }
 
 async function proposalState(projectId: string) {

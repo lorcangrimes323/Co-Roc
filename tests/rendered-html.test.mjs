@@ -270,7 +270,8 @@ test("provides a paced first-run guided demo across the engineering workflow", a
   assert.match(tour, /Live work is not the same as a release/);
   assert.match(tour, /Build and release a launch checklist/);
   assert.match(tour, /CONTROLLED ORK PUSH \/ PULL/);
-  assert.match(tour, /Every changed part requires an engineering rationale/);
+  assert.match(tour, /Every intentional part change requires an engineering rationale/);
+  assert.match(tour, /Dependent axial or radial position shifts are grouped underneath/);
   assert.match(tour, /scrollIntoView/);
   assert.match(tour, /prefers-reduced-motion/);
   assert.match(tour, /ArrowRight/);
@@ -298,6 +299,8 @@ test("reviews externally edited ORK files before promoting them to the working c
   assert.match(missionControl, /pendingOrkProposals/);
   assert.match(proposalModal, /The live ORK has not changed/);
   assert.match(proposalModal, /ENGINEERING RATIONALE · REQUIRED/);
+  assert.match(proposalModal, /DEPENDENT POSITION SHIFTS/);
+  assert.match(proposalModal, /No separate rationale required/);
   assert.match(proposalModal, /Submit for lead review/);
   assert.match(revisionWorkspace, /Approve into working ORK/);
   assert.match(revisionWorkspace, /Download proposed \.ORK/);
@@ -307,11 +310,15 @@ test("reviews externally edited ORK files before promoting them to the working c
   assert.match(proposalRoute, /workspace\.version !== proposal\.baseVersion/);
   assert.match(proposalRoute, /status = 'conflict'/);
   assert.match(proposalRoute, /appliedVersion: nextVersion/);
+  assert.match(proposalRoute, /no separate engineering rationale was required/i);
   assert.match(directOrkRoute, /The live ORK cannot be replaced directly/);
   assert.match(directOrkRoute, /proposalEndpoint: "\/api\/ork\/proposals"/);
   assert.match(diff, /geometryChanges/);
   assert.match(diff, /wall thickness/i);
   assert.match(diff, /compareSimulation/);
+  assert.match(diff, /isPositionOnlyChangeSet/);
+  assert.match(diff, /orderPositionFieldsLast/);
+  assert.match(diff, /Number\(left\.positionOnly\) - Number\(right\.positionOnly\)/);
   assert.match(schema, /ork_change_proposals/);
   assert.match(schema, /ork_change_proposal_items/);
   assert.match(access, /reviewOrkChange/);

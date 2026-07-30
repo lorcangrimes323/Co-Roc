@@ -15,6 +15,7 @@ export type OrkProposalComponentChange = {
   componentKind: string;
   changeType: "added" | "removed" | "modified";
   geometryChanged: boolean;
+  positionOnly: boolean;
   changes: OrkProposalFieldChange[];
 };
 
@@ -56,6 +57,19 @@ function shownNumber(value: number, unit: "mm" | "g" | "deg" | "count" | "raw") 
 function sameNumber(left: number, right: number) {
   if (!Number.isFinite(left) && !Number.isFinite(right)) return true;
   return Math.abs(left - right) <= Math.max(1e-7, Math.abs(left) * 1e-6, Math.abs(right) * 1e-6);
+}
+
+const positionFields = new Set(["x", "y", "z"]);
+
+export function isPositionOnlyChangeSet(changes: Array<Pick<OrkProposalFieldChange, "field">>) {
+  return changes.length > 0 && changes.every((change) => positionFields.has(change.field));
+}
+
+function orderPositionFieldsLast(changes: OrkProposalFieldChange[]) {
+  return changes
+    .map((change, originalIndex) => ({ change, originalIndex }))
+    .sort((left, right) => Number(positionFields.has(left.change.field)) - Number(positionFields.has(right.change.field)) || left.originalIndex - right.originalIndex)
+    .map(({ change }) => change);
 }
 
 function addNumberChange(
@@ -116,7 +130,7 @@ function compareComponent(previous: OpenRocketComponent, next: OpenRocketCompone
   addTextChange(changes, "railButtonGeometry", "Rail-button geometry", railDescription(previous), railDescription(next), "geometry");
   addNumberChange(changes, "mass", "Component mass", previous.mass, next.mass, "g", "mass");
   addTextChange(changes, "material", "Material", previous.material, next.material, "material");
-  return changes;
+  return orderPositionFieldsLast(changes);
 }
 
 function simulationFields(simulation: OpenRocketSimulation) {
@@ -165,7 +179,7 @@ export function compareOrkModels(previous: OpenRocketModel, next: OpenRocketMode
   const nextById = new Map(next.components.map((component) => [component.id, component]));
   const previousCodes = codeMap(previous);
   const nextCodes = codeMap(next);
-  const components: OrkProposalComponentChange[] = [];
+  const components: Array<Omit<OrkProposalComponentChange, "positionOnly">> = [];
 
   for (const component of previous.components) {
     const proposed = nextById.get(component.id);
@@ -227,12 +241,17 @@ export function compareOrkModels(previous: OpenRocketModel, next: OpenRocketMode
     components.unshift({ componentId: "vehicle", componentCode: "ORK", componentName: next.name, componentKind: "vehicle", changeType: "modified", geometryChanged: changes.some((change) => change.category === "structure"), changes });
   }
 
+  const orderedComponents = components
+    .map((component, originalIndex) => ({ ...component, positionOnly: isPositionOnlyChangeSet(component.changes), originalIndex }))
+    .sort((left, right) => Number(left.positionOnly) - Number(right.positionOnly) || left.originalIndex - right.originalIndex)
+    .map(({ originalIndex: _originalIndex, ...component }) => component);
+
   return {
-    changedComponents: components.length,
-    geometryChanges: components.filter((component) => component.geometryChanged).length,
-    addedComponents: components.filter((component) => component.changeType === "added").length,
-    removedComponents: components.filter((component) => component.changeType === "removed").length,
-    fieldChanges: components.reduce((total, component) => total + component.changes.length, 0),
-    components,
+    changedComponents: orderedComponents.length,
+    geometryChanges: orderedComponents.filter((component) => component.geometryChanged).length,
+    addedComponents: orderedComponents.filter((component) => component.changeType === "added").length,
+    removedComponents: orderedComponents.filter((component) => component.changeType === "removed").length,
+    fieldChanges: orderedComponents.reduce((total, component) => total + component.changes.length, 0),
+    components: orderedComponents,
   };
 }

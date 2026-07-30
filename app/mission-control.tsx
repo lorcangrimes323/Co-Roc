@@ -1022,7 +1022,7 @@ export function MissionControl({
           return;
         }
         setOrkProposalDraft({ file, comparison });
-        setNotice(`${comparison.changedComponents} changed record${comparison.changedComponents === 1 ? "" : "s"} detected; rationale required before submission`);
+        setNotice(`${comparison.changedComponents} changed record${comparison.changedComponents === 1 ? "" : "s"} detected; rationale is required for intentional changes`);
         return;
       }
       const headers = new Headers(collaborationHeaders());

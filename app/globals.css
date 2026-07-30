@@ -634,6 +634,10 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .ork-review-metrics dd { margin: 5px 0 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); font: 12px var(--font-geist-mono); }
 .ork-review-items { border: 1px solid var(--line); }
 .ork-review-items details + details { border-top: 1px solid var(--line); }
+.ork-review-position-group { display: flex; align-items: baseline; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--panel-2); }
+.ork-review-position-group strong { flex: 0 0 auto; color: var(--muted); font: 9px var(--font-geist-mono); letter-spacing: .08em; }
+.ork-review-position-group span { color: var(--faint); font-size: 10px; }
+.ork-review-position-only { background: color-mix(in srgb, var(--panel-2) 48%, var(--panel)); }
 .ork-review-items summary { display: grid; grid-template-columns: minmax(160px, 1fr) auto auto 24px; align-items: center; gap: 10px; min-height: 54px; padding: 9px 12px; cursor: pointer; list-style: none; }
 .ork-review-items summary::-webkit-details-marker { display: none; }
 .ork-review-items summary > span strong, .ork-review-items summary > span small { display: block; }
@@ -641,6 +645,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .ork-review-items summary > span small { margin-top: 3px; color: var(--muted); font-size: 10px; }
 .ork-review-items summary em { color: var(--muted); font: normal 10px var(--font-geist-mono); text-transform: uppercase; }
 .ork-review-items summary b { padding: 3px 6px; background: color-mix(in srgb, var(--accent) 9%, var(--panel)); color: var(--accent); font: 9px var(--font-geist-mono); }
+.ork-review-items summary b.position-shift-badge { background: color-mix(in srgb, var(--muted) 8%, var(--panel)); color: var(--muted); }
 .ork-review-items summary i { width: 22px; height: 22px; display: grid; place-items: center; background: var(--panel-2); color: var(--muted); font: normal 10px var(--font-geist-mono); }
 .ork-review-items details > div { padding: 0 12px 12px; }
 .ork-review-items details p { margin: 0 0 10px; padding: 10px 12px; border-left: 2px solid var(--accent); background: var(--panel-2); color: var(--muted); font-size: 11px; line-height: 1.55; }
@@ -981,6 +986,10 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .proposal-summary-field textarea { width: 100%; margin-top: 7px; resize: vertical; font: 13px/1.5 var(--font-geist-sans); }
 .proposal-components { margin-top: 15px; border: 1px solid var(--line-strong); }
 .proposal-component + .proposal-component { border-top: 1px solid var(--line-strong); }
+.proposal-position-group { display: flex; align-items: baseline; gap: 12px; padding: 11px 13px; border-top: 1px solid var(--line-strong); border-bottom: 1px solid var(--line); background: var(--panel-2); }
+.proposal-position-group strong { flex: 0 0 auto; color: var(--muted); font: 10px var(--font-geist-mono); letter-spacing: .08em; }
+.proposal-position-group span { color: var(--faint); font-size: 10px; line-height: 1.45; }
+.proposal-component-position-only { background: color-mix(in srgb, var(--panel-2) 48%, var(--panel)); }
 .proposal-component > summary { display: grid; grid-template-columns: 30px minmax(180px, 1fr) auto auto auto; align-items: center; gap: 11px; min-height: 61px; padding: 9px 13px; cursor: pointer; list-style: none; }
 .proposal-component > summary::-webkit-details-marker { display: none; }
 .proposal-component-index { color: var(--faint); font: 10px var(--font-geist-mono); }
@@ -990,6 +999,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .proposal-component summary em, .proposal-component summary b, .proposal-component summary i { font: normal 10px var(--font-geist-mono); text-transform: uppercase; }
 .proposal-component summary em { color: var(--muted); }
 .proposal-component summary b { padding: 4px 6px; background: color-mix(in srgb, var(--accent) 8%, var(--panel)); color: var(--accent); }
+.proposal-component summary b.position-shift-badge { background: color-mix(in srgb, var(--muted) 8%, var(--panel)); color: var(--muted); }
 .proposal-component summary i { color: var(--faint); }
 .proposal-component-body { padding: 0 14px 16px 54px; }
 .proposal-field-table { border: 1px solid var(--line); }
@@ -1004,6 +1014,9 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .proposal-field-row code { white-space: normal; overflow-wrap: anywhere; color: var(--muted); font-size: 10px; }
 .proposal-component-body > label { display: block; margin-top: 12px; color: var(--accent); font: 10px var(--font-geist-mono); letter-spacing: .07em; }
 .proposal-component-body > label textarea { width: 100%; margin-top: 6px; resize: vertical; font: 12px/1.5 var(--font-geist-sans); }
+.proposal-position-rationale { display: flex; gap: 10px; margin-top: 11px; padding: 10px 11px; border-left: 2px solid var(--line-strong); background: var(--panel-2); }
+.proposal-position-rationale strong { flex: 0 0 auto; font-size: 10px; }
+.proposal-position-rationale span { color: var(--muted); font-size: 10px; line-height: 1.45; }
 .proposal-modal-footer { position: sticky; bottom: -24px; display: grid; grid-template-columns: minmax(180px, 1fr) auto auto; align-items: center; gap: 9px; margin-top: 18px; padding: 14px 0 0; border-top: 1px solid var(--line); background: var(--panel); }
 .proposal-modal-footer > div strong, .proposal-modal-footer > div span { display: block; }
 .proposal-modal-footer > div strong { font-size: 14px; }
@@ -1608,6 +1621,8 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .proposal-modal-header { padding: 17px 15px 14px; }
   .proposal-modal-header h2 { font-size: 20px; }
   .proposal-safety-note { align-items: flex-start; flex-direction: column; margin: 13px 15px 0; }
+  .proposal-position-group, .ork-review-position-group { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .proposal-position-rationale { align-items: flex-start; flex-direction: column; gap: 4px; }
   .proposal-comparison-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 12px 15px 0; }
   .proposal-comparison-summary > div:nth-child(2) { border-right: 0; }
   .proposal-comparison-summary > div:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
