@@ -100,12 +100,24 @@ function componentPath(
   context.closePath();
 }
 
-function colours(component: OpenRocketComponent) {
+function colours(component: OpenRocketComponent, darkTheme: boolean) {
+  if (darkTheme) {
+    if (component.kind === "motor") return { stroke: "#c6c1c4", fill: "rgba(199,194,197,.24)" };
+    if (["masscomponent", "parachute", "streamer", "shockcord"].includes(component.kind)) return { stroke: "#aaa5a8", fill: "rgba(188,182,186,.13)" };
+    if (["bulkhead", "centeringring", "engineblock"].includes(component.kind)) return { stroke: "#ddd8db", fill: "rgba(221,216,219,.18)" };
+    if (["innertube", "tubecoupler"].includes(component.kind)) return { stroke: "#b8b3b6", fill: "rgba(199,194,197,.10)" };
+    return { stroke: "#c9c4c7", fill: "rgba(215,210,213,.07)" };
+  }
   if (component.kind === "motor") return { stroke: "#555154", fill: "rgba(60,58,60,.20)" };
   if (["masscomponent", "parachute", "streamer", "shockcord"].includes(component.kind)) return { stroke: "#777275", fill: "rgba(90,86,89,.10)" };
   if (["bulkhead", "centeringring", "engineblock"].includes(component.kind)) return { stroke: "#343234", fill: "rgba(54,51,53,.18)" };
   if (["innertube", "tubecoupler"].includes(component.kind)) return { stroke: "#6f6b6e", fill: "rgba(85,82,84,.08)" };
   return { stroke: "#3c393b", fill: "rgba(53,50,52,.06)" };
+}
+
+function accentRgba(accent: string, alpha: number) {
+  const channels = accent.slice(1).match(/.{2}/g)?.map((channel) => Number.parseInt(channel, 16));
+  return channels?.length === 3 ? `rgba(${channels[0]},${channels[1]},${channels[2]},${alpha})` : `rgba(201,35,53,${alpha})`;
 }
 
 function railButtonCentres(component: OpenRocketComponent) {
@@ -229,16 +241,16 @@ export const RocketSectionView = forwardRef<RocketSectionHandle, {
       const stationStep = activeModel.length > 4 ? 0.5 : 0.25;
       for (let station = 0; station <= activeModel.length + 0.001; station += stationStep) {
         const x = sx(station);
-        context.strokeStyle = darkTheme ? "rgba(255,255,255,.07)" : "rgba(20,18,19,.07)";
+        context.strokeStyle = darkTheme ? "rgba(255,255,255,.08)" : "rgba(20,18,19,.07)";
         context.lineWidth = 1;
         context.beginPath();
         context.moveTo(x, 38);
         context.lineTo(x, rect.height - 36);
         context.stroke();
-        context.fillStyle = "#746f70";
+        context.fillStyle = darkTheme ? "#aaa5a8" : "#746f70";
         context.fillText(`${Math.round(station * 1000)}`, x + 4, 42);
       }
-      context.strokeStyle = "rgba(255,102,114,.22)";
+      context.strokeStyle = accentRgba(accent, darkTheme ? .34 : .22);
       context.setLineDash([6, 5]);
       context.beginPath();
       context.moveTo(24, originY);
@@ -263,7 +275,7 @@ export const RocketSectionView = forwardRef<RocketSectionHandle, {
           const centres = railButtonCentres(component);
           for (const centre of centres) {
             railButtonPath(context, projection, centre, rollRadians, sx, sy);
-            context.fillStyle = selected ? "rgba(201,35,53,.16)" : (darkTheme ? "rgba(190,186,188,.28)" : "rgba(45,43,44,.16)");
+            context.fillStyle = selected ? accentRgba(accent, .18) : (darkTheme ? "rgba(205,200,203,.28)" : "rgba(45,43,44,.16)");
             context.strokeStyle = selected ? accent : (darkTheme ? "#b0abad" : "#343234");
             context.lineWidth = selected ? 2.2 : 1.25;
             context.fill();
@@ -285,8 +297,8 @@ export const RocketSectionView = forwardRef<RocketSectionHandle, {
           continue;
         }
         componentPath(context, projection, sx, sy);
-        const palette = colours(component);
-        context.fillStyle = component.external ? (selected ? "rgba(201,35,53,.08)" : "rgba(40,39,40,.035)") : palette.fill;
+        const palette = colours(component, darkTheme);
+        context.fillStyle = component.external ? (selected ? accentRgba(accent, .10) : (darkTheme ? "rgba(230,226,228,.055)" : "rgba(40,39,40,.035)")) : palette.fill;
         context.strokeStyle = selected ? accent : palette.stroke;
         context.lineWidth = selected ? 2.4 : component.external ? 1.45 : 1;
         context.fill(hasWall(component) ? "evenodd" : "nonzero");
@@ -295,7 +307,7 @@ export const RocketSectionView = forwardRef<RocketSectionHandle, {
 
         const labelMainBody = component.external && component.parentId === null && width > 65;
         if (labelMainBody || selected) {
-          context.fillStyle = selected ? accent : (darkTheme ? "#928b8c" : "#676164");
+          context.fillStyle = selected ? accent : (darkTheme ? "#b6b1b4" : "#676164");
           context.font = selected ? "600 10px ui-monospace, SFMono-Regular, Menlo, monospace" : "9px ui-monospace, SFMono-Regular, Menlo, monospace";
           context.fillText(component.name.toUpperCase(), sx(component.x) + 7, sy(projection.y + radius) + 7);
         }
@@ -306,8 +318,8 @@ export const RocketSectionView = forwardRef<RocketSectionHandle, {
         const rootRadius = Math.max(component.foreRadius, component.aftRadius);
         const centreY = projectedY(component);
         const selected = component.id === selectedId;
-        context.strokeStyle = selected ? accent : "#464244";
-        context.fillStyle = selected ? "rgba(201,35,53,.14)" : "rgba(62,59,61,.07)";
+        context.strokeStyle = selected ? accent : (darkTheme ? "#c4bfc2" : "#464244");
+        context.fillStyle = selected ? accentRgba(accent, .16) : (darkTheme ? "rgba(220,215,218,.08)" : "rgba(62,59,61,.07)");
         context.lineWidth = selected ? 2.4 : 1.4;
         const projectedExtents: number[] = [];
         const finCount = Math.max(1, Math.round(fin.count));
@@ -347,7 +359,7 @@ export const RocketSectionView = forwardRef<RocketSectionHandle, {
       context.font = "600 11px ui-monospace, SFMono-Regular, Menlo, monospace";
       context.fillText(`${activeModel.name.toUpperCase()}  /  ${(activeModel.length * 1000).toFixed(0)} MM  /  Ø ${(activeModel.maxRadius * 2000).toFixed(0)} MM`, 18, 13);
       context.textAlign = "right";
-      context.fillStyle = "#746f70";
+      context.fillStyle = darkTheme ? "#aaa5a8" : "#746f70";
       context.font = "9px ui-monospace, SFMono-Regular, Menlo, monospace";
       context.fillText("COMPONENT SECTION · GEOMETRY FROM .ORK", rect.width - 18, 15);
       context.textAlign = "left";

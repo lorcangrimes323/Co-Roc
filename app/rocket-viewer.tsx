@@ -144,12 +144,12 @@ function finGeometry(component: OpenRocketComponent, angle: number) {
   return geometry;
 }
 
-function railButtonAssembly(component: OpenRocketComponent, centreX: number) {
+function railButtonAssembly(component: OpenRocketComponent, centreX: number, darkTheme: boolean) {
   const rail = component.railButton!;
   const assembly = new THREE.Group();
   const radial = new THREE.Vector3(0, Math.cos(rail.angle), Math.sin(rail.angle)).normalize();
   const origin = new THREE.Vector3(centreX, -component.y, component.z);
-  const material = materialFor(component);
+  const material = materialFor(component, darkTheme);
 
   function addCylinder(radius: number, height: number, start: number) {
     if (radius <= 0 || height <= 0) return;
@@ -170,13 +170,15 @@ function railButtonAssembly(component: OpenRocketComponent, centreX: number) {
   return assembly;
 }
 
-function materialFor(component: OpenRocketComponent) {
+function materialFor(component: OpenRocketComponent, darkTheme: boolean) {
   const internal = !component.external;
-  const colour = component.kind === "motor" ? 0x353236 : component.kind === "railbutton" ? 0x29272a : component.fin ? 0x4d4b4e : component.kind === "nosecone" ? 0x656267 : 0x777479;
+  const colour = darkTheme
+    ? component.kind === "motor" ? 0x56535a : component.kind === "railbutton" ? 0x747078 : component.fin ? 0x66636a : component.kind === "nosecone" ? 0x7a777f : 0x8a878e
+    : component.kind === "motor" ? 0x353236 : component.kind === "railbutton" ? 0x29272a : component.fin ? 0x4d4b4e : component.kind === "nosecone" ? 0x656267 : 0x777479;
   return new THREE.MeshStandardMaterial({
     color: colour,
-    emissive: 0x120305,
-    emissiveIntensity: 0.25,
+    emissive: darkTheme ? 0x08080a : 0x120305,
+    emissiveIntensity: darkTheme ? 0.16 : 0.25,
     metalness: component.kind === "motor" ? 0.55 : 0.28,
     roughness: 0.56,
     transparent: true,
@@ -228,6 +230,7 @@ export const RocketViewer = forwardRef<RocketViewerHandle, {
     const host = hostRef.current;
     if (!host || !model) return;
     const scene = new THREE.Scene();
+    const darkTheme = themeKey === "dark";
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -254,8 +257,8 @@ export const RocketViewer = forwardRef<RocketViewerHandle, {
     controls.update();
     controlsRef.current = controls;
 
-    scene.add(new THREE.HemisphereLight(0xffd7d9, 0x090202, 1.7));
-    const key = new THREE.DirectionalLight(0xffe8e9, 2.5);
+    scene.add(new THREE.HemisphereLight(darkTheme ? 0xe5e5ea : 0xffd7d9, darkTheme ? 0x030304 : 0x090202, darkTheme ? 1.9 : 1.7));
+    const key = new THREE.DirectionalLight(darkTheme ? 0xffffff : 0xffe8e9, darkTheme ? 2.8 : 2.5);
     key.position.set(model.length * 0.4, model.length, model.length);
     scene.add(key);
     const rim = new THREE.DirectionalLight(new THREE.Color(accent), 1.4);
@@ -263,7 +266,6 @@ export const RocketViewer = forwardRef<RocketViewerHandle, {
     scene.add(rim);
 
     const group = new THREE.Group();
-    group.rotation.x = THREE.MathUtils.degToRad(rollDegrees);
     groupRef.current = group;
     scene.add(group);
     for (const component of model.components) {
@@ -271,14 +273,14 @@ export const RocketViewer = forwardRef<RocketViewerHandle, {
         const rail = component.railButton;
         const firstCentre = component.x + component.length / 2;
         for (let index = 0; index < rail.instanceCount; index += 1) {
-          group.add(railButtonAssembly(component, firstCentre + index * rail.instanceSeparation));
+          group.add(railButtonAssembly(component, firstCentre + index * rail.instanceSeparation, darkTheme));
         }
         continue;
       }
       if (component.fin) {
         for (let index = 0; index < component.fin.count; index += 1) {
           const angle = component.fin.rotation + index * Math.PI * 2 / component.fin.count;
-          const mesh = new THREE.Mesh(finGeometry(component, angle), materialFor(component));
+          const mesh = new THREE.Mesh(finGeometry(component, angle), materialFor(component, darkTheme));
           mesh.userData.componentId = component.id;
           group.add(mesh);
         }
@@ -286,7 +288,7 @@ export const RocketViewer = forwardRef<RocketViewerHandle, {
       }
       const drawable = component.external || ["motor", "innertube", "tubecoupler"].includes(component.kind);
       if (!drawable || component.length <= 0 || Math.max(component.foreRadius, component.aftRadius) <= 0) continue;
-      const mesh = new THREE.Mesh(revolvedGeometry(component), materialFor(component));
+      const mesh = new THREE.Mesh(revolvedGeometry(component), materialFor(component, darkTheme));
       mesh.position.y = -component.y;
       mesh.position.z = component.z;
       mesh.userData.componentId = component.id;
@@ -294,18 +296,18 @@ export const RocketViewer = forwardRef<RocketViewerHandle, {
       if (component.external) {
         const edges = new THREE.LineSegments(
           new THREE.EdgesGeometry(mesh.geometry, component.kind === "nosecone" ? 28 : 12),
-          new THREE.LineBasicMaterial({ color: 0x69666a, transparent: true, opacity: 0.62 }),
+          new THREE.LineBasicMaterial({ color: darkTheme ? 0xc4c0c6 : 0x69666a, transparent: true, opacity: darkTheme ? 0.7 : 0.62 }),
         );
         edges.userData.componentId = component.id;
         mesh.add(edges);
       }
     }
 
-    const floor = new THREE.GridHelper(model.length * 1.35, 24, 0x716d71, 0xb8b4b7);
+    const floor = new THREE.GridHelper(model.length * 1.35, 24, darkTheme ? 0x5a5760 : 0x716d71, darkTheme ? 0x343239 : 0xb8b4b7);
     floor.rotation.z = Math.PI / 2;
     floor.position.set(model.length / 2, -Math.max(model.maxRadius * 2.8, 0.15), 0);
     const floorMaterials = Array.isArray(floor.material) ? floor.material : [floor.material];
-    floorMaterials.forEach((material) => { material.transparent = true; material.opacity = 0.2; });
+    floorMaterials.forEach((material) => { material.transparent = true; material.opacity = darkTheme ? 0.3 : 0.2; });
     scene.add(floor);
 
     const raycaster = new THREE.Raycaster();
@@ -363,10 +365,11 @@ export const RocketViewer = forwardRef<RocketViewerHandle, {
     groupRef.current?.traverse((object) => {
       if (!(object instanceof THREE.Mesh) || !(object.material instanceof THREE.MeshStandardMaterial)) return;
       const selected = object.userData.componentId === selectedId;
-      object.material.emissive.setHex(selected ? new THREE.Color(accent).getHex() : 0x120305);
-      object.material.emissiveIntensity = selected ? 1.1 : 0.25;
+      const darkTheme = themeKey === "dark";
+      object.material.emissive.setHex(selected ? new THREE.Color(accent).getHex() : (darkTheme ? 0x08080a : 0x120305));
+      object.material.emissiveIntensity = selected ? 1.1 : (darkTheme ? 0.16 : 0.25);
     });
-  }, [accent, selectedId]);
+  }, [accent, selectedId, themeKey]);
 
   useEffect(() => {
     if (groupRef.current) groupRef.current.rotation.x = THREE.MathUtils.degToRad(rollDegrees);

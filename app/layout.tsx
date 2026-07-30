@@ -13,6 +13,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const themeInitScript = `(() => { try { const stored = localStorage.getItem("rocket-theme"); const mode = stored === "dark" || stored === "system" || stored === "light" ? stored : "light"; const resolved = mode === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : mode; document.documentElement.dataset.theme = resolved; document.documentElement.dataset.themeMode = mode; const accent = localStorage.getItem("rocket-accent"); if (accent && /^#[0-9a-f]{6}$/i.test(accent)) document.documentElement.style.setProperty("--user-accent", accent); } catch {} })();`;
+
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();
   const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "localhost:3002";
@@ -46,7 +48,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: themeInitScript }} /></head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

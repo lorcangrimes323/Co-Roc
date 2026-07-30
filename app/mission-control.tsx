@@ -7,6 +7,7 @@ import { ProjectRecordWorkspace } from "./project-record-workspace";
 import { LaunchChecklistWorkspace } from "./launch-checklist-workspace";
 import { RevisionWorkspace, type ControlledRelease, type ReleaseRequest } from "./revision-workspace";
 import { SimulationWorkspace, liveToSimulation, type LiveResult } from "./simulation-workspace";
+import { ThemeModeSelector, useThemePreference } from "./theme-preference";
 import { WorkspaceIcon } from "./workspace-icon";
 import {
   OpenRocketEditableField,
@@ -19,13 +20,19 @@ import {
 import type { ActiveWorkspace, WorkspaceIdentity, WorkspaceTeam } from "./workspace-types";
 
 type ComponentStatus = "verified" | "review" | "draft";
-type ThemeMode = "light" | "dark" | "system";
 type SaveState = "loading" | "saved" | "draft" | "saving" | "conflict" | "offline";
 type AnalysisState = "saved" | "stale" | "calculating" | "current" | "failed";
 type WorkspaceModule = "configuration" | "simulation" | "history" | "tests" | "documents" | "checklists";
 type PaneSide = "tree" | "record";
 
 const defaultPaneWidths = { tree: 280, record: 460 };
+
+function displayAccent(accent: string, dark: boolean) {
+  if (!dark) return accent;
+  const channels = accent.slice(1).match(/.{2}/g)?.map((channel) => Number.parseInt(channel, 16));
+  if (!channels || channels.length !== 3) return accent;
+  return `#${channels.map((channel) => Math.round(channel * .48 + 255 * .52).toString(16).padStart(2, "0")).join("")}`;
+}
 
 const analysisStateLabel: Record<AnalysisState, string> = {
   saved: "SAVED RESULT",
@@ -398,9 +405,10 @@ export function MissionControl({
   const [orkModel, setOrkModel] = useState<OpenRocketModel | null>(null);
   const [viewMode, setViewMode] = useState<"components" | "3d">("components");
   const [workspaceModule, setWorkspaceModule] = useState<WorkspaceModule>("configuration");
-  const [themeMode, setThemeMode] = useState<ThemeMode>("light");
+  const { mode: themeMode, resolved: resolvedTheme, setMode: setThemeMode } = useThemePreference();
   const [accent, setAccent] = useState("#c92335");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const canvasAccent = useMemo(() => displayAccent(accent, resolvedTheme === "dark"), [accent, resolvedTheme]);
   const [rollDegrees, setRollDegrees] = useState(0);
   const [paneWidths, setPaneWidths] = useState(defaultPaneWidths);
   const changeRoll = useCallback((deltaDegrees: number) => {
@@ -537,9 +545,7 @@ export function MissionControl({
   }
 
   useEffect(() => {
-    const savedTheme = window.localStorage.getItem("rocket-theme");
     const savedAccent = window.localStorage.getItem("rocket-accent");
-    if (savedTheme === "light" || savedTheme === "dark" || savedTheme === "system") setThemeMode(savedTheme);
     if (savedAccent && /^#[0-9a-f]{6}$/i.test(savedAccent)) setAccent(savedAccent);
   }, []);
 
@@ -566,17 +572,9 @@ export function MissionControl({
   }, [mode, workspace.project.id]);
 
   useEffect(() => {
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const applyTheme = () => {
-      document.documentElement.dataset.theme = themeMode === "system" ? (media.matches ? "dark" : "light") : themeMode;
-      document.documentElement.style.setProperty("--accent", accent);
-    };
-    applyTheme();
-    window.localStorage.setItem("rocket-theme", themeMode);
+    document.documentElement.style.setProperty("--user-accent", accent);
     window.localStorage.setItem("rocket-accent", accent);
-    media.addEventListener("change", applyTheme);
-    return () => media.removeEventListener("change", applyTheme);
-  }, [accent, themeMode]);
+  }, [accent]);
 
   useEffect(() => { workspaceVersionRef.current = workspaceVersion; }, [workspaceVersion]);
   useEffect(() => { pendingChangesRef.current = pendingChanges; }, [pendingChanges]);
@@ -1237,22 +1235,18 @@ export function MissionControl({
         <button className={`rail-button ${workspaceModule === "documents" ? "rail-active" : ""}`} type="button" aria-label="Documentation" data-label="Documentation" onClick={() => setWorkspaceModule("documents")}><WorkspaceIcon name="documents" /></button>
         <button className={`rail-button ${workspaceModule === "checklists" ? "rail-active" : ""}`} type="button" aria-label="Launch checklists" data-label="Checklists" onClick={() => setWorkspaceModule("checklists")}><WorkspaceIcon name="checklists" /></button>
         <div className="rail-spacer" />
-        <button className={`rail-button ${settingsOpen ? "rail-settings-active" : ""}`} type="button" aria-label="Theme settings" data-label="Appearance" aria-expanded={settingsOpen} onClick={() => setSettingsOpen((open) => !open)}><WorkspaceIcon name="settings" /></button>
+        <button className={`rail-button ${settingsOpen ? "rail-settings-active" : ""}`} type="button" aria-label="Workspace settings" data-label="Settings" aria-expanded={settingsOpen} aria-controls="workspace-settings" onClick={() => setSettingsOpen((open) => !open)}><WorkspaceIcon name="settings" /></button>
       </aside>
 
       {settingsOpen && (
-        <section className="theme-panel" aria-label="Theme settings">
-          <div className="theme-panel-heading"><div><span>APPEARANCE</span><h2>Workspace theme</h2></div><button type="button" aria-label="Close theme settings" onClick={() => setSettingsOpen(false)}>×</button></div>
-          <label>MODE</label>
-          <div className="theme-modes">
-            {(["light", "dark", "system"] as ThemeMode[]).map((mode) => (
-              <button key={mode} type="button" className={themeMode === mode ? "theme-mode-active" : ""} onClick={() => setThemeMode(mode)}>{mode}</button>
-            ))}
-          </div>
+        <section id="workspace-settings" className="theme-panel" aria-label="Workspace settings">
+          <div className="theme-panel-heading"><div><span>SETTINGS</span><h2>Appearance</h2></div><button type="button" aria-label="Close settings" onClick={() => setSettingsOpen(false)}>&times;</button></div>
+          <label>COLOUR MODE</label>
+          <ThemeModeSelector value={themeMode} onChange={setThemeMode} label="Workspace colour mode" />
           <label htmlFor="accent-colour">ACCENT COLOUR</label>
           <div className="accent-picker"><input id="accent-colour" type="color" value={accent} onChange={(event) => setAccent(event.target.value)} /><code>{accent.toUpperCase()}</code></div>
           <div className="accent-presets" aria-label="Accent presets">
-            {["#c92335", "#e5484d", "#b42318", "#111111"].map((colour) => <button key={colour} type="button" aria-label={`Use ${colour}`} style={{ backgroundColor: colour }} onClick={() => setAccent(colour)} />)}
+            {["#c92335", "#e5484d", "#b42318", "#6d2633"].map((colour) => <button key={colour} type="button" aria-label={`Use ${colour}`} aria-pressed={accent.toLowerCase() === colour} style={{ backgroundColor: colour }} onClick={() => setAccent(colour)} />)}
           </div>
           <p>Theme choices are stored in this browser.</p>
         </section>
@@ -1358,9 +1352,9 @@ export function MissionControl({
           <div className="model-stage">
             <div className="rocket-wrap">
               {viewMode === "components" ? (
-                <RocketSectionView ref={sectionRef} model={orkModel} selectedId={selectedId} onSelect={setSelectedId} rollDegrees={rollDegrees} onRoll={changeRoll} accent={accent} themeKey={themeMode} />
+                <RocketSectionView ref={sectionRef} model={orkModel} selectedId={selectedId} onSelect={setSelectedId} rollDegrees={rollDegrees} onRoll={changeRoll} accent={canvasAccent} themeKey={resolvedTheme} />
               ) : (
-                <RocketViewer ref={viewerRef} model={orkModel} selectedId={selectedId} onSelect={setSelectedId} accent={accent} themeKey={themeMode} rollDegrees={rollDegrees} />
+                <RocketViewer ref={viewerRef} model={orkModel} selectedId={selectedId} onSelect={setSelectedId} accent={canvasAccent} themeKey={resolvedTheme} rollDegrees={rollDegrees} />
               )}
               {!orkModel && <div className="model-loading">{saveState === "loading" ? "READING OPENROCKET GEOMETRY…" : "NO .ORK FILE · IMPORT ONE TO INITIALISE THIS PROJECT"}</div>}
             </div>
@@ -1537,7 +1531,7 @@ export function MissionControl({
         </aside>
       </div>}
 
-      {workspaceModule === "simulation" && <SimulationWorkspace key={`${workspace.project.id}:${workspaceVersion ?? "none"}`} model={orkModel} mode={mode} workspaceVersion={workspaceVersion} headers={collaborationHeaders} canRun={can("editOrk") && (mode === "demo" || saveState === "saved")} runBlockedReason={!can("editOrk") ? "Your team role cannot edit or calculate this configuration." : saveState === "offline" ? "The simulation setup has not reached the shared file. Co-Roc will retry automatically when the connection recovers." : saveState === "conflict" ? "A teammate saved another version first. Resolve the shared-file conflict before calculating." : saveState !== "saved" ? "The simulation setup is still being written to the shared ORK." : undefined} onNotice={setNotice} onModelChange={updateSimulationModel} />}
+      {workspaceModule === "simulation" && <SimulationWorkspace key={`${workspace.project.id}:${workspaceVersion ?? "none"}`} model={orkModel} mode={mode} workspaceVersion={workspaceVersion} headers={collaborationHeaders} canRun={can("editOrk") && (mode === "demo" || saveState === "saved")} runBlockedReason={!can("editOrk") ? "Your team role cannot edit or calculate this configuration." : saveState === "offline" ? "The simulation setup has not reached the shared file. Co-Roc will retry automatically when the connection recovers." : saveState === "conflict" ? "A teammate saved another version first. Resolve the shared-file conflict before calculating." : saveState !== "saved" ? "The simulation setup is still being written to the shared ORK." : undefined} onNotice={setNotice} onModelChange={updateSimulationModel} themeKey={resolvedTheme} />}
       {workspaceModule === "history" && <RevisionWorkspace changes={auditChanges} releases={controlledReleases} requests={releaseRequests} canApprove={can("approveRelease")} onOpenComponent={(componentId) => openComponentWorkspace(componentId)} onReleaseAction={handleReleaseAction} />}
       {(workspaceModule === "tests" || workspaceModule === "documents") && <ProjectRecordWorkspace kind={workspaceModule} components={components} headers={collaborationHeaders} projectId={workspace.project.id} onSelectComponent={(componentId, panel) => openComponentWorkspace(componentId, panel)} onNotice={setNotice} />}
       {workspaceModule === "checklists" && <LaunchChecklistWorkspace parts={components.map(({ id, code, name, type }) => ({ id, code, name, type }))} releases={controlledReleases.map(({ releaseNumber, title }) => ({ releaseNumber, title }))} mode={mode} headers={collaborationHeaders} canEdit={can("editChecklist")} canRelease={can("releaseChecklist")} onNotice={setNotice} />}

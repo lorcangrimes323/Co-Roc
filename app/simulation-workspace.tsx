@@ -125,7 +125,7 @@ export function liveToSimulation(result: LiveResult, base: OpenRocketSimulation,
   };
 }
 
-function FlightChart({ samples }: { samples: OpenRocketSimulationSample[] }) {
+function FlightChart({ samples, themeKey }: { samples: OpenRocketSimulationSample[]; themeKey: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -173,7 +173,7 @@ function FlightChart({ samples }: { samples: OpenRocketSimulationSample[] }) {
       if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
     });
     context.stroke();
-  }, [samples]);
+  }, [samples, themeKey]);
   return <canvas ref={canvasRef} className="flight-chart" aria-label="Altitude against time" />;
 }
 
@@ -204,7 +204,7 @@ function SimulationEditor({ initial, title, onCancel, onSave }: { initial: Simul
   </div>;
 }
 
-export function SimulationWorkspace({ model, mode, workspaceVersion, headers, canRun, runBlockedReason, onNotice, onModelChange }: {
+export function SimulationWorkspace({ model, mode, workspaceVersion, headers, canRun, runBlockedReason, onNotice, onModelChange, themeKey }: {
   model: OpenRocketModel | null;
   mode: "live" | "demo";
   workspaceVersion: number | null;
@@ -213,6 +213,7 @@ export function SimulationWorkspace({ model, mode, workspaceVersion, headers, ca
   runBlockedReason?: string;
   onNotice: (message: string) => void;
   onModelChange: (model: OpenRocketModel, change: { simulationId: string; name: string; editing: boolean }) => void;
+  themeKey: string;
 }) {
   const [selectedId, setSelectedId] = useState("");
   const [editor, setEditor] = useState<{ initial: SimulationOptionsInput; draftId?: string } | null>(null);
@@ -350,7 +351,7 @@ export function SimulationWorkspace({ model, mode, workspaceVersion, headers, ca
       {error && <div className="solver-error">{error}</div>}
       {selected ? <>
         <div className="simulation-metrics"><div><span>APOGEE</span><strong>{displayNumber(selected.maxAltitude, 0)} <small>m</small></strong></div><div><span>MAX SPEED</span><strong>{displayNumber(selected.maxVelocity)} <small>m/s</small></strong><em>Mach {displayNumber(selected.maxMach, 3)}</em></div><div><span>MAX ACCELERATION</span><strong>{displayNumber(selected.maxAcceleration)} <small>m/s²</small></strong></div><div><span>RAIL EXIT STABILITY</span><strong>{displayNumber(selected.railExitStability, 2)} <small>cal</small></strong><em>{displayNumber(selected.launchRodVelocity)} m/s</em></div><div><span>FLIGHT TIME</span><strong>{displayNumber(selected.flightTime)} <small>s</small></strong><em>{displayNumber(selected.groundHitVelocity)} m/s landing</em></div></div>
-        <section className="chart-card"><header><div><span className="eyebrow">FLIGHT PROFILE</span><h3>Altitude against time</h3></div><span>{selected.series.length} samples · SI units</span></header><FlightChart samples={selected.series} /></section>
+        <section className="chart-card"><header><div><span className="eyebrow">FLIGHT PROFILE</span><h3>Altitude against time</h3></div><span>{selected.series.length} samples · SI units</span></header><FlightChart samples={selected.series} themeKey={themeKey} /></section>
         <div className="simulation-detail-grid"><section><header><span className="eyebrow">CONDITIONS</span><h3>Launch inputs</h3></header><dl><div><dt>Wind speed</dt><dd>{displayNumber(selected.windSpeed)} m/s</dd></div><div><dt>Launch altitude</dt><dd>{displayNumber(selected.launchAltitude, 0)} m</dd></div><div><dt>Rail length</dt><dd>{displayNumber(selected.launchRodLength, 2)} m</dd></div><div><dt>Time step</dt><dd>{displayNumber(selected.timeStep, 3)} s</dd></div></dl></section><section><header><span className="eyebrow">WARNINGS</span><h3>{selected.warnings.length} engineering notices</h3></header><div className="simulation-warnings">{selected.warnings.map((warning, index) => <article key={`${warning.type}-${index}`}><span>{warning.priority}</span><p>{warning.description}</p></article>)}{!selected.warnings.length && <p className="module-empty">No warnings recorded.</p>}</div></section></div>
       </> : <div className="module-empty large">No simulation data to display.</div>}
     </div>

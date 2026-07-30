@@ -207,9 +207,42 @@ test("provides a focused engineering record for every component", async () => {
   assert.match(migration, /CREATE TABLE `component_artifacts`/);
 
   assert.match(css, /--ink-2:\s*#ffffff/);
-  assert.match(css, /--accent:\s*#c92335/);
+  assert.match(css, /--user-accent:\s*#c92335/);
   assert.match(css, /\.inspector-tabs-four/);
   assert.match(css, /\.engineering-record-list/);
+});
+
+test("provides a persistent, accessible dark mode across account and engineering surfaces", async () => {
+  const [layout, portal, preference, missionControl, sectionView, viewer, simulation, css] = await Promise.all([
+    source("app/layout.tsx"),
+    source("app/access-portal.tsx"),
+    source("app/theme-preference.tsx"),
+    source("app/mission-control.tsx"),
+    source("app/rocket-section-view.tsx"),
+    source("app/rocket-viewer.tsx"),
+    source("app/simulation-workspace.tsx"),
+    source("app/globals.css"),
+  ]);
+
+  assert.match(layout, /themeInitScript/);
+  assert.match(layout, /rocket-theme/);
+  assert.match(layout, /prefers-color-scheme: dark/);
+  assert.doesNotMatch(portal, /ThemeModeSelector/);
+  assert.match(preference, /aria-pressed/);
+  assert.match(preference, /useSyncExternalStore/);
+  assert.match(preference, /media\.addEventListener\("change", listener\)/);
+  assert.match(missionControl, /resolvedTheme/);
+  assert.match(missionControl, /Workspace settings/);
+  assert.match(missionControl, /ThemeModeSelector/);
+  assert.match(missionControl, /--user-accent/);
+  assert.match(sectionView, /darkTheme/);
+  assert.match(viewer, /themeKey === "dark"/);
+  assert.match(simulation, /\[samples, themeKey\]/);
+  assert.match(css, /\[data-theme="dark"\] \{/);
+  assert.match(css, /--panel-raised:\s*#222228/);
+  assert.match(css, /--muted:\s*#b9b5b8/);
+  assert.match(css, /\.theme-mode-selector/);
+  assert.match(css, /input:-webkit-autofill/);
 });
 
 test("provides controlled launch checklists with part references and printable sign-offs", async () => {

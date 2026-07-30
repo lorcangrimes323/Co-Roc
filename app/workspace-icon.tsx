@@ -9,6 +9,6 @@ export function WorkspaceIcon({ name }: { name: IconName }) {
     {name === "tests" && <><path {...common} d="M9 3h6M10 3v5l-5 9.2A2.5 2.5 0 0 0 7.2 21h9.6a2.5 2.5 0 0 0 2.2-3.8L14 8V3" /><path {...common} d="M7.5 15h9" /></>}
     {name === "documents" && <><path {...common} d="M6 3h8l4 4v14H6z" /><path {...common} d="M14 3v5h4M9 12h6M9 16h6" /></>}
     {name === "checklists" && <><path {...common} d="M8 4h8M9 3h6v3H9zM6 5v16h12V5" /><path {...common} d="m8.5 11 1.4 1.4 2.6-3M13.5 11H16M8.5 16l1.4 1.4 2.6-3M13.5 16H16" /></>}
-    {name === "settings" && <><circle {...common} cx="12" cy="12" r="3" /><path {...common} d="M12 2.8v2M12 19.2v2M2.8 12h2M19.2 12h2M5.5 5.5l1.4 1.4M17.1 17.1l1.4 1.4M18.5 5.5l-1.4 1.4M6.9 17.1l-1.4 1.4" /></>}
+    {name === "settings" && <><path {...common} d="M9.7 3.5h4.6l.7 2.1c.5.2 1 .5 1.4.8l2.2-.5 2.3 4-1.5 1.6v1.6l1.5 1.6-2.3 4-2.2-.5c-.4.3-.9.6-1.4.8l-.7 2.1H9.7L9 19c-.5-.2-1-.5-1.4-.8l-2.2.5-2.3-4 1.5-1.6v-1.6L3.1 9.9l2.3-4 2.2.5c.4-.3.9-.6 1.4-.8z" /><circle {...common} cx="12" cy="12.3" r="3" /></>}
   </svg>;
 }
