@@ -401,8 +401,8 @@ button { color: inherit; }
 .checklist-phase > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 13px; }
 .checklist-phase > header > div { min-width: 0; flex: 1; }
 .checklist-phase > header > button, .phase-actions button, .custom-part-form > button { min-height: 34px; padding: 0 12px; border: 1px solid var(--accent); background: var(--panel); color: var(--accent); font-size: 10px; font-weight: 700; cursor: pointer; }
-.phase-actions { display: flex; gap: 7px; }
-.phase-actions button:first-child { border-color: var(--line-strong); color: var(--muted); }
+.phase-actions { display: grid; grid-template-columns: auto auto; gap: 7px; }
+.phase-actions button:not(:last-child) { border-color: var(--line-strong); color: var(--muted); }
 .phase-actions button:disabled { cursor: default; opacity: .4; }
 .phase-title-input { display: block; width: 100%; margin: 3px 0; padding: 0; border: 0; background: transparent; color: var(--text); font-size: 18px; font-weight: 650; }
 .checklist-phase > header textarea { width: 100%; min-height: 30px; padding: 0; border: 0; background: transparent; color: var(--muted); font: 10px/1.45 var(--font-geist-sans); resize: vertical; }
@@ -1391,7 +1391,7 @@ button { color: inherit; }
   .checklist-phase { padding: 14px 12px 22px; }
   .checklist-phase > header { align-items: stretch; flex-direction: column; }
   .checklist-phase > header > button, .phase-actions button { min-height: 42px; }
-  .phase-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .phase-actions { grid-template-columns: 1fr 1fr; }
   .checklist-step { grid-template-columns: 36px 28px minmax(0, 1fr); }
   .step-order { grid-column: 1 / -1; flex-direction: row; min-height: 34px; border-top: 1px solid var(--line); border-left: 0; }
   .step-order button { border-right: 1px solid var(--line); border-bottom: 0; }
