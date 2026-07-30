@@ -23,21 +23,21 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase: base,
     title: {
-      default: "Rocket Configuration",
-      template: "%s · Rocket Configuration",
+      default: "Co-Roc",
+      template: "%s · Co-Roc",
     },
     description:
-      "Configuration control for launch vehicles. Connect OpenRocket models, components, evidence and engineering revisions.",
+      "Configuration control for OpenRocket teams: geometry, simulation, component evidence, approvals, releases and launch procedures.",
     openGraph: {
-      title: "Rocket Configuration — Engineering workspace",
+      title: "Co-Roc — Launch vehicle configuration control",
       description:
-        "One controlled workspace for OpenRocket models, physical parts, evidence and revision history.",
+        "One controlled workspace for OpenRocket models, simulation results, component evidence, release approvals and launch checklists.",
       type: "website",
     },
     twitter: {
       card: "summary",
-      title: "Rocket Configuration — Engineering workspace",
-      description: "OpenRocket models. Physical parts. One controlled record.",
+      title: "Co-Roc — Launch vehicle configuration control",
+      description: "OpenRocket geometry, engineering evidence, controlled releases and launch procedures in one team workspace.",
     },
   };
 }

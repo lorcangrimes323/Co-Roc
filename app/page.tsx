@@ -8,9 +8,9 @@ import type { TeamRole } from "./workspace-types";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Rocket Configuration — Engineering workspace",
+  title: "Co-Roc — Launch vehicle configuration control",
   description:
-    "A focused engineering workspace connecting OpenRocket models, hardware evidence and revision history.",
+    "Configuration control for OpenRocket teams: working geometry, simulations, component evidence, approvals, releases and launch checklists.",
 };
 
 export default async function Home({ searchParams }: { searchParams?: Promise<{ local_role?: string }> }) {
