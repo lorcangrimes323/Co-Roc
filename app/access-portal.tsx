@@ -6,7 +6,7 @@ import { useThemePreference } from "./theme-preference";
 
 export function AccessPortal() {
   const { resolved: resolvedTheme, setMode: setThemeMode } = useThemePreference();
-  const [mode, setMode] = useState<"signin" | "signup">("signup");
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -51,43 +51,33 @@ export function AccessPortal() {
             <button type="button" aria-pressed={resolvedTheme === "dark"} onClick={() => setThemeMode("dark")}>Dark</button>
           </div>
           <Link href="/demo?tour=1">Guided demo</Link>
-          <button type="button" onClick={() => chooseMode("signin")}>Sign in</button>
+          <button type="button" onClick={() => chooseMode(mode === "signin" ? "signup" : "signin")}>{mode === "signin" ? "Create account" : "Sign in"}</button>
         </nav>
       </header>
 
       <section className="account-main">
         <div className="account-context">
           <section className="account-hero">
-            <span className="account-section-label">OPENROCKET CONFIGURATION CONTROL</span>
-            <h1>OpenRocket files, controlled as engineering data.</h1>
-            <p>Keep one authoritative vehicle file, review external changes before they land, and retain the evidence behind every approved configuration.</p>
+            <span className="account-section-label">CO-ROC / CONFIGURATION CONTROL</span>
+            <h1>The working OpenRocket file, with its engineering record attached.</h1>
+            <p>One controlled workspace for geometry, evidence, simulation, approvals and launch readiness. Every decision stays attributable to the vehicle configuration it affected.</p>
             <div className="account-hero-actions">
               <Link className="account-primary-link" href="/demo?tour=1">Open guided demo <span aria-hidden="true">→</span></Link>
-              <a href="#capabilities">See the workflow</a>
+              <a href="#controlled-workflow">Review the controls</a>
             </div>
-            <section className="account-register" aria-label="Controlled engineering record">
-              <header><span>CONTROLLED RECORD</span><span>TRACEABLE BY DEFAULT</span></header>
-              <ol>
-                <li><b>01</b><span><strong>Working ORK</strong><small>Authoritative geometry and live working changes</small></span></li>
-                <li><b>02</b><span><strong>Review</strong><small>Compared uploads, rationale and lead approval</small></span></li>
-                <li><b>03</b><span><strong>Evidence</strong><small>Drawings, tests, media and part discussions</small></span></li>
-                <li><b>04</b><span><strong>Release</strong><small>Recoverable baselines, simulations and launch procedures</small></span></li>
-              </ol>
+            <section className="account-control-list" id="controlled-workflow" aria-label="Co-Roc engineering controls">
+              <header><span>CONTROLLED WORKFLOW</span><span>WORKING → REVIEW → RELEASE</span></header>
+              <div>
+                <article><b>01</b><span><strong>Authoritative ORK</strong><small>Upload, inspect and download the current vehicle file.</small></span></article>
+                <article><b>02</b><span><strong>Review changes before they land</strong><small>Compare geometry and route intentional changes to a lead.</small></span></article>
+                <article><b>03</b><span><strong>Part records</strong><small>Keep drawings, tests, media, comments and tags with the component.</small></span></article>
+                <article><b>04</b><span><strong>Run traceable simulations</strong><small>Retain stability and performance results against their working revision.</small></span></article>
+                <article><b>05</b><span><strong>Control teams and releases</strong><small>Assign access, approve work and recover release baselines.</small></span></article>
+                <article><b>06</b><span><strong>Prepare the launch</strong><small>Build approved assembly, arming and launch checklists.</small></span></article>
+              </div>
             </section>
           </section>
         </div>
-
-        <section className="account-capabilities" id="capabilities">
-            <header><span>ENGINEERING WORKFLOW</span><h2>What Co-Roc controls</h2></header>
-            <ol>
-              <li><span>01</span><div><strong>Work from the real ORK</strong><p>Upload, inspect and download the working OpenRocket file. Review the assembly in 2D or 3D.</p></div></li>
-              <li><span>02</span><div><strong>Review changes before they land</strong><p>Compare a re-upload against the working copy, isolate intentional geometry changes and send them to a lead with engineering rationale.</p></div></li>
-              <li><span>03</span><div><strong>Run traceable simulations</strong><p>Create OpenRocket cases, retain results against the configuration that produced them, and surface stability and performance data.</p></div></li>
-              <li><span>04</span><div><strong>Keep the record with the part</strong><p>Attach drawings, test evidence, documents, photos and videos to components. Discuss decisions and tag the teammate who needs to act.</p></div></li>
-              <li><span>05</span><div><strong>Control teams and releases</strong><p>Invite by team code, assign project access and separate working changes from approved release baselines that can always be recovered.</p></div></li>
-              <li><span>06</span><div><strong>Prepare the launch</strong><p>Build phased assembly, arming and launch checklists with part references, hold points, approvals, sign-offs and a printable field copy.</p></div></li>
-            </ol>
-        </section>
 
         <div className="account-panel" id="account-access">
           <form className="account-form" onSubmit={submit}>

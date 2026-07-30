@@ -20,19 +20,19 @@ test("presents the complete Co-Roc workflow on a restrained landing page", async
     source("app/page.tsx"),
     source("app/layout.tsx"),
   ]);
-  assert.match(portal, /OpenRocket files, controlled as engineering data/);
+  assert.match(portal, /The working OpenRocket file, with its engineering record attached/);
   assert.match(portal, /account-theme-toggle/);
   assert.match(portal, /setThemeMode\("light"\)/);
   assert.match(portal, /setThemeMode\("dark"\)/);
   assert.match(portal, /Review changes before they land/);
   assert.match(portal, /Run traceable simulations/);
-  assert.match(portal, /Keep the record with the part/);
+  assert.match(portal, /Part records/);
   assert.match(portal, /Control teams and releases/);
   assert.match(portal, /Prepare the launch/);
-  assert.match(portal, /tag the teammate who needs to act/);
-  assert.match(portal, /hold points, approvals, sign-offs/);
-  assert.match(styles, /\.account-capabilities ol/);
-  assert.match(styles, /grid-template-areas: "hero access" "workflow workflow"/);
+  assert.match(portal, /comments and tags with the component/);
+  assert.match(portal, /approved assembly, arming and launch checklists/);
+  assert.match(styles, /\.account-control-list/);
+  assert.match(styles, /grid-template-areas: "hero access"/);
   assert.match(styles, /\.account-panel \{ grid-area: access/);
   assert.match(styles, /@media \(max-width: 700px\)/);
   assert.match(page, /Co-Roc — Launch vehicle configuration control/);
