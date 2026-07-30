@@ -13,6 +13,27 @@ test("allows controlled multipart uploads through the public domains", async () 
   assert.match(config, /allowedOrigins:\s*\["co-roc\.com",\s*"www\.co-roc\.com"\]/);
 });
 
+test("ships five deterministic native SVG logo concepts", async () => {
+  const names = [
+    "co-roc-01-orbit-datum.svg",
+    "co-roc-02-section-mark.svg",
+    "co-roc-03-controlled-monogram.svg",
+    "co-roc-04-trace-line.svg",
+    "co-roc-05-linked-release.svg",
+  ];
+  const [concepts, comparison] = await Promise.all([
+    Promise.all(names.map((name) => source(`public/brand/concepts/${name}`))),
+    source("public/brand/concepts/index.html"),
+  ]);
+
+  for (const [index, svg] of concepts.entries()) {
+    assert.match(svg, /<svg[^>]+width="600"[^>]+height="160"[^>]+viewBox="0 0 600 160"/);
+    assert.match(svg, new RegExp(`Co-Roc logo concept ${index + 1}`));
+    assert.doesNotMatch(svg, /<(?:image|foreignObject)\b|data:image|<filter\b|Gradient\b/i);
+    assert.match(comparison, new RegExp(names[index].replaceAll(".", "\\.")));
+  }
+});
+
 test("presents the complete Co-Roc workflow on a restrained landing page", async () => {
   const [portal, styles, page, layout] = await Promise.all([
     source("app/access-portal.tsx"),

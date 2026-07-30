@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="160" viewBox="0 0 600 160" role="img" aria-labelledby="title desc">
+  <title id="title">Co-Roc logo concept 3 — Controlled Monogram</title>
+  <desc id="desc">A compact CR monogram contained by release brackets and paired with a technical uppercase wordmark.</desc>
+  <g fill="none" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M29 36H17v88h12M121 36h12v88h-12" stroke="#d1253c" stroke-width="5"/>
+    <path d="M78 49H61c-18 0-29 11-29 31s11 31 29 31h17" stroke="#171719" stroke-width="10"/>
+    <path d="M77 111V49h18c16 0 25 7 25 19 0 11-9 18-25 18H77m22 0 24 25" stroke="#171719" stroke-width="10"/>
+  </g>
+  <text x="164" y="97" fill="#171719" font-family="Courier New, Courier, monospace" font-size="59" font-weight="700" letter-spacing="-3">CO-ROC</text>
+  <rect x="166" y="113" width="362" height="3" fill="#d1253c"/>
+  <text x="166" y="136" fill="#66666b" font-family="Courier New, Courier, monospace" font-size="11" font-weight="700" letter-spacing="1.8">WORKING  /  REVIEW  /  RELEASE</text>
+</svg>

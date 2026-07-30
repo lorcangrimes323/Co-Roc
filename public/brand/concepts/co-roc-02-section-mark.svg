@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="160" viewBox="0 0 600 160" role="img" aria-labelledby="title desc">
+  <title id="title">Co-Roc logo concept 2 — Section Mark</title>
+  <desc id="desc">A launch vehicle section marker built from a nose profile, body axis and controlled interface line.</desc>
+  <g fill="none" stroke-linejoin="miter">
+    <path d="M24 80l34-28h58l18 28-18 28H58z" stroke="#171719" stroke-width="6"/>
+    <path d="M58 52v56M93 52v56" stroke="#b9b9bd" stroke-width="3"/>
+    <path d="M20 80h116" stroke="#d1253c" stroke-width="5"/>
+    <circle cx="93" cy="80" r="7" fill="#d1253c" stroke="#ffffff" stroke-width="3"/>
+  </g>
+  <text x="164" y="97" fill="#171719" font-family="Arial, Helvetica, sans-serif" font-size="62" font-weight="800" letter-spacing="1">CO/ROC</text>
+  <text x="168" y="126" fill="#d1253c" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" letter-spacing="3.1">VEHICLE RECORD</text>
+</svg>

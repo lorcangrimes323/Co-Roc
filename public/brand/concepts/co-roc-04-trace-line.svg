@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="160" viewBox="0 0 600 160" role="img" aria-labelledby="title desc">
+  <title id="title">Co-Roc logo concept 4 — Trace Line</title>
+  <desc id="desc">A traceable configuration history shown as connected controlled states on a precision grid.</desc>
+  <g fill="none" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M25 38h104v84H25zM51 38v84M77 38v84M103 38v84M25 66h104M25 94h104" stroke="#dedee0" stroke-width="2"/>
+    <path d="M31 104L58 76l24 11 39-37" stroke="#171719" stroke-width="7"/>
+    <circle cx="31" cy="104" r="6" fill="#171719" stroke="none"/>
+    <circle cx="58" cy="76" r="6" fill="#171719" stroke="none"/>
+    <circle cx="82" cy="87" r="6" fill="#171719" stroke="none"/>
+    <circle cx="121" cy="50" r="9" fill="#d1253c" stroke="#ffffff" stroke-width="4"/>
+  </g>
+  <text x="164" y="92" fill="#171719" font-family="Arial, Helvetica, sans-serif" font-size="62" font-weight="700" letter-spacing="-2">Co<tspan fill="#d1253c">-Roc</tspan></text>
+  <text x="167" y="125" fill="#66666b" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" letter-spacing="2.7">EVERY CHANGE ACCOUNTED FOR</text>
+</svg>
