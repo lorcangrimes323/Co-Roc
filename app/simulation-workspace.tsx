@@ -23,6 +23,7 @@ export type LiveResult = {
 type RunRow = {
   id: string;
   orkVersion: number;
+  simulationIndex: number;
   simulationName: string;
   engineVersion: string;
   maxAltitude: number | null;
@@ -71,6 +72,60 @@ function optionsFromSimulation(simulation: OpenRocketSimulation, name = simulati
     maxSimulationTime: simulation.maxSimulationTime || 1200,
     maxStepAngleDegrees: degrees(simulation.maxStepAngle || 0.0523598776),
     randomSeed: simulation.randomSeed || 0,
+  };
+}
+
+function archivedSimulationBase(result: LiveResult): OpenRocketSimulation {
+  const condition = (key: string, fallback: number) => finite(result.conditions[key], fallback);
+  return {
+    id: `archived-${result.simulationIndex}`,
+    name: result.name,
+    status: result.status,
+    configurationId: "",
+    branchName: result.branchName,
+    windSpeed: condition("windSpeed", 0),
+    launchRodLength: condition("launchRodLength", 0),
+    launchIntoWind: false,
+    launchRodAngle: 0,
+    launchRodDirection: 0,
+    launchAltitude: condition("launchAltitude", 0),
+    launchLatitude: condition("launchLatitude", 0),
+    launchLongitude: condition("launchLongitude", 0),
+    geodeticMethod: "",
+    isaAtmosphere: true,
+    launchTemperature: 288.15,
+    launchPressure: 101325,
+    timeStep: condition("timeStep", 0.01),
+    maxSimulationTime: 1200,
+    maxStepAngle: 0.0523598776,
+    randomSeed: 0,
+    windModelType: "AVERAGE",
+    windDeviation: 0,
+    windTurbulence: 0,
+    windDirection: 0,
+    windLevels: [],
+    maxAltitude: Number.NaN,
+    maxVelocity: Number.NaN,
+    maxAcceleration: Number.NaN,
+    maxMach: Number.NaN,
+    timeToApogee: Number.NaN,
+    flightTime: Number.NaN,
+    groundHitVelocity: Number.NaN,
+    launchRodVelocity: Number.NaN,
+    deploymentVelocity: Number.NaN,
+    optimumDelay: Number.NaN,
+    railExitStability: Number.NaN,
+    railExitCg: Number.NaN,
+    railExitCp: Number.NaN,
+    launchMass: Number.NaN,
+    launchMotorMass: Number.NaN,
+    referenceMach: Number.NaN,
+    referenceStability: Number.NaN,
+    referenceCg: Number.NaN,
+    referenceCp: Number.NaN,
+    warnings: [],
+    events: [],
+    series: [],
   };
 }
 
@@ -223,6 +278,8 @@ export function SimulationWorkspace({ model, mode, workspaceVersion, headers, ca
   const [runs, setRuns] = useState<RunRow[]>([]);
   const [configured, setConfigured] = useState(false);
   const [running, setRunning] = useState(false);
+  const [loadingRunId, setLoadingRunId] = useState("");
+  const [viewedRun, setViewedRun] = useState<RunRow | null>(null);
   const [error, setError] = useState("");
   const saved = useMemo(() => model?.simulations ?? [], [model]);
   const cases = useMemo(() => saved.map((simulation, sourceIndex) => ({
@@ -274,6 +331,7 @@ export function SimulationWorkspace({ model, mode, workspaceVersion, headers, ca
     onModelChange(next.model, { simulationId: next.simulationId, name: options.name, editing });
     setSelectedId(next.simulationId);
     setCalculated(null);
+    setViewedRun(null);
     setEditor(null);
     setError("");
     onNotice(`${options.name} saved to the working OpenRocket file`);
@@ -314,12 +372,17 @@ export function SimulationWorkspace({ model, mode, workspaceVersion, headers, ca
         throw new Error(detail && detail !== summary ? `${summary}: ${detail}` : summary);
       }
       const completed = liveToSimulation(payload.result, selectedCase.simulation, model.maxRadius * 2);
-      const persisted = saveOpenRocketSimulationResult(model, selectedCase.sourceIndex, completed);
       setCalculated(completed);
-      onModelChange(persisted.model, { simulationId: persisted.simulationId, name: completed.name, editing: true });
+      setViewedRun(null);
+      if (mode === "demo") {
+        const persisted = saveOpenRocketSimulationResult(model, selectedCase.sourceIndex, completed);
+        onModelChange(persisted.model, { simulationId: persisted.simulationId, name: completed.name, editing: true });
+      }
       setCalculatedAt(payload.result.calculatedAt);
       setEngineVersion(payload.result.engineVersion);
-      onNotice(`${payload.result.name} calculated and saved to the working OpenRocket file`);
+      onNotice(mode === "live"
+        ? `${payload.result.name} calculated and attached to working W${workspaceVersion ?? "—"}`
+        : `${payload.result.name} calculated in the local demo ORK`);
       await refreshRuns();
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "OpenRocket simulation failed";
@@ -327,18 +390,44 @@ export function SimulationWorkspace({ model, mode, workspaceVersion, headers, ca
     } finally { setRunning(false); }
   }
 
+  async function openSavedRun(run: RunRow) {
+    if (mode !== "live" || !model) return;
+    const baseCase = cases[run.simulationIndex] ?? selectedCase ?? cases[0];
+    setLoadingRunId(run.id);
+    setError("");
+    try {
+      const response = await fetch(`${simulationEndpoint}?runId=${encodeURIComponent(run.id)}`, { headers: headers(), cache: "no-store" });
+      const payload = await response.json() as LiveResult & { error?: string };
+      if (!response.ok || payload.error) throw new Error(payload.error || "The saved simulation result could not be loaded.");
+      const completed = liveToSimulation(payload, baseCase?.simulation ?? archivedSimulationBase(payload), model.maxRadius * 2);
+      if (baseCase) setSelectedId(baseCase.id);
+      setCalculated(completed);
+      setViewedRun(run);
+      setCalculatedAt(payload.calculatedAt || run.createdAt);
+      setEngineVersion(payload.engineVersion || run.engineVersion);
+      onNotice(`${run.simulationName} loaded from working W${run.orkVersion}`);
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : "The saved simulation result could not be loaded.";
+      setError(message);
+      onNotice(message);
+    } finally {
+      setLoadingRunId("");
+    }
+  }
+
   const status = useMemo(() => {
+    if (viewedRun) return `ARCHIVED · W${viewedRun.orkVersion}`;
     if (calculated) return "CALCULATED NOW";
     if (selectedCase?.draft) return "DRAFT CASE";
     if (!selected) return "NO SAVED RESULT";
     return selected.status === "outdated" ? "SAVED · OUTDATED" : "SAVED IN .ORK";
-  }, [calculated, selected, selectedCase]);
+  }, [calculated, selected, selectedCase, viewedRun]);
 
   return <section className="workspace-module simulation-module">
     <aside className="module-tree">
       <header><span className="eyebrow">FLIGHT CONFIGURATIONS</span><h2>Simulation cases</h2><button className="tree-new-simulation" type="button" disabled={!selectedCase || !canRun} onClick={openNewSimulation}>+ New simulation</button></header>
       <div className="module-tree-list">
-        {cases.map((item, index) => <button key={item.id} className={item.id === selectedCase?.id ? "active" : ""} type="button" onClick={() => { setSelectedId(item.id); setCalculated(null); setError(""); }}><span className="tree-index">{String(index + 1).padStart(2, "0")}</span><span><strong>{item.simulation.name}</strong><small>{item.simulation.windSpeed.toFixed(1)} m/s wind · {item.draft ? "draft" : item.simulation.status}</small></span></button>)}
+        {cases.map((item, index) => <button key={item.id} className={item.id === selectedCase?.id ? "active" : ""} type="button" onClick={() => { setSelectedId(item.id); setCalculated(null); setViewedRun(null); setError(""); }}><span className="tree-index">{String(index + 1).padStart(2, "0")}</span><span><strong>{item.simulation.name}</strong><small>{item.simulation.windSpeed.toFixed(1)} m/s wind · {item.draft ? "draft" : item.simulation.status}</small></span></button>)}
         {!cases.length && <div className="module-empty">No simulation definitions were found in this .ork file.</div>}
       </div>
       <footer>Saved definitions come from the working OpenRocket file. New cases use the selected flight configuration.</footer>
@@ -355,7 +444,7 @@ export function SimulationWorkspace({ model, mode, workspaceVersion, headers, ca
         <div className="simulation-detail-grid"><section><header><span className="eyebrow">CONDITIONS</span><h3>Launch inputs</h3></header><dl><div><dt>Wind speed</dt><dd>{displayNumber(selected.windSpeed)} m/s</dd></div><div><dt>Launch altitude</dt><dd>{displayNumber(selected.launchAltitude, 0)} m</dd></div><div><dt>Rail length</dt><dd>{displayNumber(selected.launchRodLength, 2)} m</dd></div><div><dt>Time step</dt><dd>{displayNumber(selected.timeStep, 3)} s</dd></div></dl></section><section><header><span className="eyebrow">WARNINGS</span><h3>{selected.warnings.length} engineering notices</h3></header><div className="simulation-warnings">{selected.warnings.map((warning, index) => <article key={`${warning.type}-${index}`}><span>{warning.priority}</span><p>{warning.description}</p></article>)}{!selected.warnings.length && <p className="module-empty">No warnings recorded.</p>}</div></section></div>
       </> : <div className="module-empty large">No simulation data to display.</div>}
     </div>
-    <aside className="run-history"><header><span className="eyebrow">TRACEABLE RUNS</span><h2>Run history</h2></header>{runs.map((run) => <article key={run.id}><strong>{run.simulationName}</strong><span>WORKING W{run.orkVersion} · Core {run.engineVersion}</span><small>{run.runByName} · {new Date(run.createdAt).toLocaleString()}</small></article>)}{!runs.length && <div className="module-empty">{mode === "demo" ? "Demo runs are not stored." : "No server calculations recorded yet."}</div>}<footer>{calculatedAt && `Latest calculation ${new Date(calculatedAt).toLocaleString()} · Core ${engineVersion}`}</footer></aside>
+    <aside className="run-history"><header><span className="eyebrow">TRACEABLE RUNS</span><h2>Run history</h2></header>{runs.map((run) => <button key={run.id} type="button" aria-label={`Open ${run.simulationName} calculated against working W${run.orkVersion}`} disabled={Boolean(loadingRunId)} onClick={() => openSavedRun(run)} className={`${run.orkVersion === workspaceVersion ? "run-current-version" : "run-prior-version"}${viewedRun?.id === run.id ? " active" : ""}`}><strong>{run.simulationName}</strong><span>{run.orkVersion === workspaceVersion ? "CURRENT" : "PRIOR"} WORKING W{run.orkVersion} · Core {run.engineVersion}</span><small>{loadingRunId === run.id ? "Loading result…" : `${run.runByName} · ${new Date(run.createdAt).toLocaleString()}`}</small></button>)}{!runs.length && <div className="module-empty">{mode === "demo" ? "Demo runs are not stored." : "No server calculations recorded yet."}</div>}<footer>{viewedRun ? `Viewing immutable result from W${viewedRun.orkVersion}` : calculatedAt && `Latest calculation ${new Date(calculatedAt).toLocaleString()} · Core ${engineVersion}`}</footer></aside>
     {editor && <SimulationEditor initial={editor.initial} title={editor.draftId ? "Edit simulation" : "New simulation"} onCancel={() => setEditor(null)} onSave={saveEditor} />}
   </section>;
 }

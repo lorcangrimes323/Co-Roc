@@ -531,11 +531,14 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .simulation-warnings article > span { color: var(--amber); font: 8px var(--font-geist-mono); }
 .simulation-warnings p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
 .run-history { min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line-strong); overflow: auto; }
-.run-history article { padding: 12px 14px; border-bottom: 1px solid var(--line); }
-.run-history article strong, .run-history article span, .run-history article small { display: block; }
-.run-history article strong { font-size: 11px; }
-.run-history article span { margin-top: 5px; color: var(--accent); font: 8px var(--font-geist-mono); }
-.run-history article small { margin-top: 4px; color: var(--faint); font-size: 8px; }
+.run-history > button { width: 100%; padding: 12px 14px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.run-history > button:hover, .run-history > button.active { background: color-mix(in srgb, var(--accent) 7%, var(--panel)); }
+.run-history > button.active { box-shadow: inset 3px 0 0 var(--accent); }
+.run-history > button:disabled { cursor: wait; opacity: .7; }
+.run-history > button strong, .run-history > button span, .run-history > button small { display: block; }
+.run-history > button strong { font-size: 11px; }
+.run-history > button span { margin-top: 5px; color: var(--accent); font: 8px var(--font-geist-mono); }
+.run-history > button small { margin-top: 4px; color: var(--faint); font-size: 8px; }
 
 .simulation-editor-backdrop { position: fixed; z-index: 90; inset: 0; display: flex; justify-content: flex-end; background: rgba(12, 11, 12, .34); }
 .simulation-editor { width: min(720px, 94vw); height: 100%; display: flex; flex-direction: column; background: var(--panel); color: var(--text); border-left: 1px solid var(--line-strong); box-shadow: -18px 0 42px rgba(0,0,0,.18); }
@@ -981,6 +984,9 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .proposal-comparison-summary strong, .proposal-comparison-summary span { display: block; }
 .proposal-comparison-summary strong { font-size: 20px; }
 .proposal-comparison-summary span { margin-top: 3px; color: var(--muted); font-size: 10px; }
+.proposal-simulation-note { display: flex; gap: 12px; margin: 12px 24px 0; padding: 10px 12px; border-left: 2px solid #2f536e; background: color-mix(in srgb, #2f536e 7%, var(--panel)); }
+.proposal-simulation-note strong { flex: 0 0 auto; font-size: 10px; }
+.proposal-simulation-note span { color: var(--muted); font-size: 10px; line-height: 1.45; }
 .ork-proposal-modal form { padding: 18px 24px 24px; }
 .proposal-summary-field { display: block; color: var(--muted); font: 10px var(--font-geist-mono); letter-spacing: .08em; }
 .proposal-summary-field textarea { width: 100%; margin-top: 7px; resize: vertical; font: 13px/1.5 var(--font-geist-sans); }
@@ -1204,7 +1210,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .module-tree h2,
 .run-history h2 { font-size: 18px; }
 .module-tree-list strong,
-.run-history article strong { font-size: 13px; }
+.run-history > button strong { font-size: 13px; }
 .module-tree-list small,
 .module-tree > footer,
 .run-history > footer,
@@ -1227,8 +1233,8 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .simulation-metrics strong small,
 .simulation-metrics em,
 .chart-card > header > span,
-.run-history article span,
-.run-history article small,
+.run-history > button span,
+.run-history > button small,
 .simulation-field small,
 .wind-levels > header,
 .simulation-editor > footer > span,
@@ -1621,6 +1627,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .proposal-modal-header { padding: 17px 15px 14px; }
   .proposal-modal-header h2 { font-size: 20px; }
   .proposal-safety-note { align-items: flex-start; flex-direction: column; margin: 13px 15px 0; }
+  .proposal-simulation-note { align-items: flex-start; flex-direction: column; gap: 4px; margin: 11px 15px 0; }
   .proposal-position-group, .ork-review-position-group { align-items: flex-start; flex-direction: column; gap: 4px; }
   .proposal-position-rationale { align-items: flex-start; flex-direction: column; gap: 4px; }
   .proposal-comparison-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 12px 15px 0; }

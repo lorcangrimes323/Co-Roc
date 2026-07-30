@@ -35,6 +35,7 @@ export function OrkChangeProposalModal({ fileName, baseVersion, comparison, subm
         <div><strong>{comparison.geometryChanges}</strong><span>geometry impacts</span></div>
         <div><strong>{comparison.addedComponents} / {comparison.removedComponents}</strong><span>added / removed</span></div>
       </div>
+      {comparison.simulationChanges > 0 && <div className="proposal-simulation-note"><strong>{comparison.simulationChanges} simulation definition difference{comparison.simulationChanges === 1 ? "" : "s"} excluded from engineering rationale</strong><span>Simulation definitions and completed runs are analysis records. Existing results remain pinned to W{baseVersion}; uploading this ORK does not move or rewrite them.</span></div>}
       <form onSubmit={submit}>
         <label className="proposal-summary-field">CHANGE SUMMARY<textarea value={summary} onChange={(event) => setSummary(event.target.value)} rows={3} maxLength={4000} placeholder="Describe the purpose, source and expected engineering effect of this OpenRocket update…" required /></label>
         <div className="proposal-components" aria-label="Detected ORK changes">

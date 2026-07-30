@@ -47,6 +47,11 @@ function validOrk(file: File) {
   return file.size > 0 && file.size <= STORAGE_LIMITS.maxOrkBytes && file.name.toLowerCase().endsWith(".ork");
 }
 
+function isSimulationItem(item: Pick<ProposalItem, "componentKind" | "changes">) {
+  return item.componentKind.toLowerCase() === "flight configuration"
+    && item.changes.every((change) => change.category === "configuration");
+}
+
 function safeItems(value: string) {
   let parsed: unknown;
   try { parsed = JSON.parse(value); } catch { return null; }
@@ -61,6 +66,7 @@ function safeItems(value: string) {
         && typeof change.nextValue === "string" && change.nextValue.length <= 5000
         && ["geometry", "mass", "material", "configuration", "structure"].includes(change.category));
     const positionOnly = changesValid && isPositionOnlyChangeSet(item.changes);
+    const simulationOnly = changesValid && isSimulationItem(item);
     return item && typeof item.componentId === "string" && item.componentId.length <= 160
       && typeof item.componentCode === "string" && item.componentCode.length <= 40
       && typeof item.componentName === "string" && item.componentName.length <= 200
@@ -68,15 +74,18 @@ function safeItems(value: string) {
       && ["added", "removed", "modified"].includes(item.changeType)
       && typeof item.geometryChanged === "boolean"
       && typeof item.rationale === "string" && item.rationale.trim().length <= 2000
-      && (positionOnly || item.rationale.trim().length >= 5)
+      && (positionOnly || simulationOnly || item.rationale.trim().length >= 5)
       && changesValid;
   });
   return valid ? items.map((item) => {
     const positionOnly = isPositionOnlyChangeSet(item.changes);
+    const simulationOnly = isSimulationItem(item);
     return {
       ...item,
       rationale: positionOnly
         ? "Position shifted automatically following an upstream geometry change; no separate engineering rationale was required."
+        : simulationOnly
+          ? "Simulation definition retained as a revision-scoped analysis record; no engineering-change rationale was required."
         : item.rationale.trim(),
     };
   }) : null;

@@ -26,6 +26,7 @@ export type OrkModelComparison = {
   addedComponents: number;
   removedComponents: number;
   fieldChanges: number;
+  simulationChanges: number;
 };
 
 const componentPrefixes: Record<string, string> = {
@@ -223,16 +224,12 @@ export function compareOrkModels(previous: OpenRocketModel, next: OpenRocketMode
 
   const previousSimulations = new Map(previous.simulations.map((simulation) => [simulation.id, simulation]));
   const nextSimulations = new Map(next.simulations.map((simulation) => [simulation.id, simulation]));
-  previous.simulations.forEach((simulation, index) => {
+  let simulationChanges = 0;
+  previous.simulations.forEach((simulation) => {
     const proposed = nextSimulations.get(simulation.id);
-    const changes = proposed ? compareSimulation(simulation, proposed) : [{ field: "simulation.removed", label: "Simulation case", previousValue: simulation.name, nextValue: "Removed", category: "configuration" as const }];
-    if (!changes.length) return;
-    components.push({ componentId: `simulation:${simulation.id}`, componentCode: `SIM-${String(index + 1).padStart(3, "0")}`, componentName: proposed?.name ?? simulation.name, componentKind: "flight configuration", changeType: proposed ? "modified" : "removed", geometryChanged: false, changes });
+    if (!proposed || compareSimulation(simulation, proposed).length) simulationChanges += 1;
   });
-  next.simulations.forEach((simulation, index) => {
-    if (previousSimulations.has(simulation.id)) return;
-    components.push({ componentId: `simulation:${simulation.id}`, componentCode: `SIM-${String(index + 1).padStart(3, "0")}`, componentName: simulation.name, componentKind: "flight configuration", changeType: "added", geometryChanged: false, changes: [{ field: "simulation.added", label: "Simulation case", previousValue: "Not present", nextValue: simulation.name, category: "configuration" }] });
-  });
+  next.simulations.forEach((simulation) => { if (!previousSimulations.has(simulation.id)) simulationChanges += 1; });
 
   if (previous.name !== next.name || previous.designer !== next.designer) {
     const changes: OrkProposalFieldChange[] = [];
@@ -252,6 +249,7 @@ export function compareOrkModels(previous: OpenRocketModel, next: OpenRocketMode
     addedComponents: orderedComponents.filter((component) => component.changeType === "added").length,
     removedComponents: orderedComponents.filter((component) => component.changeType === "removed").length,
     fieldChanges: orderedComponents.reduce((total, component) => total + component.changes.length, 0),
+    simulationChanges,
     components: orderedComponents,
   };
 }

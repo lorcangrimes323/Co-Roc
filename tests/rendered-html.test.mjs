@@ -76,6 +76,11 @@ test("keeps OpenRocket geometry and live edits traceable", async () => {
   assert.match(simulationWorkspace, /referenceSample/);
   assert.match(simulationWorkspace, /motorMassSample/);
   assert.match(simulationWorkspace, /saveOpenRocketSimulationResult/);
+  assert.match(simulationWorkspace, /openSavedRun/);
+  assert.match(simulationWorkspace, /archivedSimulationBase/);
+  assert.match(simulationWorkspace, /Viewing immutable result from W/);
+  assert.match(simulationWorkspace, /run\.simulationIndex/);
+  assert.match(simulationWorkspace, /calculated and attached to working W/);
   assert.match(simulationWorkspace, /launchRodDirectionDegrees: simulation\.launchRodDirection/);
   assert.match(simulationWorkspace, /payload\.failure\?\.detail/);
   assert.match(solver, /launchRodDirectionDegrees/);
@@ -272,6 +277,8 @@ test("provides a paced first-run guided demo across the engineering workflow", a
   assert.match(tour, /CONTROLLED ORK PUSH \/ PULL/);
   assert.match(tour, /Every intentional part change requires an engineering rationale/);
   assert.match(tour, /Dependent axial or radial position shifts are grouped underneath/);
+  assert.match(tour, /Simulation definitions are analysis records/);
+  assert.match(tour, /Running a case never creates a new working revision/);
   assert.match(tour, /scrollIntoView/);
   assert.match(tour, /prefers-reduced-motion/);
   assert.match(tour, /ArrowRight/);
@@ -301,6 +308,8 @@ test("reviews externally edited ORK files before promoting them to the working c
   assert.match(proposalModal, /ENGINEERING RATIONALE · REQUIRED/);
   assert.match(proposalModal, /DEPENDENT POSITION SHIFTS/);
   assert.match(proposalModal, /No separate rationale required/);
+  assert.match(proposalModal, /excluded from engineering rationale/);
+  assert.match(proposalModal, /remain pinned to W/);
   assert.match(proposalModal, /Submit for lead review/);
   assert.match(revisionWorkspace, /Approve into working ORK/);
   assert.match(revisionWorkspace, /Download proposed \.ORK/);
@@ -311,11 +320,14 @@ test("reviews externally edited ORK files before promoting them to the working c
   assert.match(proposalRoute, /status = 'conflict'/);
   assert.match(proposalRoute, /appliedVersion: nextVersion/);
   assert.match(proposalRoute, /no separate engineering rationale was required/i);
+  assert.match(proposalRoute, /Simulation definition retained as a revision-scoped analysis record/);
   assert.match(directOrkRoute, /The live ORK cannot be replaced directly/);
   assert.match(directOrkRoute, /proposalEndpoint: "\/api\/ork\/proposals"/);
   assert.match(diff, /geometryChanges/);
   assert.match(diff, /wall thickness/i);
   assert.match(diff, /compareSimulation/);
+  assert.match(diff, /simulationChanges/);
+  assert.doesNotMatch(diff, /componentKind: "flight configuration"/);
   assert.match(diff, /isPositionOnlyChangeSet/);
   assert.match(diff, /orderPositionFieldsLast/);
   assert.match(diff, /Number\(left\.positionOnly\) - Number\(right\.positionOnly\)/);
