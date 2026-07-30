@@ -62,8 +62,17 @@ const steps: TourStep[] = [
     module: "configuration",
   },
   {
+    id: "ork-push-pull",
+    eyebrow: "05 · CONTROLLED ORK PUSH / PULL",
+    title: "Download, edit and propose—without overwriting the team",
+    description: "Pull the current working ORK, make detailed changes in OpenRocket, then upload it as a proposal. Co-Roc compares components, geometry, mass, materials and flight setups against the exact W version you downloaded.",
+    detail: "Every changed part requires an engineering rationale. The proposed file remains separate until an authorised lead reviews the component-level differences and approves or rejects the upload. Approval creates a new working update; it does not create a V release. If the working copy advanced in the meantime, Co-Roc blocks the push as a conflict and requires a fresh pull, rebase and proposal.",
+    target: "[data-tour='ork-sync-actions']",
+    module: "configuration",
+  },
+  {
     id: "record",
-    eyebrow: "05 · ENGINEERING RECORD",
+    eyebrow: "06 · ENGINEERING RECORD",
     title: "Design data and evidence sit beside the part",
     description: "Each component has design parameters, controlled drawings, test requirements and a team decision thread with author and working-version attribution.",
     detail: "Earlier drawing revisions are retained. Test evidence, inspection media and comments stay with the relevant part instead of disappearing into chat or shared-drive folders.",
@@ -72,7 +81,7 @@ const steps: TourStep[] = [
   },
   {
     id: "simulation",
-    eyebrow: "06 · OPENROCKET CORE",
+    eyebrow: "07 · OPENROCKET CORE",
     title: "Run and compare traceable flight cases",
     description: "Simulation cases use the working ORK and expose the OpenRocket launch inputs, warnings, flight profile and key outputs such as apogee, speed and acceleration.",
     detail: "A saved result records who ran it and which configuration it used. Editing a case does not create a release version; configuration control stays separate from analysis history.",
@@ -81,7 +90,7 @@ const steps: TourStep[] = [
   },
   {
     id: "versions",
-    eyebrow: "07 · CONFIGURATION CONTROL",
+    eyebrow: "08 · CONFIGURATION CONTROL",
     title: "Live work is not the same as a release",
     description: "Every incremental ORK save remains attributable, while formal V1, V2 and V3 baselines are created only through the release workflow.",
     detail: "Engineers can request a version from their current work. A lead reviews and approves it, and any released baseline can later be restored without erasing what happened after it.",
@@ -90,7 +99,7 @@ const steps: TourStep[] = [
   },
   {
     id: "tests",
-    eyebrow: "08 · VERIFICATION",
+    eyebrow: "09 · VERIFICATION",
     title: "See required and completed tests across the rocket",
     description: "The verification module gathers component-level test requirements into one feature tree, so open work can be reviewed by part and against the correct configuration.",
     detail: "Team leads issue measurable requirements; authorised engineers attach completion evidence. The record keeps the owner, outcome, time and working version together.",
@@ -99,7 +108,7 @@ const steps: TourStep[] = [
   },
   {
     id: "documents",
-    eyebrow: "09 · CONTROLLED DOCUMENTATION",
+    eyebrow: "10 · CONTROLLED DOCUMENTATION",
     title: "Find evidence through the vehicle structure",
     description: "Drawings, analyses, photographs and videos are arranged by component rather than presented as one undifferentiated file list.",
     detail: "That makes design reviews faster: select a vehicle feature, see its current controlled record, then inspect superseded revisions when the history matters.",
@@ -108,7 +117,7 @@ const steps: TourStep[] = [
   },
   {
     id: "checklists",
-    eyebrow: "10 · LAUNCH OPERATIONS",
+    eyebrow: "11 · LAUNCH OPERATIONS",
     title: "Build and release a launch checklist",
     description: "Authorised engineers draft phased assembly, arming and launch procedures using ORK parts or operational hardware that does not belong in the aerodynamic model. Drafts remain editable until they are submitted for release.",
     detail: "Role permissions control the workflow: engineers can prepare and revise steps, while only an authorised lead can approve and release the checklist against a vehicle baseline. Released procedures preserve warnings, hold points, witness sign-off and part references for read-only use or field printing.",
@@ -117,7 +126,7 @@ const steps: TourStep[] = [
   },
   {
     id: "finish",
-    eyebrow: "11 · YOUR WORKSPACE",
+    eyebrow: "12 · YOUR WORKSPACE",
     title: "You are ready to explore",
     description: "Use Settings to choose light, dark or system appearance and to replay this tour whenever you need it.",
     detail: "Start by selecting a component, opening a simulation case, or reviewing the launch checklist. Nothing you change in this demo is written to a team project.",

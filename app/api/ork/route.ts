@@ -111,71 +111,58 @@ export async function POST(request: Request) {
   }
 
   const existing = await workspaceRow(projectId);
-  const requestedBase = upload.baseVersion;
-  if (existing && requestedBase !== existing.version) {
-    return Response.json({ error: "The shared file changed before this import completed.", workspace: metadata(existing) }, { status: 409 });
+  if (existing) {
+    return Response.json({
+      error: "The live ORK cannot be replaced directly. Compare the edited file and submit it through the controlled ORK proposal workflow.",
+      workspace: metadata(existing),
+      proposalEndpoint: "/api/ork/proposals",
+    }, { status: 409 });
   }
+  const requestedBase = upload.baseVersion;
+  if (requestedBase !== 0) return Response.json({ error: "This project does not have a working ORK at that base version." }, { status: 409 });
 
   const bytes = await file.arrayBuffer();
   const sha256 = await sha256Hex(bytes);
-  const nextVersion = existing ? existing.version + 1 : 1;
+  const nextVersion = 1;
   const versionKey = `${projectId}/versions/v${nextVersion}-${crypto.randomUUID()}.ork`;
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
-  const originalKey = existing?.originalObjectKey ?? `${projectId}/original/${crypto.randomUUID()}-${safeName}`;
+  const originalKey = `${projectId}/original/${crypto.randomUUID()}-${safeName}`;
   const { FILES } = getOrkEnvironment();
-  const reservedBytes = file.size * (existing ? 1 : 2);
-  const reservedFiles = existing ? 1 : 2;
+  const reservedBytes = file.size * 2;
+  const reservedFiles = 2;
   if (!await reserveProjectStorage(projectId, reservedBytes, reservedFiles)) {
     return Response.json({ error: "This project has reached its 2 GB storage limit." }, { status: 413 });
   }
   try {
-    if (!existing) await FILES.put(originalKey, bytes, { httpMetadata: { contentType: "application/zip" } });
+    await FILES.put(originalKey, bytes, { httpMetadata: { contentType: "application/zip" } });
     await FILES.put(versionKey, bytes, { httpMetadata: { contentType: "application/zip" } });
   } catch {
     await FILES.delete(versionKey);
-    if (!existing) await FILES.delete(originalKey);
+    await FILES.delete(originalKey);
     await releaseProjectStorage(projectId, reservedBytes, reservedFiles);
     return Response.json({ error: "The .ork file could not be stored. No project data was changed." }, { status: 503 });
   }
 
   const db = getDb();
-  if (existing) {
-    const updated = await db.update(orkWorkspaces).set({
-      sourceName: file.name,
-      currentObjectKey: versionKey,
-      version: nextVersion,
-      sha256,
-      updatedByName: user.displayName,
-      updatedByEmail: user.email,
-      updatedAt: new Date().toISOString(),
-    }).where(and(eq(orkWorkspaces.projectId, projectId), eq(orkWorkspaces.version, existing.version))).returning();
-    if (!updated.length) {
-      await FILES.delete(versionKey);
-      await releaseProjectStorage(projectId, reservedBytes, reservedFiles);
-      const current = await workspaceRow(projectId);
-      return Response.json({ error: "The shared file changed during import.", workspace: current ? metadata(current) : null }, { status: 409 });
-    }
-  } else {
-    await db.insert(orkWorkspaces).values({
-      projectId,
-      sourceName: file.name,
-      originalObjectKey: originalKey,
-      currentObjectKey: versionKey,
-      version: nextVersion,
-      sha256,
-      updatedByName: user.displayName,
-      updatedByEmail: user.email,
-      updatedAt: new Date().toISOString(),
-    });
-  }
+  await db.insert(orkWorkspaces).values({
+    projectId,
+    sourceName: file.name,
+    originalObjectKey: originalKey,
+    currentObjectKey: versionKey,
+    version: nextVersion,
+    sha256,
+    updatedByName: user.displayName,
+    updatedByEmail: user.email,
+    updatedAt: new Date().toISOString(),
+  });
 
   await db.insert(orkChanges).values({
     projectId,
     version: nextVersion,
     componentId: "vehicle",
     componentCode: "ORK",
-    field: existing ? "file.replaced" : "file.imported",
-    previousValue: existing?.sourceName ?? "none",
+    field: "file.imported",
+    previousValue: "none",
     nextValue: file.name,
     authorName: user.displayName,
     authorEmail: user.email,

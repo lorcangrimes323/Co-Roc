@@ -5,7 +5,8 @@ import { RocketViewer, RocketViewerHandle } from "./rocket-viewer";
 import { RocketSectionHandle, RocketSectionView } from "./rocket-section-view";
 import { ProjectRecordWorkspace } from "./project-record-workspace";
 import { LaunchChecklistWorkspace } from "./launch-checklist-workspace";
-import { RevisionWorkspace, type ControlledRelease, type ReleaseRequest } from "./revision-workspace";
+import { RevisionWorkspace, type ControlledRelease, type OrkChangeProposal, type ReleaseRequest } from "./revision-workspace";
+import { OrkChangeProposalModal } from "./ork-change-proposal-modal";
 import { SimulationWorkspace, liveToSimulation, type LiveResult } from "./simulation-workspace";
 import { ThemeModeSelector, useThemePreference } from "./theme-preference";
 import { WorkspaceIcon } from "./workspace-icon";
@@ -18,6 +19,7 @@ import {
   encodeOpenRocketAsync,
   parseOpenRocket,
 } from "../lib/openrocket";
+import { compareOrkModels, type OrkModelComparison } from "../lib/ork-change-diff";
 import type { ActiveWorkspace, WorkspaceIdentity, WorkspaceTeam } from "./workspace-types";
 
 type ComponentStatus = "verified" | "review" | "draft";
@@ -25,6 +27,7 @@ type SaveState = "loading" | "saved" | "draft" | "saving" | "conflict" | "offlin
 type AnalysisState = "saved" | "stale" | "calculating" | "current" | "failed";
 type WorkspaceModule = GuidedDemoModule;
 type PaneSide = "tree" | "record";
+type OrkProposalDraft = { file: File; comparison: OrkModelComparison };
 
 const defaultPaneWidths = { tree: 280, record: 460 };
 const accentPresets = [
@@ -436,6 +439,9 @@ export function MissionControl({
   const [auditChanges, setAuditChanges] = useState<AuditChange[]>([]);
   const [controlledReleases, setControlledReleases] = useState<ControlledRelease[]>([]);
   const [releaseRequests, setReleaseRequests] = useState<ReleaseRequest[]>([]);
+  const [orkProposals, setOrkProposals] = useState<OrkChangeProposal[]>([]);
+  const [orkProposalDraft, setOrkProposalDraft] = useState<OrkProposalDraft | null>(null);
+  const [orkProposalSubmitting, setOrkProposalSubmitting] = useState(false);
   const [releaseNotes, setReleaseNotes] = useState("");
   const [lastSavedBy, setLastSavedBy] = useState<string>("");
   const [conflictMessage, setConflictMessage] = useState("");
@@ -462,6 +468,7 @@ export function MissionControl({
   const visibleMembers = workspace.team.members.slice(0, 3);
   const latestRelease = controlledReleases[0] ?? null;
   const pendingRelease = releaseRequests.find((request) => request.status === "pending") ?? null;
+  const pendingOrkProposals = orkProposals.filter((proposal) => proposal.status === "pending");
 
   useEffect(() => {
     try {
@@ -647,12 +654,19 @@ export function MissionControl({
   async function refreshHistory() {
     if (mode !== "live") return;
     try {
-      const response = await fetch("/api/ork/history", { headers: collaborationHeaders(), cache: "no-store" });
+      const [response, proposalResponse] = await Promise.all([
+        fetch("/api/ork/history", { headers: collaborationHeaders(), cache: "no-store" }),
+        fetch("/api/ork/proposals", { headers: collaborationHeaders(), cache: "no-store" }),
+      ]);
       if (!response.ok) return;
       const payload = await response.json() as { changes?: AuditChange[]; releases?: ControlledRelease[]; requests?: ReleaseRequest[] };
       setAuditChanges(payload.changes ?? []);
       setControlledReleases(payload.releases ?? []);
       setReleaseRequests(payload.requests ?? []);
+      if (proposalResponse.ok) {
+        const proposalPayload = await proposalResponse.json() as { proposals?: OrkChangeProposal[] };
+        setOrkProposals(proposalPayload.proposals ?? []);
+      }
     } catch { /* live history is non-blocking */ }
   }
 
@@ -739,6 +753,7 @@ export function MissionControl({
     setAuditChanges([]);
     setControlledReleases([]);
     setReleaseRequests([]);
+    setOrkProposals([]);
     async function openWorkspace() {
       try {
         if (mode === "demo") {
@@ -1000,6 +1015,16 @@ export function MissionControl({
         setNotice(`${file.name} loaded locally; demo data is not saved`);
         return;
       }
+      if (orkModelRef.current && (workspaceVersionRef.current ?? 0) > 0) {
+        const comparison = compareOrkModels(orkModelRef.current, model);
+        if (!comparison.changedComponents) {
+          setNotice(`${file.name} contains no engineering changes compared with W${workspaceVersionRef.current}`);
+          return;
+        }
+        setOrkProposalDraft({ file, comparison });
+        setNotice(`${comparison.changedComponents} changed record${comparison.changedComponents === 1 ? "" : "s"} detected; rationale required before submission`);
+        return;
+      }
       const headers = new Headers(collaborationHeaders());
       headers.set("content-type", "application/vnd.co-roc.ork");
       headers.set("x-co-roc-file-name", encodeURIComponent(file.name));
@@ -1024,6 +1049,77 @@ export function MissionControl({
       setNotice(error instanceof Error ? error.message : "The OpenRocket file could not be read");
     } finally {
       event.target.value = "";
+    }
+  }
+
+  async function submitOrkProposal(summary: string, rationales: Record<string, string>) {
+    if (!orkProposalDraft || workspaceVersionRef.current === null) return;
+    setOrkProposalSubmitting(true);
+    try {
+      const form = new FormData();
+      form.set("file", orkProposalDraft.file);
+      form.set("baseVersion", String(workspaceVersionRef.current));
+      form.set("summary", summary);
+      form.set("items", JSON.stringify(orkProposalDraft.comparison.components.map((component) => ({ ...component, rationale: rationales[component.componentId] ?? "" }))));
+      const response = await fetch("/api/ork/proposals", { method: "POST", headers: collaborationHeaders(), body: form });
+      const payload = await responsePayload<{ proposalId?: string; proposals?: OrkChangeProposal[]; currentVersion?: number }>(response);
+      if (!response.ok) {
+        if (response.status === 409 && payload.currentVersion) {
+          setConflictMessage(payload.error || "The shared ORK changed while this proposal was being prepared.");
+          setSaveState("conflict");
+        }
+        throw new Error(payload.error || "The ORK change proposal could not be submitted");
+      }
+      setOrkProposals(payload.proposals ?? []);
+      setOrkProposalDraft(null);
+      setWorkspaceModule("history");
+      setNotice(`ORK change proposal submitted against W${workspaceVersionRef.current}; the live file is unchanged`);
+      await refreshHistory();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "The ORK change proposal could not be submitted");
+    } finally {
+      setOrkProposalSubmitting(false);
+    }
+  }
+
+  async function reviewOrkProposal(action: "approve" | "reject", proposalId: string, reviewNotes: string) {
+    try {
+      const response = await fetch("/api/ork/proposals", {
+        method: "PUT",
+        headers: { "content-type": "application/json", ...collaborationHeaders() },
+        body: JSON.stringify({ action, proposalId, reviewNotes }),
+      });
+      const payload = await responsePayload<{ appliedVersion?: number; proposals?: OrkChangeProposal[]; currentVersion?: number }>(response);
+      if (!response.ok) {
+        if (payload.proposals) setOrkProposals(payload.proposals);
+        throw new Error(payload.error || "The ORK proposal review could not be completed");
+      }
+      setOrkProposals(payload.proposals ?? []);
+      if (action === "approve") {
+        await reloadSharedOrk();
+        setNotice(`Approved ORK proposal applied as working update W${payload.appliedVersion ?? "—"}; it can now enter the release workflow`);
+      } else {
+        setNotice("ORK proposal rejected; the authoritative working file was not changed");
+        await refreshHistory();
+      }
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "The ORK proposal review could not be completed");
+    }
+  }
+
+  async function downloadProposedOrk(proposal: OrkChangeProposal) {
+    try {
+      const response = await fetch(`/api/ork/proposals?proposalId=${encodeURIComponent(proposal.id)}&download=1`, { headers: collaborationHeaders(), cache: "no-store" });
+      if (!response.ok) throw new Error("The proposed ORK is unavailable");
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = proposal.sourceName;
+      link.click();
+      URL.revokeObjectURL(url);
+      setNotice(`Downloaded proposed file ${proposal.sourceName}`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "The proposed ORK could not be downloaded");
     }
   }
 
@@ -1306,12 +1402,13 @@ export function MissionControl({
           <div className="workspace-title-row">
             <h1>{orkModel?.name || workspace.project.name}</h1>
             <span className="revision-badge"><span /> {mode === "demo" ? "DEMO · LOCAL" : latestRelease ? `WORKING COPY · BASELINE V${latestRelease.releaseNumber}` : "WORKING COPY · UNRELEASED"}</span>
+            {pendingOrkProposals.length > 0 && <button className="proposal-review-link" type="button" onClick={() => setWorkspaceModule("history")}><span>{pendingOrkProposals.length}</span> ORK proposal{pendingOrkProposals.length === 1 ? "" : "s"} awaiting review</button>}
           </div>
         </div>
-        {workspaceModule === "configuration" && <div className="workspace-actions">
+        {workspaceModule === "configuration" && <div className="workspace-actions" data-tour="ork-sync-actions">
           <input ref={fileInput} className="visually-hidden" type="file" accept=".ork" onChange={importOrk} />
-          <button className="button button-secondary" type="button" onClick={() => fileInput.current?.click()} disabled={!can("editOrk")}>
-            <span>⇧</span> Import .ORK
+          <button className="button button-secondary" type="button" onClick={() => fileInput.current?.click()} disabled={!can("editOrk")} title={workspaceVersion ? "Compare an edited OpenRocket file and submit it for review" : "Import the first OpenRocket file"}>
+            <span>⇧</span> {workspaceVersion ? "Propose .ORK changes" : "Import .ORK"}
           </button>
           <button className="button button-secondary" type="button" onClick={downloadWorkingOrk} disabled={workspaceVersion === null}>
             <span>↓</span> Download .ORK
@@ -1580,7 +1677,7 @@ export function MissionControl({
       </div>}
 
       {workspaceModule === "simulation" && <SimulationWorkspace key={`${workspace.project.id}:${workspaceVersion ?? "none"}`} model={orkModel} mode={mode} workspaceVersion={workspaceVersion} headers={collaborationHeaders} canRun={can("editOrk") && (mode === "demo" || saveState === "saved")} runBlockedReason={!can("editOrk") ? "Your team role cannot edit or calculate this configuration." : saveState === "offline" ? "The simulation setup has not reached the shared file. Co-Roc will retry automatically when the connection recovers." : saveState === "conflict" ? "A teammate saved another version first. Resolve the shared-file conflict before calculating." : saveState !== "saved" ? "The simulation setup is still being written to the shared ORK." : undefined} onNotice={setNotice} onModelChange={updateSimulationModel} themeKey={resolvedTheme} />}
-      {workspaceModule === "history" && <RevisionWorkspace changes={auditChanges} releases={controlledReleases} requests={releaseRequests} canApprove={can("approveRelease")} onOpenComponent={(componentId) => openComponentWorkspace(componentId)} onReleaseAction={handleReleaseAction} />}
+      {workspaceModule === "history" && <RevisionWorkspace changes={auditChanges} releases={controlledReleases} requests={releaseRequests} proposals={orkProposals} canApprove={can("approveRelease")} canReviewOrk={can("reviewOrkChange")} onOpenComponent={(componentId) => openComponentWorkspace(componentId)} onReleaseAction={handleReleaseAction} onProposalAction={reviewOrkProposal} onDownloadProposal={downloadProposedOrk} />}
       {(workspaceModule === "tests" || workspaceModule === "documents") && <ProjectRecordWorkspace kind={workspaceModule} components={components} headers={collaborationHeaders} projectId={workspace.project.id} onSelectComponent={(componentId, panel) => openComponentWorkspace(componentId, panel)} onNotice={setNotice} />}
       {workspaceModule === "checklists" && <LaunchChecklistWorkspace parts={components.map(({ id, code, name, type }) => ({ id, code, name, type }))} releases={controlledReleases.map(({ releaseNumber, title }) => ({ releaseNumber, title }))} mode={mode} headers={collaborationHeaders} canEdit={can("editChecklist")} canRelease={can("releaseChecklist")} onNotice={setNotice} />}
 
@@ -1604,6 +1701,8 @@ export function MissionControl({
 
       {saveState === "conflict" && <div className="conflict-banner"><span><strong>Live save paused.</strong> {conflictMessage || "A teammate saved a newer working copy."}</span><button type="button" onClick={reloadSharedOrk}>Reload shared file</button></div>}
 
+      {orkProposalDraft && <OrkChangeProposalModal fileName={orkProposalDraft.file.name} baseVersion={workspaceVersion ?? 0} comparison={orkProposalDraft.comparison} submitting={orkProposalSubmitting} onCancel={() => !orkProposalSubmitting && setOrkProposalDraft(null)} onSubmit={submitOrkProposal} />}
+
       <footer className="statusbar">
         <div className="status-message"><span className="pulse-dot" />{notice}</div>
         <div className="statusbar-right">
@@ -1624,6 +1723,7 @@ export function MissionControl({
             <div className="change-preview">
               <span>W{workspaceVersion ?? "—"}</span><p><strong>{orkModel?.name || workspace.project.name}</strong><small>Saved ORK, simulations and linked records at submission time</small></p><em>PINNED</em>
             </div>
+            {pendingOrkProposals.length > 0 && <div className="release-proposal-warning"><strong>{pendingOrkProposals.length} ORK proposal{pendingOrkProposals.length === 1 ? " is" : "s are"} still pending.</strong><span>They are not part of W{workspaceVersion ?? "—"} and will not be included in this release. Approve them first only if their changes belong in the baseline.</span></div>}
             <div className="modal-actions">
               <button className="button button-secondary" type="button" onClick={() => setRevisionOpen(false)}>Cancel</button>
               <button className="button button-primary" type="button" onClick={submitVersion}>{can("approveRelease") ? `Create V${(latestRelease?.releaseNumber ?? 0) + 1}` : "Send approval request"}</button>

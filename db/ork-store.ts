@@ -37,6 +37,48 @@ export async function ensureOrkSchema() {
       ON ork_changes (project_id, version, component_id, field)`),
     DB.prepare(`CREATE INDEX IF NOT EXISTS ork_changes_project_id_idx
       ON ork_changes (project_id, id)`),
+    DB.prepare(`CREATE TABLE IF NOT EXISTS ork_change_proposals (
+      id TEXT PRIMARY KEY NOT NULL,
+      project_id TEXT NOT NULL,
+      base_version INTEGER NOT NULL,
+      source_name TEXT NOT NULL,
+      object_key TEXT NOT NULL UNIQUE,
+      sha256 TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      summary TEXT NOT NULL,
+      status TEXT DEFAULT 'pending' NOT NULL,
+      changed_components INTEGER NOT NULL,
+      geometry_changes INTEGER DEFAULT 0 NOT NULL,
+      submitted_by_name TEXT NOT NULL,
+      submitted_by_email TEXT NOT NULL,
+      submitted_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL,
+      reviewed_by_name TEXT,
+      reviewed_by_email TEXT,
+      reviewed_at TEXT,
+      review_notes TEXT,
+      applied_version INTEGER
+    )`),
+    DB.prepare(`CREATE INDEX IF NOT EXISTS ork_change_proposals_project_idx
+      ON ork_change_proposals (project_id, submitted_at)`),
+    DB.prepare(`CREATE INDEX IF NOT EXISTS ork_change_proposals_status_idx
+      ON ork_change_proposals (project_id, status)`),
+    DB.prepare(`CREATE TABLE IF NOT EXISTS ork_change_proposal_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+      proposal_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
+      component_id TEXT NOT NULL,
+      component_code TEXT NOT NULL,
+      component_name TEXT NOT NULL,
+      component_kind TEXT NOT NULL,
+      change_type TEXT NOT NULL,
+      geometry_changed INTEGER DEFAULT 0 NOT NULL,
+      changes_json TEXT NOT NULL,
+      rationale TEXT NOT NULL
+    )`),
+    DB.prepare(`CREATE INDEX IF NOT EXISTS ork_change_proposal_items_proposal_idx
+      ON ork_change_proposal_items (proposal_id, id)`),
+    DB.prepare(`CREATE INDEX IF NOT EXISTS ork_change_proposal_items_component_idx
+      ON ork_change_proposal_items (project_id, component_id)`),
     DB.prepare(`CREATE TABLE IF NOT EXISTS ork_snapshots (
       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
       project_id TEXT NOT NULL,

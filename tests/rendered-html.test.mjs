@@ -103,7 +103,7 @@ test("enforces team roles and keeps projects isolated", async () => {
     source("app/workspace-app.tsx"),
   ]);
 
-  assert.match(accessStore, /lead: \["view", "editOrk", "uploadEvidence", "createTest"/);
+  assert.match(accessStore, /lead: \["view", "editOrk", "reviewOrkChange", "uploadEvidence", "createTest"/);
   assert.match(accessStore, /engineer: \["view", "editOrk", "uploadEvidence", "completeTest"/);
   assert.match(accessStore, /viewer: \["view"\]/);
   assert.match(accessStore, /engineer: \[[^\]]+"requestRelease"/);
@@ -269,12 +269,53 @@ test("provides a paced first-run guided demo across the engineering workflow", a
   assert.match(tour, /Run and compare traceable flight cases/);
   assert.match(tour, /Live work is not the same as a release/);
   assert.match(tour, /Build and release a launch checklist/);
+  assert.match(tour, /CONTROLLED ORK PUSH \/ PULL/);
+  assert.match(tour, /Every changed part requires an engineering rationale/);
   assert.match(tour, /scrollIntoView/);
   assert.match(tour, /prefers-reduced-motion/);
   assert.match(tour, /ArrowRight/);
   assert.match(css, /\.guided-tour-spotlight/);
   assert.match(css, /transition: left \.72s/);
   assert.match(css, /@media \(max-width: 720px\)/);
+});
+
+test("reviews externally edited ORK files before promoting them to the working copy", async () => {
+  const [missionControl, proposalModal, revisionWorkspace, proposalRoute, directOrkRoute, diff, schema, access, tour] = await Promise.all([
+    source("app/mission-control.tsx"),
+    source("app/ork-change-proposal-modal.tsx"),
+    source("app/revision-workspace.tsx"),
+    source("app/api/ork/proposals/route.ts"),
+    source("app/api/ork/route.ts"),
+    source("lib/ork-change-diff.ts"),
+    source("db/schema.ts"),
+    source("db/access-store.ts"),
+    source("app/guided-demo-tour.tsx"),
+  ]);
+
+  assert.match(missionControl, /compareOrkModels/);
+  assert.match(missionControl, /setOrkProposalDraft/);
+  assert.match(missionControl, /Propose \.ORK changes/);
+  assert.match(missionControl, /pendingOrkProposals/);
+  assert.match(proposalModal, /The live ORK has not changed/);
+  assert.match(proposalModal, /ENGINEERING RATIONALE · REQUIRED/);
+  assert.match(proposalModal, /Submit for lead review/);
+  assert.match(revisionWorkspace, /Approve into working ORK/);
+  assert.match(revisionWorkspace, /Download proposed \.ORK/);
+  assert.match(revisionWorkspace, /fresh pull, rebase and proposal|download the current file/i);
+  assert.match(proposalRoute, /requireProjectAccess\(request, "editOrk"\)/);
+  assert.match(proposalRoute, /requireProjectAccess\(request, "reviewOrkChange"\)/);
+  assert.match(proposalRoute, /workspace\.version !== proposal\.baseVersion/);
+  assert.match(proposalRoute, /status = 'conflict'/);
+  assert.match(proposalRoute, /appliedVersion: nextVersion/);
+  assert.match(directOrkRoute, /The live ORK cannot be replaced directly/);
+  assert.match(directOrkRoute, /proposalEndpoint: "\/api\/ork\/proposals"/);
+  assert.match(diff, /geometryChanges/);
+  assert.match(diff, /wall thickness/i);
+  assert.match(diff, /compareSimulation/);
+  assert.match(schema, /ork_change_proposals/);
+  assert.match(schema, /ork_change_proposal_items/);
+  assert.match(access, /reviewOrkChange/);
+  assert.match(tour, /Approval creates a new working update; it does not create a V release/);
 });
 
 test("provides controlled launch checklists with part references and printable sign-offs", async () => {

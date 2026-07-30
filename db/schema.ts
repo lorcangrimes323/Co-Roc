@@ -169,6 +169,48 @@ export const orkChanges = sqliteTable("ork_changes", {
   index("ork_changes_project_id_idx").on(table.projectId, table.id),
 ]);
 
+export const orkChangeProposals = sqliteTable("ork_change_proposals", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id").notNull(),
+  baseVersion: integer("base_version").notNull(),
+  sourceName: text("source_name").notNull(),
+  objectKey: text("object_key").notNull().unique(),
+  sha256: text("sha256").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  summary: text("summary").notNull(),
+  status: text("status").notNull().default("pending"),
+  changedComponents: integer("changed_components").notNull(),
+  geometryChanges: integer("geometry_changes").notNull().default(0),
+  submittedByName: text("submitted_by_name").notNull(),
+  submittedByEmail: text("submitted_by_email").notNull(),
+  submittedAt: text("submitted_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  reviewedByName: text("reviewed_by_name"),
+  reviewedByEmail: text("reviewed_by_email"),
+  reviewedAt: text("reviewed_at"),
+  reviewNotes: text("review_notes"),
+  appliedVersion: integer("applied_version"),
+}, (table) => [
+  index("ork_change_proposals_project_idx").on(table.projectId, table.submittedAt),
+  index("ork_change_proposals_status_idx").on(table.projectId, table.status),
+]);
+
+export const orkChangeProposalItems = sqliteTable("ork_change_proposal_items", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  proposalId: text("proposal_id").notNull(),
+  projectId: text("project_id").notNull(),
+  componentId: text("component_id").notNull(),
+  componentCode: text("component_code").notNull(),
+  componentName: text("component_name").notNull(),
+  componentKind: text("component_kind").notNull(),
+  changeType: text("change_type").notNull(),
+  geometryChanged: integer("geometry_changed", { mode: "boolean" }).notNull().default(false),
+  changesJson: text("changes_json").notNull(),
+  rationale: text("rationale").notNull(),
+}, (table) => [
+  index("ork_change_proposal_items_proposal_idx").on(table.proposalId, table.id),
+  index("ork_change_proposal_items_component_idx").on(table.projectId, table.componentId),
+]);
+
 export const orkSnapshots = sqliteTable("ork_snapshots", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   projectId: text("project_id").notNull(),
