@@ -20,7 +20,7 @@ test("presents the complete Co-Roc workflow on a restrained landing page", async
     source("app/page.tsx"),
     source("app/layout.tsx"),
   ]);
-  assert.match(portal, /One working rocket/);
+  assert.match(portal, /Configuration control for launch teams/);
   assert.match(portal, /Review changes before they land/);
   assert.match(portal, /Run traceable simulations/);
   assert.match(portal, /Keep the record with the part/);
@@ -29,7 +29,8 @@ test("presents the complete Co-Roc workflow on a restrained landing page", async
   assert.match(portal, /tag the teammate who needs to act/);
   assert.match(portal, /hold points, approvals, sign-offs/);
   assert.match(styles, /\.account-capabilities ol/);
-  assert.match(styles, /\.account-panel \{ position: sticky/);
+  assert.match(styles, /grid-template-areas: "hero access" "workflow workflow"/);
+  assert.match(styles, /\.account-panel \{ grid-area: access/);
   assert.match(styles, /@media \(max-width: 700px\)/);
   assert.match(page, /Co-Roc — Launch vehicle configuration control/);
   assert.match(layout, /default: "Co-Roc"/);
@@ -177,7 +178,7 @@ test("uses site accounts, separates demo data and recovers local drafts", async 
   assert.match(portal, /\/api\/auth/);
   assert.doesNotMatch(portal, /QPL|LOCAL ROLE CHECK/);
   const styles = await source("app/globals.css");
-  assert.match(styles, /\.access-page \{ min-height: 100vh; min-height: 100dvh;/);
+  assert.match(styles, /\.access-page \{[^}]*height: 100vh; height: 100dvh; min-height: 0;/);
   assert.match(styles, /overflow-y: auto/);
   assert.match(styles, /@media \(max-height: 760px\)/);
   assert.match(styles, /@media \(max-width: 420px\)/);

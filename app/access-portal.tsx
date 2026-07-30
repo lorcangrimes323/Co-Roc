@@ -42,7 +42,7 @@ export function AccessPortal() {
   return (
     <main className="access-page">
       <header className="account-header">
-        <div className="account-wordmark"><span>CO</span><div><strong>Co-Roc</strong><small>Configuration control</small></div></div>
+        <div className="account-wordmark"><strong>Co-Roc</strong><small>Launch vehicle configuration control</small></div>
         <nav className="account-header-actions" aria-label="Account actions">
           <Link href="/demo?tour=1">Guided demo</Link>
           <button type="button" onClick={() => chooseMode("signin")}>Sign in</button>
@@ -52,18 +52,13 @@ export function AccessPortal() {
       <section className="account-main">
         <div className="account-context">
           <section className="account-hero">
-            <span className="account-section-label">CO-ROC / ENGINEERING WORKSPACE</span>
-            <h1>One working rocket.<br />Every change accounted for.</h1>
-            <p>Keep the OpenRocket model, component evidence, simulation results and launch procedures in one controlled team workspace.</p>
+            <span className="account-section-label">OPENROCKET ENGINEERING WORKSPACE</span>
+            <h1>Configuration control for launch teams.</h1>
+            <p>Review changes to the working ORK, attach evidence to parts, approve releases, run simulations and prepare launch checklists.</p>
             <div className="account-hero-actions">
-              <Link className="account-primary-link" href="/demo?tour=1">Explore the guided demo <span aria-hidden="true">→</span></Link>
-              <a href="#capabilities">See the workflow</a>
+              <Link className="account-primary-link" href="/demo?tour=1">Open the guided demo <span aria-hidden="true">→</span></Link>
+              <a href="#capabilities">Review the workflow</a>
             </div>
-            <ul className="account-standards" aria-label="Product principles">
-              <li><span>01</span>OpenRocket compatible</li>
-              <li><span>02</span>Role-controlled</li>
-              <li><span>03</span>Release traceable</li>
-            </ul>
           </section>
         </div>
 
