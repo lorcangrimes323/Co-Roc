@@ -1914,6 +1914,14 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .generated-code { align-items: flex-start; flex-direction: column; }
 }
 
+/* Keep responsive overrides from reducing operational text below the legible floor. */
+@media screen {
+  .avatar,
+  .user-name small,
+  .proposal-review-link span,
+  .analysis-state small { font-size: 10px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
