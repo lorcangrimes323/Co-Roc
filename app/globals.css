@@ -961,8 +961,9 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .accent-picker { height: 39px; display: flex; align-items: center; gap: 10px; margin-top: 8px; border: 1px solid var(--line-strong); background: var(--ink-2); padding: 5px 10px 5px 5px; }
 .accent-picker input { width: 34px; height: 27px; padding: 0; border: 0; background: transparent; cursor: pointer; }
 .accent-picker code { color: var(--text); font: 11px var(--font-geist-mono); }
-.accent-presets { display: flex; gap: 7px; margin-top: 9px; }
-.accent-presets button { width: 25px; height: 25px; border: 2px solid var(--panel); outline: 1px solid var(--line-strong); cursor: pointer; }
+.accent-presets { display: grid; grid-template-columns: repeat(8, 25px); gap: 8px; margin-top: 11px; }
+.accent-presets button { width: 25px; height: 25px; border: 2px solid var(--panel); outline: 1px solid var(--line-strong); cursor: pointer; transition: transform .14s ease, outline-color .14s ease; }
+.accent-presets button:hover { transform: translateY(-2px); outline-color: var(--text); }
 .accent-presets button[aria-pressed="true"] { outline: 2px solid var(--text); outline-offset: 2px; }
 .theme-panel > p { margin: 15px 0 0; color: var(--faint); font-size: 10px; }
 .replay-tour-button { width: 100%; min-height: 54px; margin-top: 16px; display: grid; grid-template-columns: 30px 1fr; align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid var(--line-strong); background: var(--panel); color: var(--text); text-align: left; cursor: pointer; }

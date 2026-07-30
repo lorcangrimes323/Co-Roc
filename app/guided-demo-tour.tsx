@@ -165,9 +165,10 @@ function cardPosition(rect: TourRect | null): CSSProperties {
   return { left: clamp(left, 16, viewportWidth - width - 16), top: clamp(top, 16, viewportHeight - height - 16) };
 }
 
-export function GuidedDemoTour({ currentModule, onModuleChange, onClose }: {
+export function GuidedDemoTour({ currentModule, onModuleChange, onStepChange, onClose }: {
   currentModule: GuidedDemoModule;
   onModuleChange: (module: GuidedDemoModule) => void;
+  onStepChange?: (stepId: string) => void;
   onClose: (completed: boolean) => void;
 }) {
   const [stepIndex, setStepIndex] = useState(0);
@@ -175,11 +176,15 @@ export function GuidedDemoTour({ currentModule, onModuleChange, onClose }: {
   const [settled, setSettled] = useState(false);
   const cardRef = useRef<HTMLElement>(null);
   const moduleChangeRef = useRef(onModuleChange);
+  const stepChangeRef = useRef(onStepChange);
   const step = steps[stepIndex];
   const progress = ((stepIndex + 1) / steps.length) * 100;
   const position = typeof window === "undefined" ? {} : cardPosition(spotlight);
 
   useEffect(() => { moduleChangeRef.current = onModuleChange; }, [onModuleChange]);
+  useEffect(() => { stepChangeRef.current = onStepChange; }, [onStepChange]);
+
+  useEffect(() => { stepChangeRef.current?.(step.id); }, [step.id]);
 
   useEffect(() => {
     if (step.module && step.module !== currentModule) moduleChangeRef.current(step.module);

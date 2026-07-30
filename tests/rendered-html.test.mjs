@@ -234,6 +234,9 @@ test("provides a persistent, accessible dark mode across account and engineering
   assert.match(missionControl, /resolvedTheme/);
   assert.match(missionControl, /Workspace settings/);
   assert.match(missionControl, /ThemeModeSelector/);
+  assert.match(missionControl, /Engineering blue/);
+  assert.match(missionControl, /Verification green/);
+  assert.match(missionControl, /Magenta/);
   assert.match(missionControl, /--user-accent/);
   assert.match(sectionView, /darkTheme/);
   assert.match(viewer, /themeKey === "dark"/);
@@ -256,6 +259,9 @@ test("provides a paced first-run guided demo across the engineering workflow", a
   assert.match(portal, /\/demo\?tour=1/);
   assert.match(missionControl, /co-roc:guided-demo-v1/);
   assert.match(missionControl, /Replay guided demo/);
+  assert.match(missionControl, /const tourComponent = components\.find/);
+  assert.match(missionControl, /setSelectedId\(tourComponent\.id\)/);
+  assert.match(missionControl, /setActivePanel\("properties"\)/);
   assert.match(missionControl, /data-tour="component-tree"/);
   assert.match(missionControl, /data-tour="rocket-viewport"/);
   assert.match(missionControl, /data-tour="engineering-record"/);

@@ -27,6 +27,16 @@ type WorkspaceModule = GuidedDemoModule;
 type PaneSide = "tree" | "record";
 
 const defaultPaneWidths = { tree: 280, record: 460 };
+const accentPresets = [
+  { name: "Signal red", value: "#c92335" },
+  { name: "Safety orange", value: "#c2410c" },
+  { name: "Amber", value: "#b45309" },
+  { name: "Verification green", value: "#15803d" },
+  { name: "Technical cyan", value: "#0f766e" },
+  { name: "Engineering blue", value: "#2563eb" },
+  { name: "Violet", value: "#7c3aed" },
+  { name: "Magenta", value: "#be185d" },
+];
 
 function displayAccent(accent: string, dark: boolean) {
   if (!dark) return accent;
@@ -1283,7 +1293,7 @@ export function MissionControl({
           <label htmlFor="accent-colour">ACCENT COLOUR</label>
           <div className="accent-picker"><input id="accent-colour" type="color" value={accent} onChange={(event) => setAccent(event.target.value)} /><code>{accent.toUpperCase()}</code></div>
           <div className="accent-presets" aria-label="Accent presets">
-            {["#c92335", "#e5484d", "#b42318", "#6d2633"].map((colour) => <button key={colour} type="button" aria-label={`Use ${colour}`} aria-pressed={accent.toLowerCase() === colour} style={{ backgroundColor: colour }} onClick={() => setAccent(colour)} />)}
+            {accentPresets.map(({ name, value }) => <button key={value} type="button" title={name} aria-label={`Use ${name} accent`} aria-pressed={accent.toLowerCase() === value} style={{ backgroundColor: value }} onClick={() => setAccent(value)} />)}
           </div>
           {mode === "demo" && <button className="replay-tour-button" type="button" onClick={startGuidedTour}><span>▶</span><div><strong>Replay guided demo</strong><small>Walk through the engineering workflow</small></div></button>}
           <p>Theme choices are stored in this browser.</p>
@@ -1580,6 +1590,14 @@ export function MissionControl({
           setSettingsOpen(false);
           setWorkspaceModule(module);
           if (module === "history") void refreshHistory();
+        }}
+        onStepChange={(stepId) => {
+          if (stepId !== "record") return;
+          const tourComponent = components.find((component) => component.depth > 0 && /body tube/i.test(component.type))
+            ?? components.find((component) => component.depth > 0)
+            ?? components[0];
+          if (tourComponent) setSelectedId(tourComponent.id);
+          setActivePanel("properties");
         }}
         onClose={closeGuidedTour}
       />}
