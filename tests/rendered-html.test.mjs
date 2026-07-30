@@ -34,6 +34,25 @@ test("ships five deterministic native SVG logo concepts", async () => {
   }
 });
 
+test("ships three deterministic Orbit Datum refinements", async () => {
+  const names = [
+    "co-roc-orbit-a-axial.svg",
+    "co-roc-orbit-b-concentric.svg",
+    "co-roc-orbit-c-datum-node.svg",
+  ];
+  const [refinements, comparison] = await Promise.all([
+    Promise.all(names.map((name) => source(`public/brand/orbit-refinements/${name}`))),
+    source("public/brand/orbit-refinements/index.html"),
+  ]);
+
+  for (const [index, svg] of refinements.entries()) {
+    assert.match(svg, /<svg[^>]+width="600"[^>]+height="160"[^>]+viewBox="0 0 600 160"/);
+    assert.match(svg, /Co-Roc Orbit Datum refinement/);
+    assert.doesNotMatch(svg, /<(?:image|foreignObject)\b|data:image|<filter\b|Gradient\b/i);
+    assert.match(comparison, new RegExp(names[index].replaceAll(".", "\\.")));
+  }
+});
+
 test("presents the complete Co-Roc workflow on a restrained landing page", async () => {
   const [portal, styles, page, layout] = await Promise.all([
     source("app/access-portal.tsx"),
