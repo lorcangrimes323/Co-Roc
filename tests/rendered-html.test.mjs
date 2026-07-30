@@ -8,6 +8,11 @@ async function source(path) {
   return readFile(new URL(path, root), "utf8");
 }
 
+test("allows controlled multipart uploads through the public domains", async () => {
+  const config = await source("next.config.ts");
+  assert.match(config, /allowedOrigins:\s*\["co-roc\.com",\s*"www\.co-roc\.com"\]/);
+});
+
 test("keeps OpenRocket geometry and live edits traceable", async () => {
   const [missionControl, styles, openRocket, orkRoute, simulationRoute, simulationWorkspace, solver, schema] = await Promise.all([
     source("app/mission-control.tsx"),
