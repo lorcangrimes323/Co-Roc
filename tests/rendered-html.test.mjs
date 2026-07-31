@@ -492,3 +492,20 @@ test("provides controlled launch checklists with part references and printable s
   assert.match(css, /\.checklist-print-sheet \{ display: block !important;/);
   assert.match(css, /@media print/);
 });
+
+test("populates the public demo with credible engineering records", async () => {
+  const [missionControl, projectRecords] = await Promise.all([
+    source("app/mission-control.tsx"),
+    source("app/project-record-workspace.tsx"),
+  ]);
+
+  assert.match(missionControl, /demoAuditChanges/);
+  assert.match(missionControl, /demoControlledReleases/);
+  assert.match(missionControl, /Flight configuration release/);
+  assert.match(missionControl, /setWorkspaceVersion\(8\)/);
+  assert.match(projectRecords, /Aft airframe manufacturing drawing/);
+  assert.match(projectRecords, /Composite laminate substantiation/);
+  assert.match(projectRecords, /Fin assembly proof load/);
+  assert.match(projectRecords, /Radio range and telemetry continuity/);
+  assert.match(projectRecords, /mode === "demo"/);
+});

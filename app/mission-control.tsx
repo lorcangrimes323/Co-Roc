@@ -116,6 +116,23 @@ type EngineeringComment = {
   createdAt: string;
 };
 
+const demoAuditChanges: AuditChange[] = [
+  { id: 801, version: 8, componentId: "finset", componentCode: "FIN-001", field: "root chord", previousValue: "305 mm", nextValue: "318 mm", authorName: "Maya Chen", authorEmail: "maya@demo.co-roc", createdAt: "2026-07-30T14:18:00Z" },
+  { id: 802, version: 8, componentId: "finset", componentCode: "FIN-001", field: "material", previousValue: "G10", nextValue: "Quasi-isotropic CFRP", authorName: "Maya Chen", authorEmail: "maya@demo.co-roc", createdAt: "2026-07-30T14:18:00Z" },
+  { id: 803, version: 7, componentId: "airframe", componentCode: "BT-003", field: "wall thickness", previousValue: "1.6 mm", nextValue: "1.8 mm", authorName: "Lorcan Grimes", authorEmail: "lorcan@demo.co-roc", createdAt: "2026-07-28T10:42:00Z" },
+  { id: 804, version: 6, componentId: "avionics", componentCode: "TC-001", field: "mass", previousValue: "1.124 kg", nextValue: "1.182 kg", authorName: "Oscar Reid", authorEmail: "oscar@demo.co-roc", createdAt: "2026-07-25T16:05:00Z" },
+  { id: 805, version: 5, componentId: "nose", componentCode: "NC-001", field: "length", previousValue: "247 mm", nextValue: "250 mm", authorName: "Maya Chen", authorEmail: "maya@demo.co-roc", createdAt: "2026-07-22T09:30:00Z" },
+];
+
+const demoControlledReleases: ControlledRelease[] = [
+  { id: 42, releaseNumber: 2, workingVersion: 6, title: "L4C integrated vehicle baseline", notes: "Released geometry, avionics mass properties and recovery configuration for system-level verification.", sha256: "8424ac72c69ff8b5f53152ac894e6cf5b9cc6ab3caf4a2cb137c3a294529c911", createdByName: "Lorcan Grimes", createdByEmail: "lorcan@demo.co-roc", createdAt: "2026-07-26T17:20:00Z" },
+  { id: 31, releaseNumber: 1, workingVersion: 3, title: "L4C preliminary design baseline", notes: "Initial controlled airframe and recovery architecture released for detailed design.", sha256: "18d9987ab93b06598506650a9d07e1855409ab141041da9f4e3a82aa77f07f11", createdByName: "Lorcan Grimes", createdByEmail: "lorcan@demo.co-roc", createdAt: "2026-07-15T12:10:00Z" },
+];
+
+const demoReleaseRequests: ReleaseRequest[] = [
+  { id: "demo-release-request", workingVersion: 8, title: "Flight configuration release", notes: "Fin geometry updated following proof-load correlation. All structural evidence is attached; avionics range testing remains an explicit launch-readiness action.", status: "pending", requestedByName: "Maya Chen", requestedByEmail: "maya@demo.co-roc", requestedAt: "2026-07-30T15:02:00Z", reviewedByName: null, reviewedAt: null, releaseNumber: null },
+];
+
 type MentionNotification = {
   id: number;
   componentId: string;
@@ -449,9 +466,9 @@ export function MissionControl({
   const [analysisEngineVersion, setAnalysisEngineVersion] = useState("");
   const [analysisCalculatedAt, setAnalysisCalculatedAt] = useState("");
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
-  const [auditChanges, setAuditChanges] = useState<AuditChange[]>([]);
-  const [controlledReleases, setControlledReleases] = useState<ControlledRelease[]>([]);
-  const [releaseRequests, setReleaseRequests] = useState<ReleaseRequest[]>([]);
+  const [auditChanges, setAuditChanges] = useState<AuditChange[]>(mode === "demo" ? demoAuditChanges : []);
+  const [controlledReleases, setControlledReleases] = useState<ControlledRelease[]>(mode === "demo" ? demoControlledReleases : []);
+  const [releaseRequests, setReleaseRequests] = useState<ReleaseRequest[]>(mode === "demo" ? demoReleaseRequests : []);
   const [orkProposals, setOrkProposals] = useState<OrkChangeProposal[]>([]);
   const [orkProposalDraft, setOrkProposalDraft] = useState<OrkProposalDraft | null>(null);
   const [orkProposalSubmitting, setOrkProposalSubmitting] = useState(false);
@@ -827,9 +844,9 @@ export function MissionControl({
     setAnalysisState("saved");
     setAnalysisEngineVersion("");
     setAnalysisCalculatedAt("");
-    setAuditChanges([]);
-    setControlledReleases([]);
-    setReleaseRequests([]);
+    setAuditChanges(mode === "demo" ? demoAuditChanges : []);
+    setControlledReleases(mode === "demo" ? demoControlledReleases : []);
+    setReleaseRequests(mode === "demo" ? demoReleaseRequests : []);
     setOrkProposals([]);
     async function openWorkspace() {
       try {
@@ -839,8 +856,8 @@ export function MissionControl({
           const model = await parseOpenRocket(await response.arrayBuffer(), "L4C configuration Banshee Mk2.ork");
           if (!active) return;
           loadModel(model);
-          setWorkspaceVersion(0);
-          setLastSavedBy("Demo dataset");
+          setWorkspaceVersion(8);
+          setLastSavedBy("Maya Chen");
           setSaveState("saved");
           setNotice("Demo workspace; changes stay in this browser session");
           return;
@@ -1773,7 +1790,7 @@ export function MissionControl({
 
       {workspaceModule === "simulation" && <SimulationWorkspace key={`${workspace.project.id}:${workspaceVersion ?? "none"}`} model={orkModel} mode={mode} workspaceVersion={workspaceVersion} headers={collaborationHeaders} canRun={can("editOrk") && (mode === "demo" || saveState === "saved")} runBlockedReason={!can("editOrk") ? "Your team role cannot edit or calculate this configuration." : saveState === "offline" ? "The simulation setup has not reached the shared file. Co-Roc will retry automatically when the connection recovers." : saveState === "conflict" ? "A teammate saved another version first. Resolve the shared-file conflict before calculating." : saveState !== "saved" ? "The simulation setup is still being written to the shared ORK." : undefined} onNotice={setNotice} onModelChange={updateSimulationModel} themeKey={resolvedTheme} />}
       {workspaceModule === "history" && <RevisionWorkspace changes={auditChanges} releases={controlledReleases} requests={releaseRequests} proposals={orkProposals} canApprove={can("approveRelease")} canReviewOrk={can("reviewOrkChange")} onOpenComponent={(componentId) => openComponentWorkspace(componentId)} onReleaseAction={handleReleaseAction} onProposalAction={reviewOrkProposal} onDownloadProposal={downloadProposedOrk} />}
-      {(workspaceModule === "tests" || workspaceModule === "documents") && <ProjectRecordWorkspace kind={workspaceModule} components={components} headers={collaborationHeaders} projectId={workspace.project.id} onSelectComponent={(componentId, panel) => openComponentWorkspace(componentId, panel)} onNotice={setNotice} />}
+      {(workspaceModule === "tests" || workspaceModule === "documents") && <ProjectRecordWorkspace kind={workspaceModule} components={components} headers={collaborationHeaders} projectId={workspace.project.id} mode={mode} onSelectComponent={(componentId, panel) => openComponentWorkspace(componentId, panel)} onNotice={setNotice} />}
       {workspaceModule === "checklists" && <LaunchChecklistWorkspace parts={components.map(({ id, code, name, type }) => ({ id, code, name, type }))} releases={controlledReleases.map(({ releaseNumber, title }) => ({ releaseNumber, title }))} mode={mode} headers={collaborationHeaders} canEdit={can("editChecklist")} canRelease={can("releaseChecklist")} onNotice={setNotice} />}
 
       {mode === "demo" && guidedTourOpen && <GuidedDemoTour
