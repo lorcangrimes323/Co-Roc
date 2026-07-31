@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent as ReactPointerEvent } from "react";
 
 type PartRef = { source: "ork" | "custom"; id: string; code: string; name: string };
 type ChecklistStep = { id: string; type: "action" | "verification" | "hold" | "warning" | "arming"; title: string; instruction: string; responsibility: string; signoff: "none" | "initials" | "initials-time" | "dual"; critical: boolean; expectedResult: string; tools: string; part: PartRef | null };
@@ -10,6 +10,7 @@ type Checklist = { id: string; title: string; mission: string; launchSite: strin
 type CustomPart = { id: string; code: string; name: string; category: string; description: string; createdByName: string; createdAt: string };
 type VehiclePart = { id: string; code: string; name: string; type: string };
 type Release = { releaseNumber: number; title: string };
+type ChecklistDrag = { kind: "section"; id: string } | { kind: "step"; id: string; sourceSectionId: string };
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const revisionLabel = (revision: number) => String.fromCharCode(64 + Math.max(1, Math.min(26, revision)));
@@ -76,6 +77,9 @@ export function LaunchChecklistWorkspace({ parts, releases, mode, headers, canEd
   const [runMode, setRunMode] = useState(false);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [customForm, setCustomForm] = useState({ code: "", name: "", category: "Ground support equipment", description: "" });
+  const [dragging, setDragging] = useState<ChecklistDrag | null>(null);
+  const [dragTarget, setDragTarget] = useState<{ kind: "section" | "step"; id: string } | null>(null);
+  const pointerDrag = useRef<ChecklistDrag | null>(null);
 
   const activeSection = draft?.definition.sections.find((section) => section.id === activeSectionId) ?? draft?.definition.sections[0] ?? null;
   const selectedStep = activeSection?.steps.find((step) => step.id === selectedStepId) ?? null;
@@ -127,6 +131,115 @@ export function LaunchChecklistWorkspace({ parts, releases, mode, headers, canEd
     changeDraft((next) => { const section = next.definition.sections.find((item) => item.id === activeSectionId); if (!section) return; const index = section.steps.findIndex((item) => item.id === stepId); const target = index + direction; if (index < 0 || target < 0 || target >= section.steps.length) return; [section.steps[index], section.steps[target]] = [section.steps[target], section.steps[index]]; });
   }
 
+  function reorderSections(sourceId: string, targetId: string) {
+    if (sourceId === targetId) return;
+    changeDraft((next) => {
+      const sourceIndex = next.definition.sections.findIndex((section) => section.id === sourceId);
+      const targetIndex = next.definition.sections.findIndex((section) => section.id === targetId);
+      if (sourceIndex < 0 || targetIndex < 0) return;
+      const [moved] = next.definition.sections.splice(sourceIndex, 1);
+      next.definition.sections.splice(targetIndex, 0, moved);
+    });
+    onNotice("Procedure phases reordered");
+  }
+
+  function reorderSteps(sourceSectionId: string, sourceStepId: string, targetStepId: string) {
+    if (sourceStepId === targetStepId) return;
+    changeDraft((next) => {
+      const sourceSection = next.definition.sections.find((section) => section.id === sourceSectionId);
+      const targetSection = next.definition.sections.find((section) => section.steps.some((step) => step.id === targetStepId));
+      if (!sourceSection || !targetSection) return;
+      const sourceIndex = sourceSection.steps.findIndex((step) => step.id === sourceStepId);
+      const targetIndex = targetSection.steps.findIndex((step) => step.id === targetStepId);
+      if (sourceIndex < 0 || targetIndex < 0) return;
+      const [moved] = sourceSection.steps.splice(sourceIndex, 1);
+      targetSection.steps.splice(targetIndex, 0, moved);
+    });
+    onNotice("Procedure steps reordered");
+  }
+
+  function moveStepToSection(sourceSectionId: string, stepId: string, targetSectionId: string) {
+    if (sourceSectionId === targetSectionId) return;
+    changeDraft((next) => {
+      const sourceSection = next.definition.sections.find((section) => section.id === sourceSectionId);
+      const targetSection = next.definition.sections.find((section) => section.id === targetSectionId);
+      if (!sourceSection || !targetSection) return;
+      const sourceIndex = sourceSection.steps.findIndex((step) => step.id === stepId);
+      if (sourceIndex < 0) return;
+      const [moved] = sourceSection.steps.splice(sourceIndex, 1);
+      targetSection.steps.push(moved);
+    });
+    setActiveSectionId(targetSectionId);
+    setSelectedStepId(stepId);
+    onNotice("Procedure step moved to another phase");
+  }
+
+  function applyDrop(payload: ChecklistDrag, target: { kind: "section" | "step"; id: string }) {
+    if (payload.kind === "section" && target.kind === "section") reorderSections(payload.id, target.id);
+    if (payload.kind === "step" && target.kind === "step") reorderSteps(payload.sourceSectionId, payload.id, target.id);
+    if (payload.kind === "step" && target.kind === "section") moveStepToSection(payload.sourceSectionId, payload.id, target.id);
+  }
+
+  function beginDrag(event: DragEvent<HTMLElement>, payload: ChecklistDrag) {
+    if (!canEdit || draft?.status !== "draft") { event.preventDefault(); return; }
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/x-co-roc-checklist", JSON.stringify(payload));
+    setDragging(payload);
+  }
+
+  function readDrag(event: DragEvent<HTMLElement>) {
+    try {
+      const encoded = event.dataTransfer.getData("application/x-co-roc-checklist");
+      return encoded ? JSON.parse(encoded) as ChecklistDrag : dragging;
+    } catch { return dragging; }
+  }
+
+  function dropDrag(event: DragEvent<HTMLElement>, target: { kind: "section" | "step"; id: string }) {
+    event.preventDefault();
+    event.stopPropagation();
+    const payload = readDrag(event);
+    if (payload) applyDrop(payload, target);
+    setDragging(null);
+    setDragTarget(null);
+  }
+
+  function targetFromPoint(clientX: number, clientY: number) {
+    const element = document.elementFromPoint(clientX, clientY)?.closest("[data-checklist-drop-kind]") as HTMLElement | null;
+    const kind = element?.dataset.checklistDropKind;
+    const id = element?.dataset.checklistDropId;
+    return id && (kind === "section" || kind === "step") ? { kind, id } as const : null;
+  }
+
+  function beginPointerDrag(event: ReactPointerEvent<HTMLElement>, payload: ChecklistDrag) {
+    if (event.pointerType === "mouse" || !canEdit || draft?.status !== "draft") return;
+    pointerDrag.current = payload;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDragging(payload);
+  }
+
+  function updatePointerDrag(event: ReactPointerEvent<HTMLElement>) {
+    if (!pointerDrag.current) return;
+    event.preventDefault();
+    setDragTarget(targetFromPoint(event.clientX, event.clientY));
+  }
+
+  function finishPointerDrag(event: ReactPointerEvent<HTMLElement>) {
+    const payload = pointerDrag.current;
+    const target = targetFromPoint(event.clientX, event.clientY);
+    if (payload && target) applyDrop(payload, target);
+    pointerDrag.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    setDragging(null);
+    setDragTarget(null);
+  }
+
+  function cancelPointerDrag(event: ReactPointerEvent<HTMLElement>) {
+    pointerDrag.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    setDragging(null);
+    setDragTarget(null);
+  }
+
   function addSection() {
     if (!draft || draft.status === "released" || !canEdit) return;
     const section: ChecklistSection = { id: crypto.randomUUID(), title: "New procedure phase", description: "Define the purpose and exit condition for this phase.", steps: [] };
@@ -145,15 +258,14 @@ export function LaunchChecklistWorkspace({ parts, releases, mode, headers, canEd
     onNotice("Procedure phase removed");
   }
 
-  function moveActiveSection(direction: -1 | 1) {
-    if (!activeSection) return;
+  function moveSection(sectionId: string, direction: -1 | 1) {
     changeDraft((next) => {
-      const index = next.definition.sections.findIndex((section) => section.id === activeSection.id);
+      const index = next.definition.sections.findIndex((section) => section.id === sectionId);
       const target = index + direction;
       if (index < 0 || target < 0 || target >= next.definition.sections.length) return;
       [next.definition.sections[index], next.definition.sections[target]] = [next.definition.sections[target], next.definition.sections[index]];
     });
-    onNotice(direction < 0 ? "Procedure phase moved earlier" : "Procedure phase moved later");
+    onNotice("Procedure phase reordered");
   }
 
   async function action(body: Record<string, unknown>, success: string) {
@@ -209,10 +321,89 @@ export function LaunchChecklistWorkspace({ parts, releases, mode, headers, canEd
 
         <section className="checklist-metadata"><label>Checklist title<input value={draft.title} disabled={draft.status === "released" || !canEdit} onChange={(event) => changeDraft((next) => next.title = event.target.value)} /></label><label>Mission / flight<input value={draft.mission} disabled={draft.status === "released" || !canEdit} onChange={(event) => changeDraft((next) => next.mission = event.target.value)} placeholder="Mission identifier or flight objective" /></label><label>Launch site<input value={draft.launchSite} disabled={draft.status === "released" || !canEdit} onChange={(event) => changeDraft((next) => next.launchSite = event.target.value)} placeholder="Range and pad" /></label><label>Scheduled date<input type="date" value={draft.scheduledFor?.slice(0, 10) ?? ""} disabled={draft.status === "released" || !canEdit} onChange={(event) => changeDraft((next) => next.scheduledFor = event.target.value || null)} /></label><label>Vehicle release<select value={draft.baselineReleaseNumber ?? ""} disabled={draft.status === "released" || !canEdit} onChange={(event) => changeDraft((next) => next.baselineReleaseNumber = event.target.value ? Number(event.target.value) : null)}><option value="">Working configuration</option>{releases.map((release) => <option key={release.releaseNumber} value={release.releaseNumber}>V{release.releaseNumber} · {release.title}</option>)}</select></label></section>
 
-        <nav className="checklist-phase-tabs" aria-label="Checklist phases">{draft.definition.sections.map((section, index) => <button key={section.id} type="button" className={section.id === activeSection?.id ? "active" : ""} onClick={() => { setActiveSectionId(section.id); setSelectedStepId(null); }}><span>{String(index + 1).padStart(2, "0")}</span><strong>{section.title}</strong><small>{section.steps.length}</small></button>)}{draft.status === "draft" && canEdit && <button className="add-phase" type="button" onClick={addSection}><span>＋</span><strong>Add phase</strong></button>}</nav>
+        <nav className="checklist-phase-tabs" aria-label="Checklist phases">
+          {draft.definition.sections.map((section, index) => {
+            const isDragging = dragging?.kind === "section" && dragging.id === section.id;
+            const isTarget = dragTarget?.kind === "section" && dragTarget.id === section.id;
+            return <div
+              key={section.id}
+              className={`phase-tab ${section.id === activeSection?.id ? "active" : ""} ${isDragging ? "dragging" : ""} ${isTarget ? "drag-target" : ""}`}
+              data-checklist-drop-kind="section"
+              data-checklist-drop-id={section.id}
+              onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDragTarget({ kind: "section", id: section.id }); }}
+              onDragLeave={() => setDragTarget((target) => target?.id === section.id ? null : target)}
+              onDrop={(event) => dropDrag(event, { kind: "section", id: section.id })}
+            >
+              {draft.status === "draft" && canEdit && <button
+                className="phase-drag-handle"
+                type="button"
+                draggable
+                aria-label={`Drag ${section.title} to reorder the phase`}
+                title="Drag to reorder · Alt + arrow keys also work"
+                onClick={(event) => event.stopPropagation()}
+                onDragStart={(event) => beginDrag(event, { kind: "section", id: section.id })}
+                onDragEnd={() => { setDragging(null); setDragTarget(null); }}
+                onPointerDown={(event) => beginPointerDrag(event, { kind: "section", id: section.id })}
+                onPointerMove={updatePointerDrag}
+                onPointerUp={finishPointerDrag}
+                onPointerCancel={cancelPointerDrag}
+                onKeyDown={(event) => {
+                  if (!event.altKey) return;
+                  if (event.key === "ArrowLeft") { event.preventDefault(); moveSection(section.id, -1); }
+                  if (event.key === "ArrowRight") { event.preventDefault(); moveSection(section.id, 1); }
+                }}
+              >⠿</button>}
+              <button className="phase-select" type="button" onClick={() => { setActiveSectionId(section.id); setSelectedStepId(null); }}>
+                <span>{String(index + 1).padStart(2, "0")}</span><strong>{section.title}</strong><small>{section.steps.length}</small>
+              </button>
+            </div>;
+          })}
+          {draft.status === "draft" && canEdit && <button className="add-phase" type="button" onClick={addSection}><span>＋</span><strong>Add phase</strong></button>}
+        </nav>
 
-        {activeSection && <section className="checklist-phase"><header><div><span className="eyebrow">PHASE {String(draft.definition.sections.indexOf(activeSection) + 1).padStart(2, "0")}</span><input className="phase-title-input" value={activeSection.title} disabled={draft.status === "released" || !canEdit} onChange={(event) => changeDraft((next) => { const section = next.definition.sections.find((item) => item.id === activeSection.id); if (section) section.title = event.target.value; })} /><textarea value={activeSection.description} disabled={draft.status === "released" || !canEdit} onChange={(event) => changeDraft((next) => { const section = next.definition.sections.find((item) => item.id === activeSection.id); if (section) section.description = event.target.value; })} /></div>{draft.status === "draft" && <div className="phase-actions"><button type="button" aria-label="Move phase earlier" title="Move phase earlier" disabled={!canEdit || draft.definition.sections.indexOf(activeSection) === 0} onClick={() => moveActiveSection(-1)}>← Earlier</button><button type="button" aria-label="Move phase later" title="Move phase later" disabled={!canEdit || draft.definition.sections.indexOf(activeSection) === draft.definition.sections.length - 1} onClick={() => moveActiveSection(1)}>Later →</button><button type="button" disabled={!canEdit || draft.definition.sections.length <= 1} onClick={removeActiveSection}>Remove phase</button><button type="button" disabled={!canEdit} onClick={() => addStep()}>+ Add step</button></div>}</header>
-          <div className={`checklist-steps ${runMode ? "checklist-run-mode" : ""}`}>{activeSection.steps.map((step, index) => <article key={step.id} className={`checklist-step step-${step.type} ${step.id === selectedStepId ? "selected" : ""}`} onClick={() => !runMode && setSelectedStepId(step.id)}><button className="step-check" type="button" disabled={!runMode} aria-label={`Complete ${step.title}`} onClick={(event) => { event.stopPropagation(); setChecked((items) => ({ ...items, [step.id]: !items[step.id] })); }}>{checked[step.id] ? "✓" : ""}</button><span className="step-number">{String(index + 1).padStart(2, "0")}</span><div className="step-copy"><header><span>{step.type.toUpperCase()}</span>{step.critical && <b>CRITICAL</b>}<strong>{step.title}</strong></header><p>{step.instruction}</p>{step.expectedResult && <small><b>ACCEPT:</b> {step.expectedResult}</small>}<footer>{step.part && <span>{step.part.code} · {step.part.name}</span>}<span>{step.responsibility || "Unassigned"}</span><span>{step.signoff === "none" ? "No sign-off" : step.signoff.replace("-", " + ")}</span></footer></div>{!runMode && draft.status === "draft" && <div className="step-order"><button type="button" aria-label="Move step up" onClick={(event) => { event.stopPropagation(); moveStep(step.id, -1); }}>↑</button><button type="button" aria-label="Move step down" onClick={(event) => { event.stopPropagation(); moveStep(step.id, 1); }}>↓</button><button type="button" aria-label="Delete step" onClick={(event) => { event.stopPropagation(); changeDraft((next) => { const section = next.definition.sections.find((item) => item.id === activeSection.id); if (section) section.steps = section.steps.filter((item) => item.id !== step.id); }); }}>×</button></div>}</article>)}{!activeSection.steps.length && <div className="checklist-empty-phase"><strong>No procedure steps in this phase.</strong><span>Add a blank step or choose a vehicle / ground-support part from the library.</span></div>}</div>
+        {activeSection && <section className="checklist-phase"><header><div><span className="eyebrow">PHASE {String(draft.definition.sections.indexOf(activeSection) + 1).padStart(2, "0")} · DRAG TABS OR STEPS TO REORDER</span><input className="phase-title-input" value={activeSection.title} disabled={draft.status === "released" || !canEdit} onChange={(event) => changeDraft((next) => { const section = next.definition.sections.find((item) => item.id === activeSection.id); if (section) section.title = event.target.value; })} /><textarea value={activeSection.description} disabled={draft.status === "released" || !canEdit} onChange={(event) => changeDraft((next) => { const section = next.definition.sections.find((item) => item.id === activeSection.id); if (section) section.description = event.target.value; })} /></div>{draft.status === "draft" && <div className="phase-actions"><button type="button" disabled={!canEdit || draft.definition.sections.length <= 1} onClick={removeActiveSection}>Remove phase</button><button type="button" disabled={!canEdit} onClick={() => addStep()}>+ Add step</button></div>}</header>
+          <div className={`checklist-steps ${runMode ? "checklist-run-mode" : ""}`}>
+            {activeSection.steps.map((step, index) => {
+              const canReorder = !runMode && draft.status === "draft" && canEdit;
+              const isDragging = dragging?.kind === "step" && dragging.id === step.id;
+              const isTarget = dragTarget?.kind === "step" && dragTarget.id === step.id;
+              return <article
+                key={step.id}
+                className={`checklist-step step-${step.type} ${canReorder ? "editable" : ""} ${step.id === selectedStepId ? "selected" : ""} ${isDragging ? "dragging" : ""} ${isTarget ? "drag-target" : ""}`}
+                data-checklist-drop-kind="step"
+                data-checklist-drop-id={step.id}
+                onClick={() => !runMode && setSelectedStepId(step.id)}
+                onDragOver={(event) => { if (!canReorder) return; event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDragTarget({ kind: "step", id: step.id }); }}
+                onDragLeave={() => setDragTarget((target) => target?.id === step.id ? null : target)}
+                onDrop={(event) => dropDrag(event, { kind: "step", id: step.id })}
+              >
+                {canReorder && <button
+                  className="step-drag-handle"
+                  type="button"
+                  draggable
+                  aria-label={`Drag ${step.title} to reorder it`}
+                  title="Drag to reorder or drop onto another phase · Alt + up/down also works"
+                  onClick={(event) => event.stopPropagation()}
+                  onDragStart={(event) => beginDrag(event, { kind: "step", id: step.id, sourceSectionId: activeSection.id })}
+                  onDragEnd={() => { setDragging(null); setDragTarget(null); }}
+                  onPointerDown={(event) => beginPointerDrag(event, { kind: "step", id: step.id, sourceSectionId: activeSection.id })}
+                  onPointerMove={updatePointerDrag}
+                  onPointerUp={finishPointerDrag}
+                  onPointerCancel={cancelPointerDrag}
+                  onKeyDown={(event) => {
+                    if (!event.altKey) return;
+                    if (event.key === "ArrowUp") { event.preventDefault(); event.stopPropagation(); moveStep(step.id, -1); }
+                    if (event.key === "ArrowDown") { event.preventDefault(); event.stopPropagation(); moveStep(step.id, 1); }
+                  }}
+                >⠿</button>}
+                <button className="step-check" type="button" disabled={!runMode} aria-label={`Complete ${step.title}`} onClick={(event) => { event.stopPropagation(); setChecked((items) => ({ ...items, [step.id]: !items[step.id] })); }}>{checked[step.id] ? "✓" : ""}</button>
+                <span className="step-number">{String(index + 1).padStart(2, "0")}</span>
+                <div className="step-copy"><header><span>{step.type.toUpperCase()}</span>{step.critical && <b>CRITICAL</b>}<strong>{step.title}</strong></header><p>{step.instruction}</p>{step.expectedResult && <small><b>ACCEPT:</b> {step.expectedResult}</small>}<footer>{step.part && <span>{step.part.code} · {step.part.name}</span>}<span>{step.responsibility || "Unassigned"}</span><span>{step.signoff === "none" ? "No sign-off" : step.signoff.replace("-", " + ")}</span></footer></div>
+                {canReorder && <button className="step-delete" type="button" aria-label={`Delete ${step.title}`} onClick={(event) => { event.stopPropagation(); changeDraft((next) => { const section = next.definition.sections.find((item) => item.id === activeSection.id); if (section) section.steps = section.steps.filter((item) => item.id !== step.id); }); }}>×</button>}
+              </article>;
+            })}
+            {!activeSection.steps.length && <div className="checklist-empty-phase"><strong>No procedure steps in this phase.</strong><span>Add a blank step or choose a vehicle / ground-support part from the library.</span></div>}
+          </div>
         </section>}
 
         {selectedStep && !runMode && draft.status === "draft" && <aside className="step-editor" aria-label="Edit procedure step"><header><div><span className="eyebrow">STEP DEFINITION</span><h3>{selectedStep.title}</h3></div><button type="button" onClick={() => setSelectedStepId(null)}>×</button></header><div className="step-editor-grid"><label>Step type<select value={selectedStep.type} disabled={!canEdit} onChange={(event) => updateStep(selectedStep.id, { type: event.target.value as ChecklistStep["type"], critical: ["hold", "warning", "arming"].includes(event.target.value) })}><option value="action">Action</option><option value="verification">Verification</option><option value="hold">Hold point</option><option value="warning">Safety warning</option><option value="arming">Arming action</option></select></label><label>Responsible role<input value={selectedStep.responsibility} disabled={!canEdit} onChange={(event) => updateStep(selectedStep.id, { responsibility: event.target.value })} /></label><label className="span-2">Step title<input value={selectedStep.title} disabled={!canEdit} onChange={(event) => updateStep(selectedStep.id, { title: event.target.value })} /></label><label className="span-2">Instruction<textarea value={selectedStep.instruction} disabled={!canEdit} onChange={(event) => updateStep(selectedStep.id, { instruction: event.target.value })} /></label><label className="span-2">Expected result / acceptance criterion<textarea value={selectedStep.expectedResult} disabled={!canEdit} onChange={(event) => updateStep(selectedStep.id, { expectedResult: event.target.value })} /></label><label>Tools / consumables<input value={selectedStep.tools} disabled={!canEdit} onChange={(event) => updateStep(selectedStep.id, { tools: event.target.value })} /></label><label>Sign-off<select value={selectedStep.signoff} disabled={!canEdit} onChange={(event) => updateStep(selectedStep.id, { signoff: event.target.value as ChecklistStep["signoff"] })}><option value="none">None</option><option value="initials">Initials</option><option value="initials-time">Initials + time</option><option value="dual">Independent dual sign-off</option></select></label></div></aside>}

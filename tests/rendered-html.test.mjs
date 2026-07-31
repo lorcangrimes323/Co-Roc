@@ -474,8 +474,10 @@ test("provides controlled launch checklists with part references and printable s
   assert.match(missionControl, /LAUNCH CHECKLISTS/);
   assert.match(checklist, /Arming procedure/);
   assert.match(checklist, /Independent dual sign-off/);
-  assert.match(checklist, /Move phase earlier/);
-  assert.match(checklist, /Move phase later/);
+  assert.match(checklist, /Drag .* to reorder the phase/);
+  assert.match(checklist, /Drag .* to reorder it/);
+  assert.match(checklist, /moveStepToSection/);
+  assert.match(checklist, /application\/x-co-roc-checklist/);
   assert.match(checklist, /ORK parts/);
   assert.match(checklist, /Other equipment/);
   assert.match(checklist, /Print \/ Save PDF/);
