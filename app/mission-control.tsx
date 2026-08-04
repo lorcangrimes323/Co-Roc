@@ -449,6 +449,8 @@ export function MissionControl({
   const [orkModel, setOrkModel] = useState<OpenRocketModel | null>(null);
   const [viewMode, setViewMode] = useState<"components" | "3d">("components");
   const [workspaceModule, setWorkspaceModule] = useState<WorkspaceModule>("configuration");
+  const [mobilePane, setMobilePane] = useState<"model" | "tree" | "record">("model");
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const { mode: themeMode, resolved: resolvedTheme, setMode: setThemeMode } = useThemePreference();
   const [accent, setAccent] = useState("#c92335");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -491,6 +493,7 @@ export function MissionControl({
   const viewerRef = useRef<RocketViewerHandle>(null);
   const sectionRef = useRef<RocketSectionHandle>(null);
   const mainGridRef = useRef<HTMLDivElement>(null);
+  const modelPanelRef = useRef<HTMLElement>(null);
   const workspaceVersionRef = useRef<number | null>(null);
   const pendingChangesRef = useRef<PendingChange[]>([]);
   const orkModelRef = useRef<OpenRocketModel | null>(null);
@@ -634,6 +637,25 @@ export function MissionControl({
     setSelectedId(componentId);
     setActivePanel(panel);
     setWorkspaceModule("configuration");
+    setMobilePane("record");
+  }
+
+  function startOrkUpload() {
+    setWorkspaceModule("configuration");
+    setMobilePane("model");
+    window.setTimeout(() => fileInput.current?.click(), 0);
+  }
+
+  async function enterMobileRocketView() {
+    setMobilePane("model");
+    const panel = modelPanelRef.current;
+    try {
+      if (panel?.requestFullscreen && document.fullscreenElement !== panel) await panel.requestFullscreen();
+      const orientation = screen.orientation as ScreenOrientation & { lock?: (mode: "landscape") => Promise<void> };
+      if (orientation.lock) await orientation.lock("landscape");
+    } catch {
+      setNotice("Turn your phone sideways for the widest rocket view");
+    }
   }
 
   async function refreshMentions() {
@@ -762,6 +784,13 @@ export function MissionControl({
         setOrkProposals(proposalPayload.proposals ?? []);
       }
     } catch { /* live history is non-blocking */ }
+  }
+
+  function openMobileModule(module: WorkspaceModule) {
+    setMobileMoreOpen(false);
+    setSettingsOpen(false);
+    setWorkspaceModule(module);
+    if (module === "history") void refreshHistory();
   }
 
   function activeView() {
@@ -1453,8 +1482,8 @@ export function MissionControl({
             mode === "demo" ? (saveState === "draft" ? "DEMO · LOCAL CHANGES" : "DEMO") : saveState === "saving" ? "SAVING" : saveState === "draft" ? "DRAFT" : saveState === "conflict" ? "CONFLICT" : saveState === "offline" ? "OFFLINE" : saveState === "loading" ? "CONNECTING" : "LIVE · SAVED"
           }</div>
           {mode === "live" && <div className="mention-centre">
-            <button className={`mention-inbox-button ${unreadMentions ? "has-unread" : ""}`} type="button" aria-label={unreadMentions ? `${unreadMentions} unread mention${unreadMentions === 1 ? "" : "s"}` : "Mention inbox"} aria-expanded={mentionsOpen} aria-controls="mention-inbox" onClick={() => setMentionsOpen((open) => !open)}>
-              <span aria-hidden="true">@</span>{unreadMentions > 0 && <strong>{unreadMentions > 99 ? "99+" : unreadMentions}</strong>}
+            <button className={`mention-inbox-button ${unreadMentions ? "has-unread" : ""}`} type="button" aria-label={unreadMentions ? `${unreadMentions} unread mention${unreadMentions === 1 ? "" : "s"}` : "Team messages"} aria-expanded={mentionsOpen} aria-controls="mention-inbox" onClick={() => setMentionsOpen((open) => !open)}>
+              <span aria-hidden="true">@</span><em>Messages</em>{unreadMentions > 0 && <strong>{unreadMentions > 99 ? "99+" : unreadMentions}</strong>}
             </button>
             {mentionsOpen && <section id="mention-inbox" className="mention-inbox" aria-label="Your mentions">
               <header><div><span>TEAM MENTIONS</span><h2>Tagged for your attention</h2></div><button type="button" aria-label="Close mention inbox" onClick={() => setMentionsOpen(false)}>&times;</button></header>
@@ -1484,14 +1513,25 @@ export function MissionControl({
 
       <aside className="rail">
         <button className={`rail-button ${workspaceModule === "configuration" ? "rail-active" : ""}`} type="button" aria-label="Configuration" data-label="Configuration" onClick={() => setWorkspaceModule("configuration")}><WorkspaceIcon name="configuration" /></button>
-        <button className={`rail-button ${workspaceModule === "simulation" ? "rail-active" : ""}`} type="button" aria-label="Simulation" data-label="Simulation" onClick={() => setWorkspaceModule("simulation")}><WorkspaceIcon name="simulation" /></button>
+        <button className={`rail-button rail-mobile-secondary ${workspaceModule === "simulation" ? "rail-active" : ""}`} type="button" aria-label="Simulation" data-label="Simulation" onClick={() => setWorkspaceModule("simulation")}><WorkspaceIcon name="simulation" /></button>
         <button className={`rail-button ${workspaceModule === "history" ? "rail-active" : ""}`} type="button" aria-label="Revision history" data-label="Revision history" onClick={() => { setWorkspaceModule("history"); void refreshHistory(); }}><WorkspaceIcon name="history" /></button>
         <button className={`rail-button ${workspaceModule === "tests" ? "rail-active" : ""}`} type="button" aria-label="Tests" data-label="Tests" onClick={() => setWorkspaceModule("tests")}><WorkspaceIcon name="tests" /></button>
         <button className={`rail-button ${workspaceModule === "documents" ? "rail-active" : ""}`} type="button" aria-label="Documentation" data-label="Documentation" onClick={() => setWorkspaceModule("documents")}><WorkspaceIcon name="documents" /></button>
-        <button className={`rail-button ${workspaceModule === "checklists" ? "rail-active" : ""}`} type="button" aria-label="Launch checklists" data-label="Checklists" onClick={() => setWorkspaceModule("checklists")}><WorkspaceIcon name="checklists" /></button>
+        <button className={`rail-button rail-mobile-secondary ${workspaceModule === "checklists" ? "rail-active" : ""}`} type="button" aria-label="Launch checklists" data-label="Checklists" onClick={() => setWorkspaceModule("checklists")}><WorkspaceIcon name="checklists" /></button>
         <div className="rail-spacer" />
-        <button data-tour="workspace-settings-button" className={`rail-button ${settingsOpen ? "rail-settings-active" : ""}`} type="button" aria-label="Workspace settings" data-label="Settings" aria-expanded={settingsOpen} aria-controls="workspace-settings" onClick={() => setSettingsOpen((open) => !open)}><WorkspaceIcon name="settings" /></button>
+        <button data-tour="workspace-settings-button" className={`rail-button rail-desktop-settings ${settingsOpen ? "rail-settings-active" : ""}`} type="button" aria-label="Workspace settings" data-label="Settings" aria-expanded={settingsOpen} aria-controls="workspace-settings" onClick={() => setSettingsOpen((open) => !open)}><WorkspaceIcon name="settings" /></button>
+        <button className={`rail-button rail-mobile-more ${mobileMoreOpen || workspaceModule === "simulation" || workspaceModule === "checklists" ? "rail-active" : ""}`} type="button" aria-label="More tools" data-label="More" aria-expanded={mobileMoreOpen} aria-controls="mobile-more-menu" onClick={() => setMobileMoreOpen((open) => !open)}><WorkspaceIcon name="settings" /></button>
       </aside>
+
+      {mobileMoreOpen && <div className="mobile-more-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setMobileMoreOpen(false)}>
+        <section id="mobile-more-menu" className="mobile-more-menu" aria-label="More workspace tools">
+          <header><div><span>MORE TOOLS</span><h2>Workspace</h2></div><button type="button" aria-label="Close more tools" onClick={() => setMobileMoreOpen(false)}>&times;</button></header>
+          <button type="button" onClick={() => openMobileModule("simulation")}><WorkspaceIcon name="simulation" /><span><strong>Simulation</strong><small>Run and compare OpenRocket cases</small></span></button>
+          <button type="button" onClick={() => openMobileModule("checklists")}><WorkspaceIcon name="checklists" /><span><strong>Launch checklists</strong><small>Assembly, arming and sign-off</small></span></button>
+          <button type="button" onClick={() => { setMobileMoreOpen(false); setSettingsOpen(true); }}><WorkspaceIcon name="settings" /><span><strong>Appearance</strong><small>Theme and accent colour</small></span></button>
+          <button type="button" onClick={() => { setMobileMoreOpen(false); onManageTeam?.(); }}><WorkspaceIcon name="configuration" /><span><strong>{can("manageTeam") ? "Team administration" : "Team and access"}</strong><small>{can("manageTeam") ? "Members, roles and rocket access" : "View your access and projects"}</small></span></button>
+        </section>
+      </div>}
 
       {settingsOpen && (
         <section id="workspace-settings" className="theme-panel" aria-label="Workspace settings">
@@ -1531,6 +1571,25 @@ export function MissionControl({
         </div>}
       </section>
 
+      <section className="mobile-command-centre" aria-label="Mobile workspace shortcuts">
+        <header>
+          <div><span>{workspace.team.role === "lead" ? "LEAD WORKSPACE" : workspace.team.role === "engineer" ? "ENGINEERING WORKSPACE" : "VENDOR / OBSERVER ACCESS"}</span><strong>{workspace.team.role === "lead" ? "Items needing your decision" : workspace.team.role === "engineer" ? "Your engineering tools" : "Approved project information"}</strong></div>
+          <button type="button" onClick={() => onManageTeam?.()}>{can("manageTeam") ? "Manage" : "Access"}</button>
+        </header>
+        <div className="mobile-command-summary">
+          <button type="button" onClick={() => openMobileModule("history")}><strong>{pendingOrkProposals.length + (pendingRelease ? 1 : 0)}</strong><span>{can("approveRelease") ? "to review" : "pending"}</span></button>
+          <button type="button" onClick={() => setMentionsOpen(true)}><strong>{unreadMentions}</strong><span>messages</span></button>
+          <button type="button" onClick={() => openMobileModule("tests")}><strong>{componentRecord.tests.filter((test) => test.status === "required").length}</strong><span>tests due</span></button>
+          <button type="button" onClick={() => openMobileModule("history")}><strong>{latestRelease ? `V${latestRelease.releaseNumber}` : "—"}</strong><span>release</span></button>
+        </div>
+        <div className="mobile-quick-actions">
+          <button type="button" onClick={() => { setWorkspaceModule("configuration"); setMobilePane("model"); }}><WorkspaceIcon name="configuration" /><span>View rocket</span></button>
+          {can("editOrk") && <button type="button" onClick={startOrkUpload}><span className="mobile-action-glyph">⇧</span><span>Upload ORK</span></button>}
+          {can("approveRelease") ? <button type="button" onClick={() => openMobileModule("history")}><WorkspaceIcon name="history" /><span>Review changes</span></button> : <button type="button" onClick={() => openMobileModule("documents")}><WorkspaceIcon name="documents" /><span>Records</span></button>}
+          <button type="button" onClick={() => setMentionsOpen(true)}><span className="mobile-action-glyph">@</span><span>Messages{unreadMentions ? ` (${unreadMentions})` : ""}</span></button>
+        </div>
+      </section>
+
       <section className="metrics-strip" aria-label="Vehicle summary" data-tour="vehicle-summary">
         {workspaceModule === "simulation" ? <>
           <div className="metric"><span>SAVED CASES</span><strong>{orkModel?.simulations.length ?? 0} <small>runs</small></strong></div>
@@ -1547,9 +1606,16 @@ export function MissionControl({
         </>}
       </section>
 
+      {workspaceModule === "configuration" && <nav className="mobile-pane-switcher" aria-label="Configuration view">
+        <button type="button" className={mobilePane === "model" ? "active" : ""} onClick={() => setMobilePane("model")}>Rocket</button>
+        <button type="button" className={mobilePane === "tree" ? "active" : ""} onClick={() => setMobilePane("tree")}>Parts <span>{components.length}</span></button>
+        <button type="button" className={mobilePane === "record" ? "active" : ""} onClick={() => setMobilePane("record")}>Part record</button>
+      </nav>}
+
       {workspaceModule === "configuration" && <div
         ref={mainGridRef}
         className="main-grid"
+        data-mobile-pane={mobilePane}
         style={{ "--tree-pane-width": `${paneWidths.tree}px`, "--record-pane-width": `${paneWidths.record}px` } as CSSProperties}
       >
         <div className="pane-resizer pane-resizer-tree" role="separator" aria-label="Resize component tree" aria-orientation="vertical" tabIndex={0} style={{ left: `${paneWidths.tree - 5}px` }} onPointerDown={(event) => beginPaneResize("tree", event)} onKeyDown={(event) => resizePaneWithKeyboard("tree", event)} onDoubleClick={() => setPaneWidths(defaultPaneWidths)} />
@@ -1570,7 +1636,7 @@ export function MissionControl({
                 type="button"
                 className={`component-row ${component.id === selectedId ? "component-selected" : ""}`}
                 style={{ paddingLeft: `${16 + component.depth * 18}px` }}
-                onClick={() => setSelectedId(component.id)}
+                onClick={() => { setSelectedId(component.id); setMobilePane("record"); }}
               >
                 <span className="tree-branch">{component.depth === 0 ? "⌄" : component.depth === 1 ? "└" : "·"}</span>
                 <span className="component-icon">{component.type.includes("fin") ? "△" : component.type.includes("tube") ? "▯" : "◇"}</span>
@@ -1586,7 +1652,7 @@ export function MissionControl({
           </div>
         </aside>
 
-        <section className="model-panel panel" data-tour="rocket-viewport">
+        <section ref={modelPanelRef} className="model-panel panel" data-tour="rocket-viewport">
           <div className="model-toolbar">
             <div className="view-tabs">
               <button className={`view-tab ${viewMode === "components" ? "view-tab-active" : ""}`} type="button" onClick={() => setViewMode("components")}>COMPONENTS</button>
@@ -1605,6 +1671,10 @@ export function MissionControl({
               <button type="button" aria-label="Fit model" onClick={() => activeView()?.reset()}>⌗</button>
             </div>
           </div>
+
+          <button className="mobile-landscape-prompt" type="button" onClick={() => void enterMobileRocketView()}>
+            <span aria-hidden="true">↔</span><strong>Try sideways</strong><small>Open a full-screen rocket view</small>
+          </button>
 
           <div className="model-stage">
             <div className="rocket-wrap">

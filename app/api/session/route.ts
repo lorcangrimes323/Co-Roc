@@ -269,6 +269,25 @@ export async function POST(request: Request) {
     return Response.json({ invited: true }, { status: 201 });
   }
 
+  if (action === "remove-member") {
+    const memberId = Number(body.memberId);
+    const member = await DB.prepare(`SELECT id, email, display_name, role FROM team_members WHERE team_id = ? AND id = ?`)
+      .bind(access.team.id, memberId).first<{ id: number; email: string; display_name: string; role: TeamRole }>();
+    if (!member) return Response.json({ error: "Member not found." }, { status: 404 });
+    if (member.email.toLowerCase() === user.email.toLowerCase()) return Response.json({ error: "You cannot remove your own active account." }, { status: 409 });
+    if (member.role === "lead") {
+      const count = await DB.prepare(`SELECT count(*) AS total FROM team_members WHERE team_id = ? AND role = 'lead' AND status = 'active'`)
+        .bind(access.team.id).first<{ total: number }>();
+      if ((count?.total ?? 0) <= 1) return Response.json({ error: "A team must retain at least one active lead." }, { status: 409 });
+    }
+    await DB.batch([
+      DB.prepare(`DELETE FROM member_project_access WHERE team_id = ? AND lower(member_email) = lower(?)`).bind(access.team.id, member.email),
+      DB.prepare(`DELETE FROM team_members WHERE team_id = ? AND id = ?`).bind(access.team.id, memberId),
+    ]);
+    await recordTeamEvent(DB, { teamId: access.team.id, action: "member.removed", targetType: "member", targetId: String(memberId), summary: `Removed ${member.display_name} (${member.email}) from the team`, actorName: user.displayName, actorEmail: user.email });
+    return Response.json({ removed: true });
+  }
+
   if (action === "change-role") {
     const memberId = Number(body.memberId);
     const role = validRole(body.role);

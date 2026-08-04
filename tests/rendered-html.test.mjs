@@ -271,7 +271,12 @@ test("uses site accounts, separates demo data and recovers local drafts", async 
 });
 
 test("provides a complete touch-first mobile engineering workspace", async () => {
-  const styles = await source("app/globals.css");
+  const [styles, missionControl, workspaceApp, sessionRoute] = await Promise.all([
+    source("app/globals.css"),
+    source("app/mission-control.tsx"),
+    source("app/workspace-app.tsx"),
+    source("app/api/session/route.ts"),
+  ]);
   assert.match(styles, /@media \(max-width: 820px\)/);
   assert.match(styles, /\.rail \{[\s\S]*position: fixed;[\s\S]*inset: auto 0 0;/);
   assert.match(styles, /\.rail-button::after \{[\s\S]*position: static;/);
@@ -284,6 +289,18 @@ test("provides a complete touch-first mobile engineering workspace", async () =>
   assert.match(styles, /\.revision-timeline > section \{ grid-template-columns: minmax\(0, 1fr\);/);
   assert.match(styles, /\.simulation-editor \{ width: 100%; height: 100vh; height: 100dvh;/);
   assert.match(styles, /\.statusbar \{[\s\S]*bottom: 64px;/);
+  assert.match(styles, /\.main-grid\[data-mobile-pane="model"\]/);
+  assert.match(styles, /\.mobile-command-centre/);
+  assert.match(styles, /\.mobile-more-menu/);
+  assert.match(styles, /\.model-panel:fullscreen/);
+  assert.match(missionControl, /Try sideways/);
+  assert.match(missionControl, /VENDOR \/ OBSERVER ACCESS/);
+  assert.match(missionControl, /Messages/);
+  assert.match(missionControl, /data-mobile-pane=\{mobilePane\}/);
+  assert.match(workspaceApp, /remove-member/);
+  assert.match(workspaceApp, /Vendor \/ observer/);
+  assert.match(sessionRoute, /action === "remove-member"/);
+  assert.match(sessionRoute, /You cannot remove your own active account/);
 });
 
 test("provides a focused engineering record for every component", async () => {
