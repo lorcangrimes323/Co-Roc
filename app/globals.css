@@ -184,8 +184,8 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   --landing-field-green: #9bd2af;
   --landing-stage: #eee9d7;
   --landing-stage-text: #171712;
-  --landing-paper: #f7f3e5;
-  --landing-paper-text: #171713;
+  --landing-paper: #eee9d7;
+  --landing-paper-text: #171712;
   --landing-paper-muted: #666359;
   --landing-rule: rgba(23, 23, 19, .18);
   width: 100%;
@@ -220,12 +220,13 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   --landing-field-green: #0c412d;
   --landing-stage: #080906;
   --landing-stage-text: #f0ecdc;
-  --landing-paper: #1b1c17;
-  --landing-paper-text: #f1eddf;
+  --landing-paper: #080906;
+  --landing-paper-text: #f0ecdc;
   --landing-paper-muted: #aaa79b;
   --landing-rule: rgba(240, 236, 220, .17);
 }
 [data-theme="dark"] .account-hero { background: linear-gradient(145deg, rgba(255,255,255,.055) 0%, transparent 22%, transparent 74%, rgba(15,91,59,.11) 100%), var(--landing-stage); box-shadow: inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(255,255,255,.025), -18px 20px 65px color-mix(in srgb, var(--landing-red) 24%, transparent), 20px 26px 72px color-mix(in srgb, var(--landing-green) 22%, transparent), 0 25px 70px rgba(0,0,0,.28); }
+[data-theme="dark"] .account-panel { background: linear-gradient(145deg, rgba(255,255,255,.055) 0%, transparent 22%, transparent 74%, rgba(15,91,59,.11) 100%), var(--landing-stage); }
 .workspace-gate { height: 100vh; overflow: auto; display: grid; place-items: center; padding: 40px 22px; background: var(--ink); color: var(--text); }
 .gate-card { width: min(560px, 100%); background: var(--panel); border: 1px solid var(--line-strong); padding: clamp(30px, 6vw, 58px); box-shadow: 0 18px 55px var(--shadow); }
 .account-header { position: sticky; z-index: 20; top: 0; min-height: 66px; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 0 max(28px, calc((100vw - 1450px) / 2)); background: color-mix(in srgb, var(--landing-stage) 82%, transparent); color: var(--landing-stage-text); border-bottom: 1px solid color-mix(in srgb, var(--landing-stage-text) 18%, transparent); box-shadow: 0 12px 34px rgba(0,0,0,.14); backdrop-filter: blur(22px) saturate(135%); }
@@ -276,8 +277,8 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .account-demo-copy { display: grid; gap: 5px; }
 .account-demo-copy small { font: 7px/1 var(--font-geist-mono); letter-spacing: .13em; opacity: .72; }
 .account-demo-copy strong { font-size: 15px; line-height: 1; font-weight: 800; }
-.account-panel { grid-area: access; position: relative; scroll-margin-top: 78px; overflow: hidden; border-radius: 12px; background: linear-gradient(155deg, color-mix(in srgb, var(--landing-paper) 97%, white) 0%, var(--landing-paper) 58%, color-mix(in srgb, var(--landing-paper) 94%, var(--landing-green)) 100%); color: var(--landing-paper-text); border: 1px solid color-mix(in srgb, var(--landing-paper-text) 16%, transparent); box-shadow: inset 0 1px 0 rgba(255,255,255,.32), 0 24px 58px rgba(0,0,0,.22); backdrop-filter: blur(18px) saturate(120%); }
-.account-panel::before { content: ""; position: absolute; inset: 0 0 auto; height: 38%; pointer-events: none; background: linear-gradient(160deg, rgba(255,255,255,.22), transparent 62%); opacity: .45; }
+.account-panel { grid-area: access; position: relative; scroll-margin-top: 78px; overflow: hidden; border-radius: 12px; background: linear-gradient(145deg, rgba(255,255,255,.24) 0%, transparent 22%, transparent 74%, color-mix(in srgb, var(--landing-green) 9%, transparent) 100%), var(--landing-stage); color: var(--landing-stage-text); border: 1px solid color-mix(in srgb, var(--landing-stage-text) 20%, transparent); box-shadow: inset 0 1px 0 rgba(255,255,255,.34), inset 0 -1px 0 color-mix(in srgb, var(--landing-stage-text) 4%, transparent), 0 24px 58px rgba(0,0,0,.22); backdrop-filter: blur(18px) saturate(120%); }
+.account-panel::before { content: none; }
 .account-form { position: relative; z-index: 1; padding: 24px 26px 26px; }
 .account-tabs { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--landing-rule); margin: -4px 0 24px; }
 .account-tabs button { border: 0; border-bottom: 2px solid transparent; background: none; padding: 13px 5px; color: var(--landing-paper-muted); font-size: 13px; cursor: pointer; }
@@ -287,12 +288,24 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .account-form > p { color: var(--landing-paper-muted); font-size: 12px; line-height: 1.55; margin: 9px 0 20px; }
 .account-form label { display: grid; gap: 7px; margin: 13px 0; color: var(--landing-paper-muted); font-size: 11px; font-weight: 690; }
 .optional-label { justify-self: end; margin-top: -18px; color: var(--landing-paper-muted); font: 8px var(--font-geist-mono); letter-spacing: .08em; }
-.account-form input { width: 100%; min-height: 46px; border: 1px solid var(--landing-rule); background: color-mix(in srgb, var(--landing-paper) 92%, var(--landing-paper-text)); color: var(--landing-paper-text); padding: 0 13px; outline: none; font-size: 14px; }
+.account-form input { width: 100%; min-height: 46px; border: 1px solid var(--landing-rule); border-radius: 9px; background: color-mix(in srgb, var(--landing-paper) 92%, var(--landing-paper-text)); color: var(--landing-paper-text); padding: 0 13px; outline: none; font-size: 14px; }
 .account-form input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
-.account-submit { width: 100%; min-height: 46px; margin-top: 9px; border: 1px solid color-mix(in srgb, var(--landing-paper-text) 23%, transparent); background: linear-gradient(112deg, color-mix(in srgb, var(--landing-red) 38%, #20211d) 0%, #302925 48%, color-mix(in srgb, var(--landing-green) 44%, #20211d) 100%); color: #f5f1e5; box-shadow: inset 0 1px 0 rgba(255,255,255,.09), 0 8px 20px rgba(0,0,0,.12); font-size: 14px; font-weight: 760; cursor: pointer; }
+.account-submit { width: 100%; min-height: 46px; margin-top: 9px; border: 1px solid color-mix(in srgb, var(--landing-paper-text) 23%, transparent); border-radius: 9px; background: linear-gradient(112deg, color-mix(in srgb, var(--landing-red) 38%, #20211d) 0%, #302925 48%, color-mix(in srgb, var(--landing-green) 44%, #20211d) 100%); color: #f5f1e5; box-shadow: inset 0 1px 0 rgba(255,255,255,.09), 0 8px 20px rgba(0,0,0,.12); font-size: 14px; font-weight: 760; cursor: pointer; }
 .account-submit:disabled { opacity: .58; cursor: wait; }
 .account-form > small { display: block; margin-top: 14px; color: var(--landing-paper-muted); font-size: 10px; line-height: 1.45; }
 .account-message { border-left: 2px solid var(--red); background: color-mix(in srgb, var(--red) 10%, var(--landing-paper)); color: var(--red); padding: 10px 11px; font-size: 12px; }
+
+/* Landing controls share the same softened geometry as the two primary cards. */
+.account-header-actions > button,
+.account-header-actions .account-tour-link,
+.account-theme-toggle,
+.account-mobile-demo,
+.account-primary-link,
+.account-submit,
+.account-message { border-radius: 9px; }
+.account-theme-toggle button:first-child { border-radius: 6px 0 0 6px; }
+.account-theme-toggle button:last-child { border-radius: 0 6px 6px 0; }
+.account-tabs button { border-radius: 8px 8px 0 0; }
 .account-page-footer { position: relative; z-index: 1; min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 22px; padding: 0 max(28px, calc((100vw - 1450px) / 2)); color: color-mix(in srgb, var(--landing-stage-text) 62%, transparent); font: 9px var(--font-geist-mono); letter-spacing: .06em; border-top: 1px solid color-mix(in srgb, var(--landing-stage-text) 14%, transparent); background: color-mix(in srgb, var(--landing-stage) 78%, transparent); backdrop-filter: blur(18px); }
 .access-eyebrow { display: block; margin: 30px 0 13px; color: var(--accent); font: 10px var(--font-geist-mono); letter-spacing: .14em; }
 .gate-card h1 { max-width: 670px; margin: 0; font-size: clamp(32px, 5.2vw, 58px); line-height: 1.04; letter-spacing: -.045em; }
@@ -2147,7 +2160,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .flight-visualiser-bar label { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 10px; white-space: nowrap; }
 .flight-visualiser-bar input { accent-color: var(--green); }
 .flight-map-shell { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: #d8ded9; }
-.flight-map { position: absolute; inset: 0; }
+.flight-map-shell > .flight-map { position: absolute; inset: 0; width: 100%; height: 100%; }
 .flight-map-dark::after { content: ""; position: absolute; z-index: 1; inset: 0; background: rgba(8, 12, 11, .2); pointer-events: none; mix-blend-mode: multiply; }
 .flight-map-legend { position: absolute; z-index: 4; left: 12px; top: 12px; display: flex; gap: 8px; padding: 7px 9px; border: 1px solid rgba(255,255,255,.32); background: rgba(15,17,16,.82); color: #fff; box-shadow: 0 8px 24px rgba(0,0,0,.2); backdrop-filter: blur(8px); font: 8px var(--font-geist-mono); }
 .flight-map-legend span { display: flex; align-items: center; gap: 5px; }
