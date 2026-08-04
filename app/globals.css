@@ -380,8 +380,10 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .conflict-banner button { border: 0; background: var(--red); color: var(--accent-ink); padding: 8px 11px; white-space: nowrap; }
 
 @media (max-width: 1100px) {
-  .account-main { width: min(900px, calc(100% - 48px)); min-height: 0; grid-template-columns: minmax(0, 1fr); grid-template-areas: "hero" "access" "workflow"; gap: 20px; padding: 24px 0 54px; }
-  .account-panel { position: static; width: min(560px, 100%); justify-self: end; }
+  .account-main { width: min(900px, calc(100% - 48px)); min-height: 0; display: flex; flex-direction: column; gap: 20px; padding: 24px 0 54px; }
+  .account-hero { order: 1; width: 100%; }
+  .account-panel { order: 2; position: static; width: min(560px, 100%); align-self: flex-end; }
+  .account-control-list { order: 3; width: 100%; }
   .account-hero h1 { font-size: clamp(58px, 8.5vw, 82px); }
 }
 .app-shell-no-overview { grid-template-rows: 66px 74px 0 1fr 30px; }
@@ -400,8 +402,8 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .account-mobile-demo span { color: var(--accent); font: 8px/1 var(--font-geist-mono); letter-spacing: .12em; }
   .account-mobile-demo strong { grid-column: 1; font-size: 15px; line-height: 1.15; }
   .account-mobile-demo i { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: var(--landing-stage-text); font: normal 10px/1 var(--font-geist-mono); }
-  .account-main { width: min(100% - 20px, 620px); grid-template-columns: 1fr; gap: 12px; padding: 10px 0 38px; }
-  .account-hero { min-height: 0; padding: 13px 14px 16px; border-radius: 8px; }
+  .account-main { width: min(100% - 20px, 620px); gap: 12px; padding: 10px 0 38px; }
+  .account-hero { min-height: 0; height: auto; display: block; padding: 13px 14px 16px; border-radius: 8px; }
   .account-hero::before { display: none; }
   .account-hero-chrome { grid-template-columns: 1fr auto; }
   .account-hero-chrome span:nth-child(2) { display: none; }
@@ -409,8 +411,8 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .account-hero-datum { width: min(430px, 94%); margin-bottom: 16px; }
   .account-hero h1 { max-width: 560px; margin: 14px 0 18px; font-size: clamp(42px, 12vw, 62px); line-height: .87; letter-spacing: -.06em; }
   .account-hero-copy > p { font-size: 13px; }
-  .account-hero-console { grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 0; padding-top: 24px; }
-  .account-hero-console dl { width: 100%; }
+  .account-hero-console { display: block; margin-top: 0; padding-top: 18px; }
+  .account-hero-console dl { display: none; }
   .account-hero-actions { min-width: 0; display: block; }
   .account-hero-actions .account-primary-link { display: none; }
   .account-hero-actions > a:not(.account-primary-link) { justify-content: flex-start; min-height: 36px; }
@@ -420,7 +422,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .account-control-list article:nth-child(3n) { border-right: 1px solid var(--landing-rule); }
   .account-control-list article:nth-child(even) { border-right: 0; }
   .account-control-list article:nth-last-child(3) { border-bottom: 1px solid var(--landing-rule); }
-  .account-panel { width: 100%; justify-self: stretch; }
+  .account-panel { width: 100%; align-self: stretch; }
   .account-form { padding: 24px 20px; }
   .account-form input { min-height: 48px; font-size: 16px; }
   .account-submit { min-height: 48px; }
