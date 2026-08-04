@@ -287,6 +287,7 @@ test("provides a complete touch-first mobile engineering workspace", async () =>
   assert.match(styles, /\.simulation-detail-grid \{ grid-template-columns: minmax\(0, 1fr\);/);
   assert.match(styles, /\.register-head \{ display: none; \}/);
   assert.match(styles, /\.revision-timeline > section \{ grid-template-columns: minmax\(0, 1fr\);/);
+  assert.match(styles, /\.revision-index \{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[\s\S]*overflow-x: hidden;/);
   assert.match(styles, /\.simulation-editor \{ width: 100%; height: 100vh; height: 100dvh;/);
   assert.match(styles, /\.statusbar \{[\s\S]*bottom: 64px;/);
   assert.match(styles, /\.main-grid\[data-mobile-pane="model"\]/);

@@ -1793,9 +1793,32 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .test-register article { grid-template-columns: 44px minmax(0, 1fr); padding: 11px; }
   .test-register article header { align-items: flex-start; flex-direction: column; gap: 5px; }
 
-  .revision-module .module-tree { max-height: 210px; }
-  .revision-index { display: flex; overflow-x: auto; }
-  .revision-index a { flex: 0 0 142px; border-right: 1px solid var(--line); }
+  .revision-module .module-tree { max-height: 208px; border-bottom: 1px solid var(--line-strong); }
+  .revision-module .module-tree > header { min-height: 52px; padding: 11px 14px; }
+  .revision-module .module-tree > header .eyebrow { display: none; }
+  .revision-module .module-tree > header h2 { margin: 0; font-size: 14px; }
+  .revision-index {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+  .revision-index a {
+    min-width: 0;
+    min-height: 58px;
+    display: grid;
+    align-content: center;
+    justify-content: stretch;
+    gap: 4px;
+    padding: 9px 14px;
+    border-right: 1px solid var(--line);
+  }
+  .revision-index a:nth-child(2n) { border-right: 0; }
+  .revision-index a strong, .revision-index a span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .revision-index a strong { font-size: 10px; }
+  .revision-index a span { font-size: 9px; }
   .revision-module .module-tree > footer { display: none; }
   .revision-timeline { padding: 14px; }
   .revision-timeline > section { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 14px 0 20px; }
