@@ -380,34 +380,31 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
     const map = mapRef.current;
     if (!map || !ready) return;
     if (container.current) container.current.dataset.trailState = "building";
-    for (const id of ["measured-3d", "simulated-3d", "measured-ribbon", "simulated-ribbon", "measured-glow", "simulated-glow", "measured-ground", "simulated-ground", "flight-markers", "flight-event-markers-3d", "active-flight-point", "active-flight-marker-3d"]) {
+    for (const id of ["measured-3d", "simulated-3d", "measured-ribbon", "simulated-ribbon", "measured-glow", "simulated-glow", "measured-ground", "simulated-ground", "flight-markers", "flight-event-markers-3d", "flight-event-markers", "active-flight-point", "active-flight-marker-3d", "active-flight-marker"]) {
       if (map.getLayer(id)) map.removeLayer(id);
     }
     for (const id of ["measured", "simulated", "measured-3d", "simulated-3d", "flight-markers", "flight-event-markers-3d", "active-flight-point"]) if (map.getSource(id)) map.removeSource(id);
     if (measured.length > 1) {
       map.addSource("measured", { type: "geojson", data: geoLine(measured) });
-      map.addLayer({ id: "measured-glow", type: "line", source: "measured", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": accent, "line-width": 16, "line-blur": 5, "line-opacity": 0.26 } });
-      map.addLayer({ id: "measured-ground", type: "line", source: "measured", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": accent, "line-width": 6, "line-opacity": 0.96 } });
-      map.addSource("measured-3d", { type: "geojson", data: trajectoryRibbon(measured, 10, 5) });
-      map.addLayer({ id: "measured-3d", type: "fill-extrusion", source: "measured-3d", paint: { "fill-extrusion-color": accent, "fill-extrusion-base": ["get", "base"], "fill-extrusion-height": ["get", "height"], "fill-extrusion-opacity": 0.9 } });
+      // A regular MapLibre line is necessarily a ground projection. Keep that
+      // reference deliberately subtle; the custom 3D ribbon below is the
+      // authoritative measured flight path and uses every point's altitude.
+      map.addLayer({ id: "measured-ground", type: "line", source: "measured", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": accent, "line-width": 1.25, "line-dasharray": [2, 3], "line-opacity": 0.24 } });
+      map.addLayer(addPointRibbonLayer("measured-ribbon", measured, accent));
       if (container.current) container.current.dataset.trailState = "measured-ready";
     }
     if (simulated.length > 1) {
       map.addSource("simulated", { type: "geojson", data: geoLine(simulated) });
-      map.addLayer({ id: "simulated-glow", type: "line", source: "simulated", paint: { "line-color": "#157f54", "line-width": 9, "line-blur": 4, "line-opacity": 0.22 } });
-      map.addLayer({ id: "simulated-ground", type: "line", source: "simulated", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#157f54", "line-width": 4, "line-dasharray": [2, 1.5], "line-opacity": 0.88 } });
-      map.addSource("simulated-3d", { type: "geojson", data: trajectoryRibbon(simulated, 5, 2) });
-      map.addLayer({ id: "simulated-3d", type: "fill-extrusion", source: "simulated-3d", paint: { "fill-extrusion-color": "#157f54", "fill-extrusion-base": ["get", "base"], "fill-extrusion-height": ["get", "height"], "fill-extrusion-opacity": 0.72 } });
+      map.addLayer({ id: "simulated-ground", type: "line", source: "simulated", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#157f54", "line-width": 1, "line-dasharray": [2, 3], "line-opacity": 0.2 } });
+      map.addLayer(addPointRibbonLayer("simulated-ribbon", simulated, "#157f54"));
     }
     map.addSource("flight-markers", { type: "geojson", data: geoPoints(measured.length ? measured : [{ ...launchSite, time: 0 }], simulated) });
     map.addLayer({ id: "flight-markers", type: "circle", source: "flight-markers", paint: { "circle-radius": 6, "circle-color": ["match", ["get", "kind"], "launch", "#111111", "simulation", "#157f54", accent], "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 } });
     if (measuredEventPoints.length) {
-      map.addSource("flight-event-markers-3d", { type: "geojson", data: pointPrisms(measuredEventPoints, 9, 18) });
-      map.addLayer({ id: "flight-event-markers-3d", type: "fill-extrusion", source: "flight-event-markers-3d", paint: { "fill-extrusion-color": accent, "fill-extrusion-base": ["get", "base"], "fill-extrusion-height": ["get", "height"], "fill-extrusion-opacity": 1 } });
+      map.addLayer(addFlightEventMarkersLayer("flight-event-markers", measuredEventPoints, accent));
     }
     if (activePointRef.current) {
-      map.addSource("active-flight-point", { type: "geojson", data: pointPrisms([activePointRef.current], 11, 24) });
-      map.addLayer({ id: "active-flight-marker-3d", type: "fill-extrusion", source: "active-flight-point", paint: { "fill-extrusion-color": accent, "fill-extrusion-base": ["get", "base"], "fill-extrusion-height": ["get", "height"], "fill-extrusion-opacity": 1 } });
+      map.addLayer(addActiveFlightMarker(map, "active-flight-marker", activePointRef, accent));
     }
     map.on("mouseenter", "flight-markers", () => { map.getCanvas().style.cursor = "pointer"; });
     map.on("mouseleave", "flight-markers", () => { map.getCanvas().style.cursor = onLaunchSiteChange ? "crosshair" : ""; });
@@ -433,11 +430,8 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
     const map = mapRef.current;
     activePointRef.current = activePoint;
     if (!map || !ready) return;
-    const source = map.getSource("active-flight-point") as maplibregl.GeoJSONSource | undefined;
-    if (activePoint && source) source.setData(pointPrisms([activePoint], 11, 24));
-    else if (activePoint && !map.getLayer("active-flight-marker-3d")) {
-      map.addSource("active-flight-point", { type: "geojson", data: pointPrisms([activePoint], 11, 24) });
-      map.addLayer({ id: "active-flight-marker-3d", type: "fill-extrusion", source: "active-flight-point", paint: { "fill-extrusion-color": accent, "fill-extrusion-base": ["get", "base"], "fill-extrusion-height": ["get", "height"], "fill-extrusion-opacity": 1 } });
+    if (activePoint && !map.getLayer("active-flight-marker")) {
+      map.addLayer(addActiveFlightMarker(map, "active-flight-marker", activePointRef, accent));
     }
     map.triggerRepaint();
   }, [activePoint, ready, accent]);
