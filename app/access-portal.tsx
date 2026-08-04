@@ -45,6 +45,10 @@ export function AccessPortal() {
   return (
     <main className="access-page">
       <header className="account-header">
+        <div className="account-header-brand" aria-label="Co-Roc configuration control">
+          <strong>CO—ROC</strong>
+          <span>CONFIGURATION CONTROL / LAUNCH VEHICLES</span>
+        </div>
         <nav className="account-header-actions" aria-label="Account actions">
           <div className="account-theme-toggle" role="group" aria-label="Colour mode">
             <button type="button" aria-pressed={resolvedTheme === "light"} onClick={() => setThemeMode("light")}>Light</button>
@@ -58,16 +62,33 @@ export function AccessPortal() {
       <section className="account-main">
         <div className="account-context">
           <section className="account-hero">
+            <header className="account-hero-chrome">
+              <span>WORKING FILE / CONTROLLED RECORD</span>
+              <span>OPENROCKET COMPATIBLE</span>
+              <span>REV 01 / CO—ROC</span>
+            </header>
             <CoRocLogo className="account-hero-logo" />
-            <span className="account-section-label">CO-ROC / CONFIGURATION CONTROL</span>
-            <h1>The working OpenRocket file, with its engineering record attached.</h1>
-            <p>One controlled workspace for geometry, evidence, simulation, approvals and launch readiness. Every decision stays attributable to the vehicle configuration it affected.</p>
-            <div className="account-hero-actions">
-              <Link className="account-primary-link" href="/demo?tour=1">Open guided demo <span aria-hidden="true">→</span></Link>
-              <a href="#controlled-workflow">Review the controls</a>
+            <div className="account-hero-copy">
+              <span className="account-section-label">CONFIGURATION CONTROL FOR LAUNCH VEHICLES</span>
+              <h1><span>BUILD THE ROCKET.</span><span>KEEP THE RECORD.</span></h1>
+              <p><strong>The working OpenRocket file, with its engineering record attached.</strong> Geometry, evidence, simulations, approvals and launch readiness stay tied to the configuration they affected.</p>
             </div>
-            <section className="account-control-list" id="controlled-workflow" aria-label="Co-Roc engineering controls">
-              <header><span>CONTROLLED WORKFLOW</span><span>WORKING → REVIEW → RELEASE</span></header>
+            <div className="account-hero-console">
+              <dl>
+                <div><dt>MODEL</dt><dd>AUTHORITATIVE .ORK</dd></div>
+                <div><dt>CHANGE STATE</dt><dd>WORKING → REVIEW → RELEASE</dd></div>
+                <div><dt>EVIDENCE</dt><dd>PART-LEVEL / ATTRIBUTED</dd></div>
+                <div><dt>LAUNCH</dt><dd>CHECKLIST / SIGN-OFF</dd></div>
+              </dl>
+              <div className="account-hero-actions">
+                <Link className="account-primary-link" href="/demo?tour=1">Open guided demo <span aria-hidden="true">→</span></Link>
+                <a href="#controlled-workflow">See the control loop</a>
+              </div>
+            </div>
+          </section>
+
+          <section className="account-control-list" id="controlled-workflow" aria-label="Co-Roc engineering controls">
+              <header><span>THE CONTROL LOOP</span><span>06 CONNECTED WORKFLOWS</span></header>
               <div>
                 <article><b>01</b><span><strong>Authoritative ORK</strong><small>Upload, inspect and download the current vehicle file.</small></span></article>
                 <article><b>02</b><span><strong>Review changes before they land</strong><small>Compare geometry and route intentional changes to a lead.</small></span></article>
@@ -76,7 +97,6 @@ export function AccessPortal() {
                 <article><b>05</b><span><strong>Control teams and releases</strong><small>Assign access, approve work and recover release baselines.</small></span></article>
                 <article><b>06</b><span><strong>Prepare the launch</strong><small>Build approved assembly, arming and launch checklists.</small></span></article>
               </div>
-            </section>
           </section>
         </div>
 
