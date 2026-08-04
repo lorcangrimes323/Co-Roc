@@ -338,11 +338,15 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(map, /trajectoryFitMaxZoom/);
   assert.match(map, /altitudeSpan/);
   assert.match(map, /following \? Math\.min\(8\.75, altitudeAwareZoom\)/);
+  assert.match(map, /function guidedFlightCamera/);
+  assert.match(map, /altitudeSpan \/ 500/);
+  assert.match(map, /map\.jumpTo\(camera\)/);
+  assert.match(map, /guidedEnvelope = "launch-apogee"/);
+  assert.match(map, /zoom: guidedZoom\.current \?\? map\.getZoom\(\)/);
   assert.match(map, /fittedViewKey = `\$\{boundsKey\}\|\$\{followActive \? "guided" : "standard"\}`/);
   assert.match(map, /pitch: followActive \? 32/);
   assert.match(map, /dataset\.cameraFollow/);
   assert.match(map, /map\.easeTo\(\{/);
-  assert.match(map, /zoom: map\.getZoom\(\)/);
   assert.match(map, /followSuspended\.current = true/);
   assert.match(map, /addActiveFlightMarker\(map, "active-flight-marker"/);
   assert.match(map, /addFlightEventMarkersLayer\("flight-event-markers"/);
