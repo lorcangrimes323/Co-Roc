@@ -46,8 +46,8 @@ export function AccessPortal() {
     <main className="access-page">
       <header className="account-header">
         <div className="account-header-brand" aria-label="Co-Roc configuration control">
-          <strong>CO—ROC</strong>
           <span>CONFIGURATION CONTROL / LAUNCH VEHICLES</span>
+          <span>OPENROCKET TEAM WORKSPACE</span>
         </div>
         <nav className="account-header-actions" aria-label="Account actions">
           <div className="account-theme-toggle" role="group" aria-label="Colour mode">
@@ -68,6 +68,11 @@ export function AccessPortal() {
               <span>REV 01 / CO—ROC</span>
             </header>
             <CoRocLogo className="account-hero-logo" />
+            <div className="account-hero-datum" aria-hidden="true">
+              <span>DATUM 000</span>
+              <i />
+              <span>LIVE VEHICLE RECORD</span>
+            </div>
             <div className="account-hero-copy">
               <span className="account-section-label">CONFIGURATION CONTROL FOR LAUNCH VEHICLES</span>
               <h1><span>BUILD THE ROCKET.</span><span>KEEP THE RECORD.</span></h1>
