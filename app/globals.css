@@ -2164,7 +2164,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .flight-map-dark::after { content: ""; position: absolute; z-index: 1; inset: 0; background: rgba(8, 12, 11, .2); pointer-events: none; mix-blend-mode: multiply; }
 .flight-map-legend { position: absolute; z-index: 4; left: 12px; top: 12px; display: flex; gap: 8px; padding: 7px 9px; border: 1px solid rgba(255,255,255,.32); background: rgba(15,17,16,.82); color: #fff; box-shadow: 0 8px 24px rgba(0,0,0,.2); backdrop-filter: blur(8px); font: 8px var(--font-geist-mono); }
 .flight-map-legend span { display: flex; align-items: center; gap: 5px; }
-.flight-map-legend i { width: 16px; height: 3px; border-radius: 99px; background: #f5a524; box-shadow: 0 0 7px rgba(245,165,36,.8); }
+.flight-map-legend i { width: 16px; height: 3px; border-radius: 99px; background: var(--accent); box-shadow: 0 0 7px color-mix(in srgb, var(--accent) 74%, transparent); }
 .flight-map-legend i.flight-simulated { height: 0; border-top: 2px dashed #62c694; background: transparent; }
 .flight-terrain-toggle { position: absolute; z-index: 4; left: 12px; top: 46px; min-height: 28px; padding: 0 9px; border: 1px solid rgba(255,255,255,.32); background: rgba(15,17,16,.82); color: #fff; font: 8px var(--font-geist-mono); cursor: pointer; backdrop-filter: blur(8px); }
 .flight-fit-toggle { position: absolute; z-index: 4; left: 88px; top: 46px; min-height: 28px; padding: 0 9px; border: 1px solid rgba(255,255,255,.32); background: rgba(15,17,16,.82); color: #fff; font: 8px var(--font-geist-mono); cursor: pointer; backdrop-filter: blur(8px); }

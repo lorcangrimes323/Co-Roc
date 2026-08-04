@@ -15,10 +15,22 @@ type Props = {
   launchSite: { latitude: number; longitude: number; altitude: number };
   onLaunchSiteChange?: (site: { latitude: number; longitude: number }) => void;
   theme?: "light" | "dark";
+  accent?: string;
   compact?: boolean;
 };
 
 const styleUrl = "https://tiles.openfreemap.org/styles/liberty";
+
+function altitudeAwareMaxZoom(map: MapLibreMap, points: MapPoint[]) {
+  if (!points.length) return 13.5;
+  const lowest = Math.min(...points.map((point) => point.altitude));
+  const verticalRange = Math.max(1, Math.max(...points.map((point) => point.altitude)) - lowest);
+  const latitude = points.reduce((sum, point) => sum + point.latitude, 0) / points.length;
+  const usableHeight = Math.max(120, map.getCanvas().clientHeight * 0.58);
+  const requiredMetresPerPixel = verticalRange / usableHeight;
+  const zoom = Math.log2(156_543.03392 * Math.max(0.1, Math.cos(latitude * Math.PI / 180)) / requiredMetresPerPixel);
+  return Math.max(8, Math.min(15, zoom));
+}
 
 function geoLine(points: MapPoint[]) {
   return {
@@ -47,72 +59,115 @@ function geoPoints(measured: MapPoint[], simulated: MapPoint[], events: CatsFlig
   };
 }
 
-function addTrajectoryLayer(map: MapLibreMap, id: string, points: MapPoint[], colour: string): CustomLayerInterface {
+function trajectoryRibbon(points: MapPoint[], widthMetres = 7, thicknessMetres = 3) {
+  const features = points.slice(0, -1).flatMap((start, index) => {
+    const end = points[index + 1];
+    const latitude = (start.latitude + end.latitude) / 2;
+    const metresPerLatitude = 111_320;
+    const metresPerLongitude = Math.max(1, metresPerLatitude * Math.cos(latitude * Math.PI / 180));
+    const east = (end.longitude - start.longitude) * metresPerLongitude;
+    const north = (end.latitude - start.latitude) * metresPerLatitude;
+    const length = Math.hypot(east, north);
+    if (!Number.isFinite(length) || length < 0.02) return [];
+    const halfWidth = widthMetres / 2;
+    const offsetLongitude = (-north / length * halfWidth) / metresPerLongitude;
+    const offsetLatitude = (east / length * halfWidth) / metresPerLatitude;
+    const altitude = Math.max(0, (start.altitude + end.altitude) / 2);
+    const base = Math.max(0, altitude - thicknessMetres / 2);
+    return [{
+      type: "Feature" as const,
+      properties: { base, height: Math.max(base + 0.5, altitude + thicknessMetres / 2), sequence: index },
+      geometry: {
+        type: "Polygon" as const,
+        coordinates: [[
+          [start.longitude + offsetLongitude, start.latitude + offsetLatitude],
+          [end.longitude + offsetLongitude, end.latitude + offsetLatitude],
+          [end.longitude - offsetLongitude, end.latitude - offsetLatitude],
+          [start.longitude - offsetLongitude, start.latitude - offsetLatitude],
+          [start.longitude + offsetLongitude, start.latitude + offsetLatitude],
+        ]],
+      },
+    }];
+  });
+  return { type: "FeatureCollection" as const, features };
+}
+
+function colourChannels(colour: string): [number, number, number] {
+  const match = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(colour);
+  if (!match) return [0.79, 0.14, 0.21];
+  return [Number.parseInt(match[1], 16) / 255, Number.parseInt(match[2], 16) / 255, Number.parseInt(match[3], 16) / 255];
+}
+
+function addPointRibbonLayer(id: string, points: MapPoint[], colour: string): CustomLayerInterface {
   let program: WebGLProgram | null = null;
   let buffer: WebGLBuffer | null = null;
-  let startPosition = -1;
-  let endPosition = -1;
-  let progressPosition = -1;
-  let sidePosition = -1;
+  let position = -1;
   let matrixLocation: WebGLUniformLocation | null = null;
   let colourLocation: WebGLUniformLocation | null = null;
-  let viewportLocation: WebGLUniformLocation | null = null;
-  let widthLocation: WebGLUniformLocation | null = null;
-  const coordinates = points.map((point) => maplibregl.MercatorCoordinate.fromLngLat([point.longitude, point.latitude], point.altitude));
-  const vertices: number[] = [];
-  const corners: Array<[number, number]> = [[0, -1], [0, 1], [1, 1], [0, -1], [1, 1], [1, -1]];
-  for (let index = 0; index < coordinates.length - 1; index += 1) {
-    const start = coordinates[index];
-    const end = coordinates[index + 1];
-    for (const [progress, side] of corners) vertices.push(start.x, start.y, start.z, end.x, end.y, end.z, progress, side);
+  let sizeLocation: WebGLUniformLocation | null = null;
+  const positions: number[] = [];
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    const startCoordinate = maplibregl.MercatorCoordinate.fromLngLat([start.longitude, start.latitude], start.altitude);
+    const endCoordinate = maplibregl.MercatorCoordinate.fromLngLat([end.longitude, end.latitude], end.altitude);
+    const horizontalMetres = Math.hypot((end.latitude - start.latitude) * 111_320, (end.longitude - start.longitude) * 111_320 * Math.cos(start.latitude * Math.PI / 180));
+    const distance = Math.hypot(horizontalMetres, end.altitude - start.altitude);
+    const steps = Math.max(1, Math.min(48, Math.ceil(distance / 6)));
+    for (let step = 0; step < steps; step += 1) {
+      const amount = step / steps;
+      positions.push(
+        startCoordinate.x + (endCoordinate.x - startCoordinate.x) * amount,
+        startCoordinate.y + (endCoordinate.y - startCoordinate.y) * amount,
+        startCoordinate.z + (endCoordinate.z - startCoordinate.z) * amount,
+      );
+    }
   }
-  const rgb = colour.match(/[a-f\d]{2}/gi)?.map((value) => parseInt(value, 16) / 255) ?? [1, 0, 0];
+  const final = points.at(-1);
+  if (final) {
+    const coordinate = maplibregl.MercatorCoordinate.fromLngLat([final.longitude, final.latitude], final.altitude);
+    positions.push(coordinate.x, coordinate.y, coordinate.z);
+  }
   return {
     id,
     type: "custom",
     renderingMode: "3d",
     onAdd(_map, gl) {
       const vertex = gl.createShader(gl.VERTEX_SHADER)!;
-      gl.shaderSource(vertex, "attribute vec3 a_start; attribute vec3 a_end; attribute float a_progress; attribute float a_side; uniform mat4 u_matrix; uniform vec2 u_viewport; uniform float u_width; void main(){vec4 start=u_matrix*vec4(a_start,1.0); vec4 end=u_matrix*vec4(a_end,1.0); vec2 start_px=(start.xy/start.w*.5+.5)*u_viewport; vec2 end_px=(end.xy/end.w*.5+.5)*u_viewport; vec2 direction=normalize(end_px-start_px); if(length(end_px-start_px)<.001) direction=vec2(1.0,0.0); vec2 normal=vec2(-direction.y,direction.x); vec4 current=mix(start,end,a_progress); vec2 offset=normal*(u_width*.5)*a_side/u_viewport*2.0; current.xy+=offset*current.w; gl_Position=current;}");
+      gl.shaderSource(vertex, "attribute vec3 a_position; uniform mat4 u_matrix; uniform float u_size; void main(){gl_Position=u_matrix*vec4(a_position,1.0); gl_PointSize=u_size;}");
       gl.compileShader(vertex);
       const fragment = gl.createShader(gl.FRAGMENT_SHADER)!;
-      gl.shaderSource(fragment, "precision mediump float; uniform vec4 u_colour; void main(){gl_FragColor=u_colour;}");
+      gl.shaderSource(fragment, "precision mediump float; uniform vec4 u_colour; void main(){float distance=length(gl_PointCoord-vec2(.5)); if(distance>.5) discard; float edge=1.0-smoothstep(.38,.5,distance); gl_FragColor=vec4(u_colour.rgb,u_colour.a*edge);}");
       gl.compileShader(fragment);
       program = gl.createProgram()!;
       gl.attachShader(program, vertex); gl.attachShader(program, fragment); gl.linkProgram(program);
       buffer = gl.createBuffer();
-      gl.bindBuffer(gl.ARRAY_BUFFER, buffer); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-      startPosition = gl.getAttribLocation(program, "a_start");
-      endPosition = gl.getAttribLocation(program, "a_end");
-      progressPosition = gl.getAttribLocation(program, "a_progress");
-      sidePosition = gl.getAttribLocation(program, "a_side");
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+      position = gl.getAttribLocation(program, "a_position");
       matrixLocation = gl.getUniformLocation(program, "u_matrix");
       colourLocation = gl.getUniformLocation(program, "u_colour");
-      viewportLocation = gl.getUniformLocation(program, "u_viewport");
-      widthLocation = gl.getUniformLocation(program, "u_width");
+      sizeLocation = gl.getUniformLocation(program, "u_size");
     },
     render(gl, options) {
-      if (!program || !buffer) return;
+      if (!program || !buffer || !positions.length) return;
+      const [red, green, blue] = colourChannels(colour);
       gl.useProgram(program);
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-      const stride = 8 * Float32Array.BYTES_PER_ELEMENT;
-      gl.enableVertexAttribArray(startPosition); gl.vertexAttribPointer(startPosition, 3, gl.FLOAT, false, stride, 0);
-      gl.enableVertexAttribArray(endPosition); gl.vertexAttribPointer(endPosition, 3, gl.FLOAT, false, stride, 3 * Float32Array.BYTES_PER_ELEMENT);
-      gl.enableVertexAttribArray(progressPosition); gl.vertexAttribPointer(progressPosition, 1, gl.FLOAT, false, stride, 6 * Float32Array.BYTES_PER_ELEMENT);
-      gl.enableVertexAttribArray(sidePosition); gl.vertexAttribPointer(sidePosition, 1, gl.FLOAT, false, stride, 7 * Float32Array.BYTES_PER_ELEMENT);
+      gl.enableVertexAttribArray(position);
+      gl.vertexAttribPointer(position, 3, gl.FLOAT, false, 0, 0);
       gl.uniformMatrix4fv(matrixLocation, false, options.defaultProjectionData.mainMatrix);
-      gl.uniform2f(viewportLocation, gl.drawingBufferWidth, gl.drawingBufferHeight);
-      gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthFunc(gl.LEQUAL);
-      gl.uniform4f(colourLocation, rgb[0], rgb[1], rgb[2], 0.26); gl.uniform1f(widthLocation, 14);
-      gl.drawArrays(gl.TRIANGLES, 0, vertices.length / 8);
-      gl.uniform4f(colourLocation, rgb[0], rgb[1], rgb[2], 0.98); gl.uniform1f(widthLocation, 6);
-      gl.drawArrays(gl.TRIANGLES, 0, vertices.length / 8);
+      gl.disable(gl.DEPTH_TEST);
+      gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.uniform4f(colourLocation, red, green, blue, 0.2); gl.uniform1f(sizeLocation, 15);
+      gl.drawArrays(gl.POINTS, 0, positions.length / 3);
+      gl.uniform4f(colourLocation, red, green, blue, 0.98); gl.uniform1f(sizeLocation, 7);
+      gl.drawArrays(gl.POINTS, 0, positions.length / 3);
     },
     onRemove(_map, gl) { if (buffer) gl.deleteBuffer(buffer); if (program) gl.deleteProgram(program); },
   };
 }
 
-function addActiveFlightMarker(map: MapLibreMap, id: string, pointRef: { current: MapPoint | undefined }): CustomLayerInterface {
+function addActiveFlightMarker(map: MapLibreMap, id: string, pointRef: { current: MapPoint | undefined }, colour: string): CustomLayerInterface {
   let program: WebGLProgram | null = null;
   let buffer: WebGLBuffer | null = null;
   let position = -1;
@@ -148,7 +203,8 @@ function addActiveFlightMarker(map: MapLibreMap, id: string, pointRef: { current
       gl.enableVertexAttribArray(position);
       gl.vertexAttribPointer(position, 3, gl.FLOAT, false, 0, 0);
       gl.uniformMatrix4fv(matrixLocation, false, options.defaultProjectionData.mainMatrix);
-      gl.uniform3f(colourLocation, 0.96, 0.55, 0.08);
+      const [red, green, blue] = colourChannels(colour);
+      gl.uniform3f(colourLocation, red, green, blue);
       gl.uniform1f(sizeLocation, 19);
       gl.drawArrays(gl.POINTS, 0, 1);
       gl.uniform3f(colourLocation, 1, 1, 1);
@@ -159,7 +215,7 @@ function addActiveFlightMarker(map: MapLibreMap, id: string, pointRef: { current
   };
 }
 
-export function FlightPathMap({ measured = [], simulated = [], currentIndex, activePoint: suppliedActivePoint, events = [], launchSite, onLaunchSiteChange, theme = "light", compact = false }: Props) {
+export function FlightPathMap({ measured = [], simulated = [], currentIndex, activePoint: suppliedActivePoint, events = [], launchSite, onLaunchSiteChange, theme = "light", accent = "#c92335", compact = false }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [terrain, setTerrain] = useState(true);
@@ -208,25 +264,29 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready || !map.isStyleLoaded() || !map.getSource("terrain-dem")) return;
-    for (const id of ["measured-3d", "simulated-3d", "measured-glow", "simulated-glow", "measured-ground", "simulated-ground", "flight-markers", "active-flight-point", "active-flight-marker-3d"]) {
+    for (const id of ["measured-3d", "simulated-3d", "measured-ribbon", "simulated-ribbon", "measured-glow", "simulated-glow", "measured-ground", "simulated-ground", "flight-markers", "active-flight-point", "active-flight-marker-3d"]) {
       if (map.getLayer(id)) map.removeLayer(id);
     }
-    for (const id of ["measured", "simulated", "flight-markers", "active-flight-point"]) if (map.getSource(id)) map.removeSource(id);
+    for (const id of ["measured", "simulated", "measured-3d", "simulated-3d", "flight-markers", "active-flight-point"]) if (map.getSource(id)) map.removeSource(id);
     if (measured.length > 1) {
       map.addSource("measured", { type: "geojson", data: geoLine(measured) });
-      map.addLayer({ id: "measured-glow", type: "line", source: "measured", paint: { "line-color": "#f59e0b", "line-width": 4, "line-blur": 3, "line-opacity": 0.12 } });
-      map.addLayer({ id: "measured-ground", type: "line", source: "measured", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#b7791f", "line-width": 1.5, "line-dasharray": [2, 2], "line-opacity": 0.45 } });
-      map.addLayer(addTrajectoryLayer(map, "measured-3d", measured, "#f5a524"));
+      map.addLayer({ id: "measured-glow", type: "line", source: "measured", paint: { "line-color": accent, "line-width": 4, "line-blur": 3, "line-opacity": 0.12 } });
+      map.addLayer({ id: "measured-ground", type: "line", source: "measured", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": accent, "line-width": 1.5, "line-dasharray": [2, 2], "line-opacity": 0.45 } });
+      map.addSource("measured-3d", { type: "geojson", data: trajectoryRibbon(measured) });
+      map.addLayer({ id: "measured-3d", type: "fill-extrusion", source: "measured-3d", paint: { "fill-extrusion-color": accent, "fill-extrusion-base": ["get", "base"], "fill-extrusion-height": ["get", "height"], "fill-extrusion-opacity": 0.94 } });
+      map.addLayer(addPointRibbonLayer("measured-ribbon", measured, accent));
     }
     if (simulated.length > 1) {
       map.addSource("simulated", { type: "geojson", data: geoLine(simulated) });
       map.addLayer({ id: "simulated-glow", type: "line", source: "simulated", paint: { "line-color": "#157f54", "line-width": 9, "line-blur": 4, "line-opacity": 0.22 } });
       map.addLayer({ id: "simulated-ground", type: "line", source: "simulated", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#157f54", "line-width": 4, "line-dasharray": [2, 1.5], "line-opacity": 0.88 } });
-      map.addLayer(addTrajectoryLayer(map, "simulated-3d", simulated, "#157f54"));
+      map.addSource("simulated-3d", { type: "geojson", data: trajectoryRibbon(simulated, 5, 2) });
+      map.addLayer({ id: "simulated-3d", type: "fill-extrusion", source: "simulated-3d", paint: { "fill-extrusion-color": "#157f54", "fill-extrusion-base": ["get", "base"], "fill-extrusion-height": ["get", "height"], "fill-extrusion-opacity": 0.72 } });
+      map.addLayer(addPointRibbonLayer("simulated-ribbon", simulated, "#157f54"));
     }
     map.addSource("flight-markers", { type: "geojson", data: geoPoints(measured.length ? measured : [{ ...launchSite, time: 0 }], simulated, events) });
     map.addLayer({ id: "flight-markers", type: "circle", source: "flight-markers", paint: { "circle-radius": ["match", ["get", "kind"], "event", 5, 6], "circle-color": ["match", ["get", "kind"], "launch", "#111111", "apogee", "#d4253b", "simulation", "#157f54", "event", "#b1721b", "#f4b942"], "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 } });
-    if (activePointRef.current) map.addLayer(addActiveFlightMarker(map, "active-flight-marker-3d", activePointRef));
+    if (activePointRef.current) map.addLayer(addActiveFlightMarker(map, "active-flight-marker-3d", activePointRef, accent));
     map.on("mouseenter", "flight-markers", () => { map.getCanvas().style.cursor = "pointer"; });
     map.on("mouseleave", "flight-markers", () => { map.getCanvas().style.cursor = onLaunchSiteChange ? "crosshair" : ""; });
     map.on("click", "flight-markers", (event) => {
@@ -238,17 +298,17 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
     const all = [...measured, ...simulated];
     if (all.length) {
       const bounds = all.reduce((value, point) => value.extend([point.longitude, point.latitude]), new maplibregl.LngLatBounds([all[0].longitude, all[0].latitude], [all[0].longitude, all[0].latitude]));
-      map.fitBounds(bounds, { padding: compact ? 38 : 72, maxZoom: 15, duration: 900 });
+      map.fitBounds(bounds, { padding: compact ? 38 : 72, maxZoom: altitudeAwareMaxZoom(map, all), duration: 900 });
     } else map.flyTo({ center: [launchSite.longitude, launchSite.latitude], zoom: compact ? 10 : 13 });
-  }, [ready, boundsKey, measured, simulated, events, launchSite.latitude, launchSite.longitude, compact]);
+  }, [ready, boundsKey, measured, simulated, events, launchSite.latitude, launchSite.longitude, compact, accent]);
 
   useEffect(() => {
     const map = mapRef.current;
     activePointRef.current = activePoint;
     if (!map || !ready || !map.isStyleLoaded()) return;
-    if (activePoint && !map.getLayer("active-flight-marker-3d")) map.addLayer(addActiveFlightMarker(map, "active-flight-marker-3d", activePointRef));
+    if (activePoint && !map.getLayer("active-flight-marker-3d")) map.addLayer(addActiveFlightMarker(map, "active-flight-marker-3d", activePointRef, accent));
     map.triggerRepaint();
-  }, [activePoint, ready]);
+  }, [activePoint, ready, accent]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -261,7 +321,7 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
     const all = [...measured, ...simulated];
     if (!map || !all.length) return;
     const bounds = all.reduce((value, point) => value.extend([point.longitude, point.latitude]), new maplibregl.LngLatBounds([all[0].longitude, all[0].latitude], [all[0].longitude, all[0].latitude]));
-    map.fitBounds(bounds, { padding: compact ? 38 : 72, maxZoom: 15, pitch: terrain ? 58 : 0, bearing: terrain ? -18 : 0, duration: 700 });
+    map.fitBounds(bounds, { padding: compact ? 38 : 72, maxZoom: altitudeAwareMaxZoom(map, all), pitch: terrain ? 58 : 0, bearing: terrain ? -18 : 0, duration: 700 });
   }
 
   return <div className={`flight-map-shell ${compact ? "flight-map-compact" : ""} flight-map-${theme}`}>

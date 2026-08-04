@@ -319,9 +319,14 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(map, /openfreemap\.org/);
   assert.match(map, /mapterhorn\.com/);
   assert.match(map, /renderingMode: "3d"/);
-  assert.match(map, /gl\.TRIANGLES/);
-  assert.match(map, /uniform float u_width/);
+  assert.match(map, /trajectoryRibbon/);
+  assert.match(map, /type: "fill-extrusion"/);
+  assert.match(map, /"fill-extrusion-height": \["get", "height"\]/);
+  assert.match(map, /addPointRibbonLayer/);
+  assert.match(map, /gl\.drawArrays\(gl\.POINTS/);
+  assert.match(map, /altitudeAwareMaxZoom/);
   assert.match(map, /active-flight-marker-3d/);
+  assert.match(workspace, /\[showSimulation, setShowSimulation\] = useState\(false\)/);
   assert.ok(map.indexOf("const activePoint =") < map.indexOf("const activePointRef ="), "the active sample must exist before the 3D playback reference is initialised");
   assert.match(map, /activePoint/);
   assert.match(map, /Fit flight/);
