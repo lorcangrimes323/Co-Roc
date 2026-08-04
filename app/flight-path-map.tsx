@@ -29,7 +29,9 @@ function trajectoryFitMaxZoom(points: MapPoint[], following = false) {
   const altitudeAwareZoom = altitudeSpan > 20
     ? Math.max(10.75, Math.min(15, 15.4 - Math.log2(Math.max(1, altitudeSpan / 250))))
     : 15;
-  return following ? Math.min(10.5, altitudeAwareZoom) : altitudeAwareZoom;
+  // Guided playback must keep the full 2.5 km vertical flight envelope visible,
+  // not merely the few-hundred-metre GNSS ground footprint.
+  return following ? Math.min(8.75, altitudeAwareZoom) : altitudeAwareZoom;
 }
 
 function geoLine(points: MapPoint[]) {
@@ -447,7 +449,7 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
     const fittedViewKey = `${boundsKey}|${followActive ? "guided" : "standard"}`;
     if (all.length && lastFittedBoundsKey.current !== fittedViewKey) {
       const bounds = all.reduce((value, point) => value.extend([point.longitude, point.latitude]), new maplibregl.LngLatBounds([all[0].longitude, all[0].latitude], [all[0].longitude, all[0].latitude]));
-      map.fitBounds(bounds, { padding: compact ? 38 : followActive ? 110 : 72, maxZoom: trajectoryFitMaxZoom(all, followActive), pitch: followActive ? 45 : map.getPitch(), bearing: followActive ? -12 : map.getBearing(), duration: 900 });
+      map.fitBounds(bounds, { padding: compact ? 38 : followActive ? 120 : 72, maxZoom: trajectoryFitMaxZoom(all, followActive), pitch: followActive ? 32 : map.getPitch(), bearing: followActive ? -8 : map.getBearing(), duration: 900 });
       lastFittedBoundsKey.current = fittedViewKey;
     } else if (!all.length && !lastFittedBoundsKey.current) {
       map.flyTo({ center: [launchSite.longitude, launchSite.latitude], zoom: compact ? 10 : 13 });

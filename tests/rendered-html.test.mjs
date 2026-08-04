@@ -337,9 +337,9 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(map, /gl\.drawArrays\(gl\.POINTS/);
   assert.match(map, /trajectoryFitMaxZoom/);
   assert.match(map, /altitudeSpan/);
-  assert.match(map, /following \? Math\.min\(10\.5, altitudeAwareZoom\)/);
+  assert.match(map, /following \? Math\.min\(8\.75, altitudeAwareZoom\)/);
   assert.match(map, /fittedViewKey = `\$\{boundsKey\}\|\$\{followActive \? "guided" : "standard"\}`/);
-  assert.match(map, /pitch: followActive \? 45/);
+  assert.match(map, /pitch: followActive \? 32/);
   assert.match(map, /dataset\.cameraFollow/);
   assert.match(map, /map\.easeTo\(\{/);
   assert.match(map, /zoom: map\.getZoom\(\)/);
