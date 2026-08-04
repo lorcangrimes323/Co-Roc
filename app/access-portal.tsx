@@ -54,10 +54,16 @@ export function AccessPortal() {
             <button type="button" aria-pressed={resolvedTheme === "light"} onClick={() => setThemeMode("light")}>Light</button>
             <button type="button" aria-pressed={resolvedTheme === "dark"} onClick={() => setThemeMode("dark")}>Dark</button>
           </div>
-          <Link href="/demo?tour=1">Guided demo</Link>
+          <Link className="account-tour-link" href="/demo?tour=1">Open guided demo</Link>
           <button type="button" onClick={() => chooseMode(mode === "signin" ? "signup" : "signin")}>{mode === "signin" ? "Create account" : "Sign in"}</button>
         </nav>
       </header>
+
+      <Link className="account-mobile-demo" href="/demo?tour=1">
+        <span>GUIDED PRODUCT TOUR</span>
+        <strong>See Co-Roc in action</strong>
+        <i>12 steps →</i>
+      </Link>
 
       <section className="account-main">
         <div className="account-context">
