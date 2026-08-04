@@ -297,6 +297,10 @@ test("provides a complete touch-first mobile engineering workspace", async () =>
   assert.match(missionControl, /VENDOR \/ OBSERVER ACCESS/);
   assert.match(missionControl, /Messages/);
   assert.match(missionControl, /data-mobile-pane=\{mobilePane\}/);
+  assert.match(missionControl, /workspaceModule === "configuration" && <section className="mobile-command-centre"/);
+  assert.match(missionControl, /workspaceModule === "configuration" \|\| workspaceModule === "simulation"/);
+  assert.match(missionControl, /function changeWorkspaceModule[\s\S]*setSettingsOpen\(false\)/);
+  assert.match(styles, /\.app-shell-no-overview/);
   assert.match(workspaceApp, /remove-member/);
   assert.match(workspaceApp, /Vendor \/ observer/);
   assert.match(sessionRoute, /action === "remove-member"/);

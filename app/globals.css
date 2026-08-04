@@ -307,6 +307,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .account-panel { width: min(500px, 100%); }
   .account-hero h1 { max-width: 680px; font-size: clamp(40px, 7vw, 52px); }
 }
+.app-shell-no-overview { grid-template-rows: 66px 74px 0 1fr 30px; }
 
 @media (max-height: 760px) {
   .account-main { align-items: start; padding-top: 28px; padding-bottom: 28px; }
@@ -1493,6 +1494,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
     grid-template-rows: 58px auto auto auto auto auto 30px;
     overflow-x: clip;
   }
+  .app-shell-no-overview { grid-template-rows: 58px auto 0 0 0 auto 30px; }
 
   .topbar {
     grid-column: 1;

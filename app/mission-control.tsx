@@ -786,9 +786,10 @@ export function MissionControl({
     } catch { /* live history is non-blocking */ }
   }
 
-  function openMobileModule(module: WorkspaceModule) {
+  function changeWorkspaceModule(module: WorkspaceModule) {
     setMobileMoreOpen(false);
     setSettingsOpen(false);
+    setMentionsOpen(false);
     setWorkspaceModule(module);
     if (module === "history") void refreshHistory();
   }
@@ -1466,7 +1467,7 @@ export function MissionControl({
   }
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell ${workspaceModule !== "configuration" && workspaceModule !== "simulation" ? "app-shell-no-overview" : ""}`}>
       <header className="topbar">
         <div className="brand-lockup">
           <CoRocLogo className="workspace-brand-logo" />
@@ -1512,22 +1513,22 @@ export function MissionControl({
       </header>
 
       <aside className="rail">
-        <button className={`rail-button ${workspaceModule === "configuration" ? "rail-active" : ""}`} type="button" aria-label="Configuration" data-label="Configuration" onClick={() => setWorkspaceModule("configuration")}><WorkspaceIcon name="configuration" /></button>
-        <button className={`rail-button rail-mobile-secondary ${workspaceModule === "simulation" ? "rail-active" : ""}`} type="button" aria-label="Simulation" data-label="Simulation" onClick={() => setWorkspaceModule("simulation")}><WorkspaceIcon name="simulation" /></button>
-        <button className={`rail-button ${workspaceModule === "history" ? "rail-active" : ""}`} type="button" aria-label="Revision history" data-label="Revision history" onClick={() => { setWorkspaceModule("history"); void refreshHistory(); }}><WorkspaceIcon name="history" /></button>
-        <button className={`rail-button ${workspaceModule === "tests" ? "rail-active" : ""}`} type="button" aria-label="Tests" data-label="Tests" onClick={() => setWorkspaceModule("tests")}><WorkspaceIcon name="tests" /></button>
-        <button className={`rail-button ${workspaceModule === "documents" ? "rail-active" : ""}`} type="button" aria-label="Documentation" data-label="Documentation" onClick={() => setWorkspaceModule("documents")}><WorkspaceIcon name="documents" /></button>
-        <button className={`rail-button rail-mobile-secondary ${workspaceModule === "checklists" ? "rail-active" : ""}`} type="button" aria-label="Launch checklists" data-label="Checklists" onClick={() => setWorkspaceModule("checklists")}><WorkspaceIcon name="checklists" /></button>
+        <button className={`rail-button ${workspaceModule === "configuration" ? "rail-active" : ""}`} type="button" aria-label="Configuration" data-label="Configuration" onClick={() => changeWorkspaceModule("configuration")}><WorkspaceIcon name="configuration" /></button>
+        <button className={`rail-button rail-mobile-secondary ${workspaceModule === "simulation" ? "rail-active" : ""}`} type="button" aria-label="Simulation" data-label="Simulation" onClick={() => changeWorkspaceModule("simulation")}><WorkspaceIcon name="simulation" /></button>
+        <button className={`rail-button ${workspaceModule === "history" ? "rail-active" : ""}`} type="button" aria-label="Revision history" data-label="Revision history" onClick={() => changeWorkspaceModule("history")}><WorkspaceIcon name="history" /></button>
+        <button className={`rail-button ${workspaceModule === "tests" ? "rail-active" : ""}`} type="button" aria-label="Tests" data-label="Tests" onClick={() => changeWorkspaceModule("tests")}><WorkspaceIcon name="tests" /></button>
+        <button className={`rail-button ${workspaceModule === "documents" ? "rail-active" : ""}`} type="button" aria-label="Documentation" data-label="Documentation" onClick={() => changeWorkspaceModule("documents")}><WorkspaceIcon name="documents" /></button>
+        <button className={`rail-button rail-mobile-secondary ${workspaceModule === "checklists" ? "rail-active" : ""}`} type="button" aria-label="Launch checklists" data-label="Checklists" onClick={() => changeWorkspaceModule("checklists")}><WorkspaceIcon name="checklists" /></button>
         <div className="rail-spacer" />
         <button data-tour="workspace-settings-button" className={`rail-button rail-desktop-settings ${settingsOpen ? "rail-settings-active" : ""}`} type="button" aria-label="Workspace settings" data-label="Settings" aria-expanded={settingsOpen} aria-controls="workspace-settings" onClick={() => setSettingsOpen((open) => !open)}><WorkspaceIcon name="settings" /></button>
-        <button className={`rail-button rail-mobile-more ${mobileMoreOpen || workspaceModule === "simulation" || workspaceModule === "checklists" ? "rail-active" : ""}`} type="button" aria-label="More tools" data-label="More" aria-expanded={mobileMoreOpen} aria-controls="mobile-more-menu" onClick={() => setMobileMoreOpen((open) => !open)}><WorkspaceIcon name="settings" /></button>
+        <button className={`rail-button rail-mobile-more ${mobileMoreOpen || workspaceModule === "simulation" || workspaceModule === "checklists" ? "rail-active" : ""}`} type="button" aria-label="More tools" data-label="More" aria-expanded={mobileMoreOpen} aria-controls="mobile-more-menu" onClick={() => { setSettingsOpen(false); setMobileMoreOpen((open) => !open); }}><WorkspaceIcon name="settings" /></button>
       </aside>
 
       {mobileMoreOpen && <div className="mobile-more-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setMobileMoreOpen(false)}>
         <section id="mobile-more-menu" className="mobile-more-menu" aria-label="More workspace tools">
           <header><div><span>MORE TOOLS</span><h2>Workspace</h2></div><button type="button" aria-label="Close more tools" onClick={() => setMobileMoreOpen(false)}>&times;</button></header>
-          <button type="button" onClick={() => openMobileModule("simulation")}><WorkspaceIcon name="simulation" /><span><strong>Simulation</strong><small>Run and compare OpenRocket cases</small></span></button>
-          <button type="button" onClick={() => openMobileModule("checklists")}><WorkspaceIcon name="checklists" /><span><strong>Launch checklists</strong><small>Assembly, arming and sign-off</small></span></button>
+          <button type="button" onClick={() => changeWorkspaceModule("simulation")}><WorkspaceIcon name="simulation" /><span><strong>Simulation</strong><small>Run and compare OpenRocket cases</small></span></button>
+          <button type="button" onClick={() => changeWorkspaceModule("checklists")}><WorkspaceIcon name="checklists" /><span><strong>Launch checklists</strong><small>Assembly, arming and sign-off</small></span></button>
           <button type="button" onClick={() => { setMobileMoreOpen(false); setSettingsOpen(true); }}><WorkspaceIcon name="settings" /><span><strong>Appearance</strong><small>Theme and accent colour</small></span></button>
           <button type="button" onClick={() => { setMobileMoreOpen(false); onManageTeam?.(); }}><WorkspaceIcon name="configuration" /><span><strong>{can("manageTeam") ? "Team administration" : "Team and access"}</strong><small>{can("manageTeam") ? "Members, roles and rocket access" : "View your access and projects"}</small></span></button>
         </section>
@@ -1554,7 +1555,7 @@ export function MissionControl({
           <div className="workspace-title-row">
             <h1>{orkModel?.name || workspace.project.name}</h1>
             <span className="revision-badge"><span /> {mode === "demo" ? "DEMO · LOCAL" : latestRelease ? `WORKING COPY · BASELINE V${latestRelease.releaseNumber}` : "WORKING COPY · UNRELEASED"}</span>
-            {pendingOrkProposals.length > 0 && <button className="proposal-review-link" type="button" onClick={() => setWorkspaceModule("history")}><span>{pendingOrkProposals.length}</span> ORK proposal{pendingOrkProposals.length === 1 ? "" : "s"} awaiting review</button>}
+            {pendingOrkProposals.length > 0 && <button className="proposal-review-link" type="button" onClick={() => changeWorkspaceModule("history")}><span>{pendingOrkProposals.length}</span> ORK proposal{pendingOrkProposals.length === 1 ? "" : "s"} awaiting review</button>}
           </div>
         </div>
         {workspaceModule === "configuration" && <div className="workspace-actions" data-tour="ork-sync-actions">
@@ -1571,26 +1572,26 @@ export function MissionControl({
         </div>}
       </section>
 
-      <section className="mobile-command-centre" aria-label="Mobile workspace shortcuts">
+      {workspaceModule === "configuration" && <section className="mobile-command-centre" aria-label="Mobile workspace shortcuts">
         <header>
           <div><span>{workspace.team.role === "lead" ? "LEAD WORKSPACE" : workspace.team.role === "engineer" ? "ENGINEERING WORKSPACE" : "VENDOR / OBSERVER ACCESS"}</span><strong>{workspace.team.role === "lead" ? "Items needing your decision" : workspace.team.role === "engineer" ? "Your engineering tools" : "Approved project information"}</strong></div>
           <button type="button" onClick={() => onManageTeam?.()}>{can("manageTeam") ? "Manage" : "Access"}</button>
         </header>
         <div className="mobile-command-summary">
-          <button type="button" onClick={() => openMobileModule("history")}><strong>{pendingOrkProposals.length + (pendingRelease ? 1 : 0)}</strong><span>{can("approveRelease") ? "to review" : "pending"}</span></button>
+          <button type="button" onClick={() => changeWorkspaceModule("history")}><strong>{pendingOrkProposals.length + (pendingRelease ? 1 : 0)}</strong><span>{can("approveRelease") ? "to review" : "pending"}</span></button>
           <button type="button" onClick={() => setMentionsOpen(true)}><strong>{unreadMentions}</strong><span>messages</span></button>
-          <button type="button" onClick={() => openMobileModule("tests")}><strong>{componentRecord.tests.filter((test) => test.status === "required").length}</strong><span>tests due</span></button>
-          <button type="button" onClick={() => openMobileModule("history")}><strong>{latestRelease ? `V${latestRelease.releaseNumber}` : "—"}</strong><span>release</span></button>
+          <button type="button" onClick={() => changeWorkspaceModule("tests")}><strong>{componentRecord.tests.filter((test) => test.status === "required").length}</strong><span>tests due</span></button>
+          <button type="button" onClick={() => changeWorkspaceModule("history")}><strong>{latestRelease ? `V${latestRelease.releaseNumber}` : "—"}</strong><span>release</span></button>
         </div>
         <div className="mobile-quick-actions">
           <button type="button" onClick={() => { setWorkspaceModule("configuration"); setMobilePane("model"); }}><WorkspaceIcon name="configuration" /><span>View rocket</span></button>
           {can("editOrk") && <button type="button" onClick={startOrkUpload}><span className="mobile-action-glyph">⇧</span><span>Upload ORK</span></button>}
-          {can("approveRelease") ? <button type="button" onClick={() => openMobileModule("history")}><WorkspaceIcon name="history" /><span>Review changes</span></button> : <button type="button" onClick={() => openMobileModule("documents")}><WorkspaceIcon name="documents" /><span>Records</span></button>}
+          {can("approveRelease") ? <button type="button" onClick={() => changeWorkspaceModule("history")}><WorkspaceIcon name="history" /><span>Review changes</span></button> : <button type="button" onClick={() => changeWorkspaceModule("documents")}><WorkspaceIcon name="documents" /><span>Records</span></button>}
           <button type="button" onClick={() => setMentionsOpen(true)}><span className="mobile-action-glyph">@</span><span>Messages{unreadMentions ? ` (${unreadMentions})` : ""}</span></button>
         </div>
-      </section>
+      </section>}
 
-      <section className="metrics-strip" aria-label="Vehicle summary" data-tour="vehicle-summary">
+      {(workspaceModule === "configuration" || workspaceModule === "simulation") && <section className="metrics-strip" aria-label="Vehicle summary" data-tour="vehicle-summary">
         {workspaceModule === "simulation" ? <>
           <div className="metric"><span>SAVED CASES</span><strong>{orkModel?.simulations.length ?? 0} <small>runs</small></strong></div>
           <div className="metric"><span>APOGEE · CASE 1</span><strong>{orkModel?.simulations[0] ? Math.round(orkModel.simulations[0].maxAltitude).toLocaleString() : "—"} <small>m</small></strong></div>
@@ -1604,7 +1605,7 @@ export function MissionControl({
           <div className="metric"><span>SAVED SIMULATIONS</span><strong>{orkModel?.simulations.length ?? 0} <small>cases</small></strong></div>
           <div className="metric"><span>RELEASE BASELINE</span><strong>{latestRelease ? `V${latestRelease.releaseNumber}` : "—"} <small>{pendingRelease ? `W${pendingRelease.workingVersion} awaiting approval` : latestRelease ? `working copy W${workspaceVersion ?? "—"}` : "not released"}</small></strong></div>
         </>}
-      </section>
+      </section>}
 
       {workspaceModule === "configuration" && <nav className="mobile-pane-switcher" aria-label="Configuration view">
         <button type="button" className={mobilePane === "model" ? "active" : ""} onClick={() => setMobilePane("model")}>Rocket</button>
