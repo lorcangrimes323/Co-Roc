@@ -38,6 +38,37 @@ const demo = { launch: demoCatsLaunch, points: demoCatsPoints, summary: demoCats
 const demoEvents: CatsFlightEvent[] = demoCatsEvents;
 const demoRecord: FlightRecord = { id: "demo-mach26", name: "QPL Mach26 · Measured flight", flightDate: "2026-03-26", computer: "CATS Vega", sourceFileName: "QPL_Mach26-flightData.cfl", sourceFormat: "CFL", launchSiteName: "Campbeltown Airport", launchLatitude: demo.launch.latitude, launchLongitude: demo.launch.longitude, launchAltitude: demo.launch.altitude, headingDegrees: 0, orkVersion: 5, importedByName: "Demo dataset", createdAt: "2026-03-26T12:14:00Z", warnings: [], sampleCount: demo.summary.sampleCount, duration: demo.summary.duration, maxAltitude: demo.summary.apogee, maxVelocity: demo.summary.maxVelocity, maxAcceleration: demo.summary.maxAcceleration, maxDistance: demo.summary.maxDistance, landingDistance: demo.summary.landingDistance, hasGps: demo.summary.hasGps };
 
+function interpolateFlightPoint(points: FlightPoint[], time: number) {
+  if (!points.length) return undefined;
+  if (time <= points[0].time) return { ...points[0], time };
+  if (time >= points.at(-1)!.time) return { ...points.at(-1)!, time };
+  let low = 0;
+  let high = points.length - 1;
+  while (low + 1 < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (points[middle].time <= time) low = middle;
+    else high = middle;
+  }
+  const start = points[low];
+  const end = points[high];
+  const amount = Math.max(0, Math.min(1, (time - start.time) / Math.max(.001, end.time - start.time)));
+  const between = (first: number, second: number) => first + (second - first) * amount;
+  const optional = (key: "velocity" | "verticalVelocity" | "acceleration" | "pressure" | "temperature" | "battery") =>
+    Number.isFinite(start[key]) && Number.isFinite(end[key]) ? between(start[key]!, end[key]!) : start[key] ?? end[key];
+  return {
+    time,
+    latitude: between(start.latitude, end.latitude),
+    longitude: between(start.longitude, end.longitude),
+    altitude: between(start.altitude, end.altitude),
+    velocity: optional("velocity"),
+    verticalVelocity: optional("verticalVelocity"),
+    acceleration: optional("acceleration"),
+    pressure: optional("pressure"),
+    temperature: optional("temperature"),
+    battery: optional("battery"),
+  } satisfies FlightPoint;
+}
+
 function Metric({ label, value, unit, detail }: { label: string; value: string; unit?: string; detail?: string }) {
   return <div className="flight-metric"><span>{label}</span><strong>{value} {unit && <small>{unit}</small>}</strong>{detail && <em>{detail}</em>}</div>;
 }
@@ -146,7 +177,7 @@ export function PostFlightWorkspace({ model, mode, workspaceVersion, headers, ca
   const [flights, setFlights] = useState<FlightRecord[]>(mode === "demo" ? [demoRecord] : []);
   const [selectedId, setSelectedId] = useState(mode === "demo" ? demoRecord.id : "");
   const [trajectories, setTrajectories] = useState<Record<string, Trajectory>>(mode === "demo" ? { [demoRecord.id]: { points: demo.points, events: demoEvents } } : {});
-  const [importOpen, setImportOpen] = useState(false); const [loading, setLoading] = useState(mode === "live"); const [playing, setPlaying] = useState(false); const [timeIndex, setTimeIndex] = useState(0); const [showSimulation, setShowSimulation] = useState(false);
+  const [importOpen, setImportOpen] = useState(false); const [loading, setLoading] = useState(mode === "live"); const [playing, setPlaying] = useState(false); const [timeIndex, setTimeIndex] = useState(0); const [playheadTime, setPlayheadTime] = useState(0); const [showSimulation, setShowSimulation] = useState(false);
   const selected = flights.find((flight) => flight.id === selectedId) ?? flights[0]; const trajectory = selected ? trajectories[selected.id] : undefined;
   const simulation = model?.simulations.find((item) => item.series?.length);
   const simulated = useMemo(() => simulation?.series?.length && selected ? simulatedGroundTrack(simulation.series, { latitude: selected.launchLatitude, longitude: selected.launchLongitude, altitude: selected.launchAltitude, headingDegrees: Number.isFinite(simulation.launchRodDirection) ? simulation.launchRodDirection * 180 / Math.PI : selected.headingDegrees }) : [], [simulation, selected]);
@@ -162,10 +193,11 @@ export function PostFlightWorkspace({ model, mode, workspaceVersion, headers, ca
     if (!selected || trajectories[selected.id] || mode !== "live") return;
     void (async () => { try { const response = await fetch(`/api/flights?flightId=${encodeURIComponent(selected.id)}`, { headers: headers(), cache: "no-store" }); if (!response.ok) throw new Error(); const data = await response.json() as Trajectory; setTrajectories((values) => ({ ...values, [selected.id]: data })); if (data.summary) setFlights((items) => items.map((item) => item.id === selected.id ? { ...item, sampleCount: data.summary!.sampleCount, duration: data.summary!.duration, maxAltitude: data.summary!.apogee, maxVelocity: data.summary!.maxVelocity, maxAcceleration: data.summary!.maxAcceleration, maxDistance: data.summary!.maxDistance, landingDistance: data.summary!.landingDistance, hasGps: data.summary!.hasGps } : item)); } catch { onNotice("The selected flight trajectory could not be loaded"); } })();
   }, [selected?.id, mode]);
-  useEffect(() => { setTimeIndex(0); setPlaying(false); }, [selectedId]);
+  useEffect(() => { setTimeIndex(0); setPlayheadTime(0); setPlaying(false); }, [selectedId]);
   useEffect(() => {
     if (!guidedPlayback || !trajectory?.points.length) return;
     setTimeIndex(0);
+    setPlayheadTime(trajectory.points[0].time);
     setPlaying(true);
     return () => setPlaying(false);
   }, [guidedPlayback, selectedId, trajectory?.points]);
@@ -173,14 +205,16 @@ export function PostFlightWorkspace({ model, mode, workspaceVersion, headers, ca
     const points = trajectory?.points;
     if (!playing || !points?.length) return;
     const firstIndex = Math.min(timeIndex, points.length - 1);
-    const firstTime = points[firstIndex].time;
+    const firstTime = Number.isFinite(playheadTime) ? playheadTime : points[firstIndex].time;
     const startedAt = performance.now();
     let frame = 0;
+    let lastRenderedAt = -Infinity;
     const advance = (now: number) => {
       const playbackRate = guidedPlayback ? 4 : 1;
       const targetTime = firstTime + (now - startedAt) / 1000 * playbackRate;
       if (targetTime >= points.at(-1)!.time) {
         setTimeIndex(points.length - 1);
+        setPlayheadTime(points.at(-1)!.time);
         setPlaying(false);
         return;
       }
@@ -192,6 +226,10 @@ export function PostFlightWorkspace({ model, mode, workspaceVersion, headers, ca
         else high = middle - 1;
       }
       setTimeIndex(low);
+      if (now - lastRenderedAt >= 32) {
+        setPlayheadTime(targetTime);
+        lastRenderedAt = now;
+      }
       frame = window.requestAnimationFrame(advance);
     };
     frame = window.requestAnimationFrame(advance);
@@ -200,19 +238,16 @@ export function PostFlightWorkspace({ model, mode, workspaceVersion, headers, ca
   async function removeFlight() { if (!selected || !window.confirm(`Remove ${selected.name} and its stored telemetry? This cannot be undone.`)) return; const response = await fetch(`/api/flights?flightId=${encodeURIComponent(selected.id)}`, { method: "DELETE", headers: headers() }); const payload = await response.json() as { flights?: FlightRecord[]; error?: string }; if (!response.ok) { onNotice(payload.error || "Flight record could not be removed"); return; } setFlights(payload.flights ?? []); setSelectedId(payload.flights?.[0]?.id ?? ""); onNotice("Flight record removed"); }
   function complete(record?: FlightRecord, nextTrajectory?: Trajectory) { setImportOpen(false); if (!record) { void loadList(); return; } setFlights((items) => [record, ...items.filter((item) => item.id !== record.id)]); if (nextTrajectory) setTrajectories((items) => ({ ...items, [record.id]: nextTrajectory })); setSelectedId(record.id); }
 
-  const active = trajectory?.points[Math.min(timeIndex, Math.max(0, (trajectory?.points.length ?? 1) - 1))];
+  const active = interpolateFlightPoint(trajectory?.points ?? [], playheadTime);
   const mapPoints = trajectory?.gnssPoints?.length ? trajectory.gnssPoints : trajectory?.points ?? [];
-  // Playback is indexed by the high-rate telemetry stream, while the map may
-  // use a lower-rate GNSS stream. Project the cursor onto the measured GNSS
-  // trajectory by time so the marker never wanders along reconstructed data.
-  const activeMapPoint = active && mapPoints.length
-    ? mapPoints.reduce((closest, point) => Math.abs(point.time - active.time) < Math.abs(closest.time - active.time) ? point : closest, mapPoints[0])
-    : active;
+  // Interpolate the playhead between GNSS fixes so the 3D marker and tracking
+  // camera move continuously instead of jumping from sample to sample.
+  const activeMapPoint = interpolateFlightPoint(mapPoints, playheadTime) ?? active;
   return <section className="workspace-module postflight-module"><header className="postflight-heading"><div><span>FLIGHT TEST DATA</span><h1>Post-flight visualisation</h1><p>Decode CATS Vega CFL logs, reconstruct measured flights on 3D terrain and retain the evidence against the working configuration.</p></div><button className="button button-primary" type="button" disabled={!canImport} onClick={() => setImportOpen(true)}>＋ Import .CFL flight</button></header>
     <div className="postflight-layout"><aside className="flight-record-list"><header><span>FLIGHT RECORDS</span><strong>{flights.length}</strong></header>{loading && <p>Loading flight records…</p>}{flights.map((flight) => <button key={flight.id} type="button" className={flight.id === selected?.id ? "active" : ""} onClick={() => setSelectedId(flight.id)}><span>{flight.flightDate ? new Date(`${flight.flightDate}T12:00:00`).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) : "UNDATED"}</span><strong>{flight.name}</strong><small>{flight.computer} · {flight.sampleCount.toLocaleString()} samples</small><em>{flight.sourceFormat === "CFL" ? "CATS CFL" : flight.hasGps ? "GNSS" : "RECONSTRUCTED"}</em></button>)}{!loading && !flights.length && <div className="flight-empty"><strong>No flight data yet</strong><span>Import the native .cfl log from a CATS Vega to start the post-flight record.</span></div>}</aside>
       <main className="flight-visualiser" data-tour="postflight-visualiser">{selected ? <><div className="flight-visualiser-bar"><div><span>MEASURED FLIGHT</span><h2>{selected.name}</h2><p>{selected.launchSiteName || `${selected.launchLatitude.toFixed(5)}, ${selected.launchLongitude.toFixed(5)}`} · linked to W{selected.orkVersion ?? "—"}</p></div><label><input type="checkbox" checked={showSimulation} disabled={!simulated.length} onChange={(event) => setShowSimulation(event.target.checked)} /> Simulation overlay</label></div>
         <FlightPathMap theme={theme} accent={accent} measured={mapPoints} simulated={showSimulation ? simulated : []} events={trajectory?.events ?? []} activePoint={activeMapPoint} followActive={guidedPlayback} launchSite={{ latitude: selected.launchLatitude, longitude: selected.launchLongitude, altitude: selected.launchAltitude }} />
-        <div className="flight-playback"><button className="flight-playback-toggle" type="button" aria-label={playing ? "Pause flight" : "Play flight"} title={playing ? "Pause flight" : "Play flight"} aria-pressed={playing} disabled={!trajectory?.points.length} onClick={() => { if (playing) { setPlaying(false); return; } if (timeIndex >= (trajectory?.points.length ?? 1) - 1) setTimeIndex(0); setPlaying(true); }}><span aria-hidden="true">{playing ? "Ⅱ" : "▶"}</span></button><span>{active ? `${active.time.toFixed(1)} s` : "—"}</span><FlightTimeline points={trajectory?.points ?? []} events={trajectory?.events ?? []} duration={selected.duration} value={timeIndex} onChange={(index) => { setPlaying(false); setTimeIndex(index); }} /><span>{selected.duration.toFixed(1)} s</span></div></> : <div className="postflight-empty-map"><strong>Select or import a flight</strong><span>The 3D trajectory and flight channels will appear here.</span></div>}</main>
+        <div className="flight-playback"><button className="flight-playback-toggle" type="button" aria-label={playing ? "Pause flight" : "Play flight"} title={playing ? "Pause flight" : "Play flight"} aria-pressed={playing} disabled={!trajectory?.points.length} onClick={() => { if (playing) { setPlaying(false); return; } if (timeIndex >= (trajectory?.points.length ?? 1) - 1) { setTimeIndex(0); setPlayheadTime(trajectory?.points[0]?.time ?? 0); } setPlaying(true); }}><span aria-hidden="true">{playing ? "Ⅱ" : "▶"}</span></button><span>{active ? `${active.time.toFixed(1)} s` : "—"}</span><FlightTimeline points={trajectory?.points ?? []} events={trajectory?.events ?? []} duration={selected.duration} value={timeIndex} onChange={(index) => { setPlaying(false); setTimeIndex(index); setPlayheadTime(trajectory?.points[index]?.time ?? 0); }} /><span>{selected.duration.toFixed(1)} s</span></div></> : <div className="postflight-empty-map"><strong>Select or import a flight</strong><span>The 3D trajectory and flight channels will appear here.</span></div>}</main>
       <aside className="flight-inspector">{selected && <><header><span>FLIGHT SUMMARY</span><h2>{selected.name}</h2><p>{selected.sourceFileName}</p></header><div className="flight-metric-grid"><Metric label="Apogee" value={Math.round(selected.maxAltitude).toLocaleString()} unit="m" /><Metric label="Max speed" value={selected.maxVelocity === null ? "—" : selected.maxVelocity.toFixed(1)} unit="m/s" /><Metric label="Max accel." value={selected.maxAcceleration === null ? "—" : selected.maxAcceleration.toFixed(1)} unit="m/s²" /><Metric label="Ground range" value={Math.round(selected.maxDistance).toLocaleString()} unit="m" /></div><section className="flight-current-state"><span>CURSOR</span><dl><div><dt>Time</dt><dd>{active?.time.toFixed(2) ?? "—"} s</dd></div><div><dt>Altitude</dt><dd>{active ? Math.round(active.altitude).toLocaleString() : "—"} m</dd></div><div><dt>Velocity</dt><dd>{active?.velocity?.toFixed(1) ?? "—"} m/s</dd></div><div><dt>Position</dt><dd>{active ? `${active.latitude.toFixed(5)}, ${active.longitude.toFixed(5)}` : "—"}</dd></div></dl></section><div className="flight-charts"><ChannelChart points={trajectory?.points ?? []} channel="altitude" label="Altitude · m MSL" colour={accent} /><ChannelChart points={trajectory?.points ?? []} channel="velocity" label="Velocity · m/s" colour="#157f54" /><ChannelChart points={trajectory?.points ?? []} channel="acceleration" label="Acceleration · m/s²" colour="#b1721b" /></div>{trajectory?.events?.length ? <section className="flight-events"><span>CATS FLIGHT EVENTS</span>{trajectory.events.map((event, index) => <div key={`${event.time}-${event.name}-${index}`}><strong>{event.name}</strong><em>{event.time.toFixed(2)} s</em></div>)}</section> : null}<section className="flight-provenance"><span>TRACEABILITY</span><p><strong>Source</strong>{selected.sourceFormat ?? trajectory?.sourceFormat ?? "CSV"}</p>{trajectory?.firmwareVersion && <p><strong>CATS firmware</strong>{trajectory.firmwareVersion}</p>}<p><strong>Imported by</strong>{selected.importedByName}</p><p><strong>Working copy</strong>W{selected.orkVersion ?? "—"}</p><p><strong>Trajectory</strong>{selected.hasGps ? "Measured GNSS" : "Vertical reconstruction"}</p></section>{canDelete && mode === "live" && <button className="flight-delete" type="button" onClick={() => void removeFlight()}>Remove flight record</button>}</>}</aside></div>
     {importOpen && <FlightImportModal model={model} workspaceVersion={workspaceVersion} theme={theme} accent={accent} onCancel={() => setImportOpen(false)} onComplete={complete} onNotice={onNotice} mode={mode} headers={headers} />}
   </section>;

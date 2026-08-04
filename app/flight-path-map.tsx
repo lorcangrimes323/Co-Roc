@@ -29,7 +29,7 @@ function trajectoryFitMaxZoom(points: MapPoint[], following = false) {
   const altitudeAwareZoom = altitudeSpan > 20
     ? Math.max(10.75, Math.min(15, 15.4 - Math.log2(Math.max(1, altitudeSpan / 250))))
     : 15;
-  return following ? Math.min(12, altitudeAwareZoom) : altitudeAwareZoom;
+  return following ? Math.min(11, altitudeAwareZoom) : altitudeAwareZoom;
 }
 
 function geoLine(points: MapPoint[]) {

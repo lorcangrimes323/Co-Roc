@@ -320,6 +320,9 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(workspace, /guidedPlayback = false/);
   assert.match(workspace, /if \(!guidedPlayback \|\| !trajectory\?\.points\.length\) return/);
   assert.match(workspace, /playbackRate = guidedPlayback \? 4 : 1/);
+  assert.match(workspace, /function interpolateFlightPoint/);
+  assert.match(workspace, /setPlayheadTime\(targetTime\)/);
+  assert.match(workspace, /activeMapPoint = interpolateFlightPoint\(mapPoints, playheadTime\)/);
   assert.match(workspace, /followActive=\{guidedPlayback\}/);
   assert.match(workspace, /QPL_Mach26-flightData\.cfl/);
   assert.match(demoFlight, /55\.4352913/);
@@ -333,7 +336,7 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(map, /gl\.drawArrays\(gl\.POINTS/);
   assert.match(map, /trajectoryFitMaxZoom/);
   assert.match(map, /altitudeSpan/);
-  assert.match(map, /following \? Math\.min\(12, altitudeAwareZoom\)/);
+  assert.match(map, /following \? Math\.min\(11, altitudeAwareZoom\)/);
   assert.match(map, /dataset\.cameraFollow/);
   assert.match(map, /map\.easeTo\(\{/);
   assert.match(map, /zoom: map\.getZoom\(\)/);
@@ -350,7 +353,7 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(map, /"line-opacity": 0\.24/);
   assert.match(map, /trajectoryFitMaxZoom/);
   assert.doesNotMatch(map, /!map\.isStyleLoaded\(\) \|\| !map\.getSource\("terrain-dem"\)/);
-  assert.match(workspace, /const activeMapPoint = active && mapPoints\.length/);
+  assert.match(workspace, /const activeMapPoint = interpolateFlightPoint\(mapPoints, playheadTime\)/);
   assert.match(workspace, /activePoint=\{activeMapPoint\}/);
   assert.match(workspace, /flight-timeline-event/);
   assert.match(workspace, /flight-event-key/);
