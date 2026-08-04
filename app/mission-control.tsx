@@ -456,6 +456,7 @@ export function MissionControl({
   const [accent, setAccent] = useState("#c92335");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [guidedTourOpen, setGuidedTourOpen] = useState(false);
+  const [guidedTourStep, setGuidedTourStep] = useState<string | null>(null);
   const canvasAccent = useMemo(() => displayAccent(accent, resolvedTheme === "dark"), [accent, resolvedTheme]);
   const [rollDegrees, setRollDegrees] = useState(0);
   const [paneWidths, setPaneWidths] = useState(defaultPaneWidths);
@@ -597,6 +598,7 @@ export function MissionControl({
   function startGuidedTour() {
     setSettingsOpen(false);
     setWorkspaceModule("configuration");
+    setGuidedTourStep("welcome");
     setGuidedTourOpen(true);
   }
 
@@ -604,6 +606,7 @@ export function MissionControl({
     try { window.localStorage.setItem("co-roc:guided-demo-v2", completed ? "completed" : "dismissed"); }
     catch { /* Dismissing still works for the current visit. */ }
     setGuidedTourOpen(false);
+    setGuidedTourStep(null);
     setSettingsOpen(false);
     setWorkspaceModule("configuration");
   }
@@ -1864,7 +1867,7 @@ export function MissionControl({
       </div>}
 
       {workspaceModule === "simulation" && <SimulationWorkspace key={`${workspace.project.id}:${workspaceVersion ?? "none"}`} model={orkModel} mode={mode} workspaceVersion={workspaceVersion} headers={collaborationHeaders} canRun={can("editOrk") && (mode === "demo" || saveState === "saved")} runBlockedReason={!can("editOrk") ? "Your team role cannot edit or calculate this configuration." : saveState === "offline" ? "The simulation setup has not reached the shared file. Co-Roc will retry automatically when the connection recovers." : saveState === "conflict" ? "A teammate saved another version first. Resolve the shared-file conflict before calculating." : saveState !== "saved" ? "The simulation setup is still being written to the shared ORK." : undefined} onNotice={setNotice} onModelChange={updateSimulationModel} themeKey={resolvedTheme} />}
-      {workspaceModule === "postflight" && <PostFlightWorkspace model={orkModel} mode={mode} workspaceVersion={workspaceVersion} headers={collaborationHeaders} canImport={can("uploadEvidence") || mode === "demo"} canDelete={can("manageProjects")} theme={resolvedTheme} accent={canvasAccent} onNotice={setNotice} />}
+      {workspaceModule === "postflight" && <PostFlightWorkspace model={orkModel} mode={mode} workspaceVersion={workspaceVersion} headers={collaborationHeaders} canImport={can("uploadEvidence") || mode === "demo"} canDelete={can("manageProjects")} theme={resolvedTheme} accent={canvasAccent} guidedPlayback={guidedTourOpen && guidedTourStep === "postflight"} onNotice={setNotice} />}
       {workspaceModule === "history" && <RevisionWorkspace changes={auditChanges} releases={controlledReleases} requests={releaseRequests} proposals={orkProposals} canApprove={can("approveRelease")} canReviewOrk={can("reviewOrkChange")} onOpenComponent={(componentId) => openComponentWorkspace(componentId)} onReleaseAction={handleReleaseAction} onProposalAction={reviewOrkProposal} onDownloadProposal={downloadProposedOrk} />}
       {(workspaceModule === "tests" || workspaceModule === "documents") && <ProjectRecordWorkspace kind={workspaceModule} components={components} headers={collaborationHeaders} projectId={workspace.project.id} mode={mode} onSelectComponent={(componentId, panel) => openComponentWorkspace(componentId, panel)} onNotice={setNotice} />}
       {workspaceModule === "checklists" && <LaunchChecklistWorkspace parts={components.map(({ id, code, name, type }) => ({ id, code, name, type }))} releases={controlledReleases.map(({ releaseNumber, title }) => ({ releaseNumber, title }))} mode={mode} headers={collaborationHeaders} canEdit={can("editChecklist")} canRelease={can("releaseChecklist")} onNotice={setNotice} />}
@@ -1877,6 +1880,7 @@ export function MissionControl({
           if (module === "history") void refreshHistory();
         }}
         onStepChange={(stepId) => {
+          setGuidedTourStep(stepId);
           setSettingsOpen(false);
           setMobileMoreOpen(false);
           if (stepId === "tree") setMobilePane("tree");

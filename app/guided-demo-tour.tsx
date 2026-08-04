@@ -93,8 +93,8 @@ const steps: TourStep[] = [
     eyebrow: "08 · POST-FLIGHT DATA",
     title: "Put the measured flight back over the prediction",
     description: "Import the native binary .CFL log from a CATS Vega. Co-Roc decodes its flight estimates, GNSS, barometer, battery and event records automatically, then places the measured path on keyless 3D terrain beside the OpenRocket prediction from the same configuration.",
-    detail: "GNSS tracks are retained as measured. Logs without continuous coordinates are clearly marked as reconstructed and use logger offsets or velocity plus the selected launch heading. Playback, apogee, range, velocity, acceleration and provenance stay attached to the working W revision used for comparison.",
-    target: ".postflight-module",
+    detail: "The measured flight plays automatically while this tour step is open, so the position marker, event timeline and flight channels move together. GNSS tracks are retained as measured; logs without continuous coordinates are clearly marked as reconstructed. Apogee, range, velocity, acceleration and provenance stay attached to the working W revision used for comparison.",
+    target: "[data-tour='postflight-visualiser']",
     module: "postflight",
   },
   {

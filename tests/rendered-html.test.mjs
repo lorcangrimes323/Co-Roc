@@ -316,6 +316,9 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(workspace, /Simulation overlay/);
   assert.match(workspace, /requestAnimationFrame/);
   assert.match(workspace, /aria-label=\{playing \? "Pause flight" : "Play flight"\}/);
+  assert.match(workspace, /guidedPlayback = false/);
+  assert.match(workspace, /if \(!guidedPlayback \|\| !trajectory\?\.points\.length\) return/);
+  assert.match(workspace, /data-tour="postflight-visualiser"/);
   assert.match(map, /openfreemap\.org/);
   assert.match(map, /mapterhorn\.com/);
   assert.match(map, /renderingMode: "3d"/);
@@ -358,6 +361,10 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(missionControl, /Post-flight/);
   assert.match(tour, /id: "postflight"/);
   assert.match(tour, /native binary \.CFL log from a CATS Vega/);
+  assert.ok(tour.indexOf('id: "simulation"') < tour.indexOf('id: "postflight"'));
+  assert.ok(tour.indexOf('id: "postflight"') < tour.indexOf('id: "versions"'));
+  assert.match(tour, /target: "\[data-tour='postflight-visualiser'\]"/);
+  assert.match(missionControl, /guidedPlayback=\{guidedTourOpen && guidedTourStep === "postflight"\}/);
   assert.match(styles, /\.postflight-layout/);
   assert.match(styles, /\.flight-map-shell/);
   assert.match(styles, /@media \(max-width: 700px\)/);
