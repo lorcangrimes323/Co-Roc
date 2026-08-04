@@ -285,6 +285,11 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(parser, /export function parseFlightTable/);
   assert.match(parser, /export function inferFlightMapping/);
   assert.match(parser, /export function buildFlightData/);
+  assert.match(parser, /export function isCatsCfl/);
+  assert.match(parser, /export function inspectCatsCfl/);
+  assert.match(parser, /export function buildCatsCflFlightData/);
+  assert.match(parser, /CATS_RECORD\.GNSS/);
+  assert.match(parser, /CATS_EVENT_NAMES/);
   assert.match(parser, /simulatedGroundTrack/);
   assert.match(parser, /latitude: \["latitude", "lat", "gps latitude"/);
   assert.match(parser, /north: \["north", "northing", "north offset"/);
@@ -300,8 +305,9 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(schema, /export const flightRecords/);
 
   assert.match(workspace, /Post-flight visualisation/);
-  assert.match(workspace, /Import a CATS Vega flight/);
-  assert.match(workspace, /Channel mapping/);
+  assert.match(workspace, /Import a CATS \.CFL flight log/);
+  assert.match(workspace, /Native CATS CFL detected/);
+  assert.match(workspace, /Flight channels/);
   assert.match(workspace, /Launch datum/);
   assert.match(workspace, /MEASURED FLIGHT/);
   assert.match(workspace, /Simulation overlay/);
@@ -314,7 +320,7 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(missionControl, /name="postflight"/);
   assert.match(missionControl, /Post-flight/);
   assert.match(tour, /id: "postflight"/);
-  assert.match(tour, /CATS Vega or generic CSV/);
+  assert.match(tour, /native binary \.CFL log from a CATS Vega/);
   assert.match(styles, /\.postflight-layout/);
   assert.match(styles, /\.flight-map-shell/);
   assert.match(styles, /@media \(max-width: 700px\)/);

@@ -1,6 +1,6 @@
 import { ensureFlightSchema, getFlightEnvironment } from "../../../db/flight-store";
 import { releaseProjectStorage, reserveProjectStorage } from "../../../db/access-store";
-import { buildFlightData, type FlightColumnMapping } from "../../../lib/flight-data";
+import { buildCatsCflFlightData, buildFlightData, isCatsCfl, type FlightColumnMapping } from "../../../lib/flight-data";
 import { requireProjectAccess } from "../access";
 
 const MAX_FLIGHT_BYTES = 24 * 1024 * 1024;
@@ -9,7 +9,7 @@ const finite = (input: FormDataEntryValue | null, fallback = 0) => Number.isFini
 
 async function list(projectId: string) {
   const { DB } = getFlightEnvironment();
-  const result = await DB.prepare(`SELECT id, name, flight_date AS flightDate, computer, source_file_name AS sourceFileName,
+  const result = await DB.prepare(`SELECT id, name, flight_date AS flightDate, computer, source_file_name AS sourceFileName, source_format AS sourceFormat,
     launch_site_name AS launchSiteName, launch_latitude AS launchLatitude, launch_longitude AS launchLongitude,
     launch_altitude AS launchAltitude, heading_degrees AS headingDegrees, ork_version AS orkVersion,
     sample_count AS sampleCount, duration, max_altitude AS maxAltitude, max_velocity AS maxVelocity,
@@ -46,35 +46,41 @@ export async function POST(request: Request) {
   await ensureFlightSchema();
   const form = await request.formData();
   const file = form.get("file");
-  if (!(file instanceof File)) return Response.json({ error: "Choose a CATS Vega or CSV flight log." }, { status: 400 });
+  if (!(file instanceof File)) return Response.json({ error: "Choose a CATS .cfl flight log." }, { status: 400 });
   if (file.size < 1 || file.size > MAX_FLIGHT_BYTES) return Response.json({ error: "Flight logs must be between 1 byte and 24 MB." }, { status: 413 });
   let mapping: FlightColumnMapping = {};
   try { mapping = JSON.parse(value(form.get("mapping"), "{}")); } catch { return Response.json({ error: "Column mapping is invalid." }, { status: 400 }); }
   let parsed;
+  let sourceFormat: "CFL" | "CSV" = "CSV";
+  const bytes = await file.arrayBuffer();
   try {
-    parsed = buildFlightData(await file.text(), {
+    const options = {
       mapping,
       launchLatitude: finite(form.get("launchLatitude")),
       launchLongitude: finite(form.get("launchLongitude")),
       launchAltitude: finite(form.get("launchAltitude")),
       headingDegrees: finite(form.get("headingDegrees")),
-    });
+    };
+    const nativeCfl = /\.cfl$/i.test(file.name) || isCatsCfl(bytes);
+    if (nativeCfl && !isCatsCfl(bytes)) throw new Error("This .cfl file does not contain a recognised CATS binary flight log.");
+    sourceFormat = nativeCfl ? "CFL" : "CSV";
+    parsed = nativeCfl ? buildCatsCflFlightData(bytes, options) : buildFlightData(new TextDecoder().decode(bytes), options);
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "The flight data could not be parsed." }, { status: 400 });
   }
   const { DB, FILES } = getFlightEnvironment();
   const { project, user } = result.access;
   const id = crypto.randomUUID();
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 120) || "flight.csv";
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 120) || "flight.cfl";
   const rawKey = `projects/${project.id}/flights/${id}/raw-${safeName}`;
   const processedKey = `projects/${project.id}/flights/${id}/trajectory.json`;
-  const processed = JSON.stringify({ points: parsed.points, mapping: parsed.mapping, columns: parsed.columns, warnings: parsed.warnings, sourceRows: parsed.sourceRows });
+  const processed = JSON.stringify({ points: parsed.points, mapping: parsed.mapping, columns: parsed.columns, warnings: parsed.warnings, sourceRows: parsed.sourceRows, sourceFormat, firmwareVersion: parsed.firmwareVersion, events: parsed.events });
   const processedBytes = new TextEncoder().encode(processed).byteLength;
   const storageBytes = file.size + processedBytes;
   if (!await reserveProjectStorage(project.id, storageBytes, 2)) return Response.json({ error: "This project has reached its storage allowance." }, { status: 507 });
   try {
     await Promise.all([
-      FILES.put(rawKey, file.stream(), { httpMetadata: { contentType: file.type || "text/csv" }, customMetadata: { projectId: project.id, flightId: id, kind: "raw-flight" } }),
+      FILES.put(rawKey, bytes, { httpMetadata: { contentType: sourceFormat === "CFL" ? "application/octet-stream" : file.type || "text/csv" }, customMetadata: { projectId: project.id, flightId: id, kind: "raw-flight", sourceFormat } }),
       FILES.put(processedKey, processed, { httpMetadata: { contentType: "application/json" }, customMetadata: { projectId: project.id, flightId: id, kind: "processed-flight" } }),
     ]);
     await DB.prepare(`INSERT INTO flight_records
@@ -85,7 +91,7 @@ export async function POST(request: Request) {
        imported_by_name, imported_by_email)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(id, project.id, value(form.get("name"), file.name.replace(/\.[^.]+$/, "")), value(form.get("flightDate")) || null,
-        value(form.get("computer"), "CATS Vega"), file.name, "CSV", value(form.get("launchSiteName")), finite(form.get("launchLatitude")),
+        value(form.get("computer"), "CATS Vega"), file.name, sourceFormat, value(form.get("launchSiteName")), finite(form.get("launchLatitude")),
         finite(form.get("launchLongitude")), finite(form.get("launchAltitude")), finite(form.get("headingDegrees")),
         Number.isFinite(Number(form.get("orkVersion"))) ? Number(form.get("orkVersion")) : null, rawKey, processedKey, file.size, processedBytes,
         parsed.summary.sampleCount, parsed.summary.duration, parsed.summary.apogee, parsed.summary.maxVelocity, parsed.summary.maxAcceleration,

@@ -2,7 +2,7 @@
 
 import maplibregl, { type CustomLayerInterface, type GeoJSONSource, type Map as MapLibreMap } from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { FlightPoint } from "../lib/flight-data";
+import type { CatsFlightEvent, FlightPoint } from "../lib/flight-data";
 
 type MapPoint = Pick<FlightPoint, "latitude" | "longitude" | "altitude" | "time">;
 
@@ -10,6 +10,7 @@ type Props = {
   measured?: MapPoint[];
   simulated?: MapPoint[];
   currentIndex?: number;
+  events?: CatsFlightEvent[];
   launchSite: { latitude: number; longitude: number; altitude: number };
   onLaunchSiteChange?: (site: { latitude: number; longitude: number }) => void;
   theme?: "light" | "dark";
@@ -26,12 +27,18 @@ function geoLine(points: MapPoint[]) {
   };
 }
 
-function geoPoints(measured: MapPoint[], simulated: MapPoint[]) {
+function closestPoint(points: MapPoint[], time: number) {
+  return points.reduce((closest, point) => Math.abs(point.time - time) < Math.abs(closest.time - time) ? point : closest, points[0]);
+}
+
+function geoPoints(measured: MapPoint[], simulated: MapPoint[], events: CatsFlightEvent[]) {
   const entries = [
     measured[0] && { point: measured[0], kind: "launch", label: "Launch" },
     measured.length && { point: measured.reduce((high, point) => point.altitude > high.altitude ? point : high, measured[0]), kind: "apogee", label: "Measured apogee" },
     measured.at(-1) && { point: measured.at(-1)!, kind: "landing", label: "Landing" },
     simulated.length && { point: simulated.reduce((high, point) => point.altitude > high.altitude ? point : high, simulated[0]), kind: "simulation", label: "Simulated apogee" },
+    ...events.filter((event) => measured.length && event.time >= measured[0].time && event.time <= measured.at(-1)!.time)
+      .map((event) => ({ point: closestPoint(measured, event.time), kind: "event", label: event.name })),
   ].filter(Boolean) as Array<{ point: MapPoint; kind: string; label: string }>;
   return {
     type: "FeatureCollection" as const,
@@ -84,7 +91,7 @@ function addTrajectoryLayer(map: MapLibreMap, id: string, points: MapPoint[], co
   };
 }
 
-export function FlightPathMap({ measured = [], simulated = [], currentIndex, launchSite, onLaunchSiteChange, theme = "light", compact = false }: Props) {
+export function FlightPathMap({ measured = [], simulated = [], currentIndex, events = [], launchSite, onLaunchSiteChange, theme = "light", compact = false }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [terrain, setTerrain] = useState(true);
@@ -94,6 +101,7 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, lau
 
   useEffect(() => {
     if (!container.current || mapRef.current) return;
+    setReady(false);
     const map = new maplibregl.Map({
       container: container.current,
       style: styleUrl,
@@ -112,13 +120,16 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, lau
       map.setTerrain({ source: "terrain-dem", exaggeration: 1.35 });
       setReady(true);
     });
+    map.on("styledata", () => {
+      if (map.isStyleLoaded() && map.getSource("terrain-dem")) setReady(true);
+    });
     map.on("click", (event) => onLaunchSiteChange?.({ latitude: event.lngLat.lat, longitude: event.lngLat.lng }));
     return () => { map.remove(); mapRef.current = null; };
   }, []);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !ready) return;
+    if (!map || !ready || !map.isStyleLoaded() || !map.getSource("terrain-dem")) return;
     for (const id of ["measured-3d", "simulated-3d", "measured-ground", "simulated-ground", "flight-markers", "active-flight-point"]) {
       if (map.getLayer(id)) map.removeLayer(id);
     }
@@ -133,8 +144,8 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, lau
       map.addLayer({ id: "simulated-ground", type: "line", source: "simulated", paint: { "line-color": "#157f54", "line-width": 3, "line-dasharray": [2, 1.5], "line-opacity": 0.76 } });
       map.addLayer(addTrajectoryLayer(map, "simulated-3d", simulated, "#157f54"));
     }
-    map.addSource("flight-markers", { type: "geojson", data: geoPoints(measured.length ? measured : [{ ...launchSite, time: 0 }], simulated) });
-    map.addLayer({ id: "flight-markers", type: "circle", source: "flight-markers", paint: { "circle-radius": 6, "circle-color": ["match", ["get", "kind"], "launch", "#111111", "apogee", "#d4253b", "simulation", "#157f54", "#f4b942"], "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 } });
+    map.addSource("flight-markers", { type: "geojson", data: geoPoints(measured.length ? measured : [{ ...launchSite, time: 0 }], simulated, events) });
+    map.addLayer({ id: "flight-markers", type: "circle", source: "flight-markers", paint: { "circle-radius": ["match", ["get", "kind"], "event", 5, 6], "circle-color": ["match", ["get", "kind"], "launch", "#111111", "apogee", "#d4253b", "simulation", "#157f54", "event", "#b1721b", "#f4b942"], "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 } });
     map.on("mouseenter", "flight-markers", () => { map.getCanvas().style.cursor = "pointer"; });
     map.on("mouseleave", "flight-markers", () => { map.getCanvas().style.cursor = onLaunchSiteChange ? "crosshair" : ""; });
     map.on("click", "flight-markers", (event) => {
@@ -148,11 +159,11 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, lau
       const bounds = all.reduce((value, point) => value.extend([point.longitude, point.latitude]), new maplibregl.LngLatBounds([all[0].longitude, all[0].latitude], [all[0].longitude, all[0].latitude]));
       map.fitBounds(bounds, { padding: compact ? 38 : 72, maxZoom: 15, duration: 900 });
     } else map.flyTo({ center: [launchSite.longitude, launchSite.latitude], zoom: compact ? 10 : 13 });
-  }, [ready, boundsKey, measured, simulated, launchSite.latitude, launchSite.longitude, compact]);
+  }, [ready, boundsKey, measured, simulated, events, launchSite.latitude, launchSite.longitude, compact]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !ready || !activePoint) return;
+    if (!map || !ready || !map.isStyleLoaded() || !activePoint) return;
     const data = { type: "Feature" as const, properties: {}, geometry: { type: "Point" as const, coordinates: [activePoint.longitude, activePoint.latitude] } };
     const source = map.getSource("active-flight-point") as GeoJSONSource | undefined;
     if (source) source.setData(data);
@@ -164,12 +175,18 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, lau
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !ready) return;
+    if (!map || !ready || !map.isStyleLoaded()) return;
     map.setTerrain(terrain ? { source: "terrain-dem", exaggeration: 1.35 } : null);
   }, [terrain, ready]);
 
   return <div className={`flight-map-shell ${compact ? "flight-map-compact" : ""} flight-map-${theme}`}>
-    <div ref={container} className="flight-map" aria-label="3D terrain flight-path visualisation" />
+    <div
+      ref={container}
+      className="flight-map"
+      data-measured-points={measured.length}
+      data-flight-events={events.length}
+      aria-label={`3D terrain flight-path visualisation${measured.length ? ` with ${measured.length.toLocaleString()} measured points and ${events.length} CATS flight events` : ""}`}
+    />
     <div className="flight-map-legend"><span><i className="flight-measured" />Measured</span>{simulated.length > 1 && <span><i className="flight-simulated" />Simulation</span>}</div>
     <button className="flight-terrain-toggle" type="button" aria-pressed={terrain} onClick={() => setTerrain((value) => !value)}>{terrain ? "3D terrain" : "Flat map"}</button>
     {onLaunchSiteChange && <div className="flight-map-pick-hint">Click the map to set the launch datum</div>}

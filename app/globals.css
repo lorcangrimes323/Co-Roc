@@ -2124,7 +2124,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .postflight-module { grid-column: 2; grid-row: 4; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--panel); }
 .postflight-heading { min-height: 88px; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 14px 20px; border-bottom: 1px solid var(--line-strong); }
 .postflight-heading > div { min-width: 0; }
-.postflight-heading span, .flight-record-list > header span, .flight-inspector > header span, .flight-visualiser-bar span, .flight-current-state > span, .flight-provenance > span, .flight-import-modal h3, .flight-import-preview > span { color: var(--accent); font: 9px var(--font-geist-mono); letter-spacing: .1em; }
+.postflight-heading span, .flight-record-list > header span, .flight-inspector > header span, .flight-visualiser-bar span, .flight-current-state > span, .flight-events > span, .flight-provenance > span, .flight-import-modal h3, .flight-import-preview > span { color: var(--accent); font: 9px var(--font-geist-mono); letter-spacing: .1em; }
 .postflight-heading h1 { margin: 5px 0 3px; font-size: 21px; }
 .postflight-heading p { max-width: 820px; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
 .postflight-layout { min-height: 0; flex: 1; display: grid; grid-template-columns: minmax(210px, 15%) minmax(520px, 1fr) minmax(300px, 22%); overflow: hidden; }
@@ -2173,7 +2173,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .flight-metric > span, .flight-metric > em { display: block; color: var(--faint); font: 8px var(--font-geist-mono); font-style: normal; }
 .flight-metric strong { display: block; margin-top: 6px; font: 18px var(--font-geist-mono); font-weight: 600; }
 .flight-metric strong small { color: var(--muted); font-size: 8px; }
-.flight-current-state, .flight-provenance { padding: 13px 14px; border-bottom: 1px solid var(--line-strong); }
+.flight-current-state, .flight-events, .flight-provenance { padding: 13px 14px; border-bottom: 1px solid var(--line-strong); }
 .flight-current-state dl { margin: 8px 0 0; }
 .flight-current-state dl > div { display: flex; justify-content: space-between; gap: 14px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 9px; }
 .flight-current-state dt { color: var(--muted); }
@@ -2183,6 +2183,9 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .flight-channel-chart header, .flight-channel-chart footer { min-height: 26px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; color: var(--muted); font-size: 8px; }
 .flight-channel-chart svg { display: block; width: 100%; height: 58px; border-block: 1px solid var(--line); background: var(--panel-2); }
 .flight-channel-empty { padding: 13px; border: 1px dashed var(--line); color: var(--faint); font-size: 9px; }
+.flight-events > div { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 9px; }
+.flight-events > div:first-of-type { margin-top: 8px; }
+.flight-events em { color: var(--muted); font: 9px var(--font-geist-mono); font-style: normal; }
 .flight-provenance p { display: flex; justify-content: space-between; gap: 10px; margin: 9px 0 0; color: var(--muted); font-size: 9px; }
 .flight-provenance p strong { color: var(--text); }
 .flight-delete { margin: 14px; padding: 8px 10px; border: 1px solid var(--red); background: transparent; color: var(--red); font-size: 9px; cursor: pointer; }
@@ -2203,6 +2206,14 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .flight-file-picker span { color: var(--muted); font-size: 9px; }
 .flight-basic-grid, .flight-mapping-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
 .flight-mapping-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.flight-native-channels { display: grid; grid-template-columns: minmax(210px, .65fr) minmax(0, 1.35fr); gap: 16px; padding: 14px; border: 1px solid var(--line-strong); background: var(--panel-2); }
+.flight-native-channels > div { display: grid; align-content: start; gap: 5px; }
+.flight-native-channels > div strong { font-size: 12px; }
+.flight-native-channels > div span { color: var(--muted); font-size: 9px; line-height: 1.5; }
+.flight-native-channels dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; margin: 0; }
+.flight-native-channels dl div { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 9px; }
+.flight-native-channels dt { color: var(--faint); }
+.flight-native-channels dd { min-width: 0; margin: 0; overflow-wrap: anywhere; text-align: right; }
 .flight-import-form label { position: relative; min-width: 0; color: var(--muted); font-size: 9px; }
 .flight-import-form label small { position: absolute; right: 0; color: var(--faint); font: 7px var(--font-geist-mono); }
 .flight-import-form input, .flight-import-form select { width: 100%; height: 38px; margin-top: 5px; padding: 0 9px; border: 1px solid var(--line-strong); border-radius: 0; background: var(--panel); color: var(--text); font-size: 10px; }
@@ -2257,6 +2268,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .flight-inspector { display: block; }
   .flight-metric-grid { border-right: 0; }
   .flight-basic-grid, .flight-mapping-grid { grid-template-columns: minmax(0, 1fr); }
+  .flight-native-channels { grid-template-columns: minmax(0, 1fr); }
   .flight-import-modal > header { padding: 15px; }
   .flight-import-modal > header h2 { font-size: 20px; }
   .flight-import-form { padding: 0 15px 18px; }

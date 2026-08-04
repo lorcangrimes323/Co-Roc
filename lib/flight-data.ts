@@ -53,7 +53,245 @@ export type ParsedFlightData = {
   summary: FlightSummary;
   sourceRows: number;
   warnings: string[];
+  sourceFormat?: "CFL" | "CSV";
+  firmwareVersion?: string;
+  events?: CatsFlightEvent[];
 };
+
+export type CatsFlightEvent = {
+  time: number;
+  name: string;
+  action: number;
+  argument: number;
+};
+
+export type CatsCflInspection = {
+  firmwareVersion: string;
+  sampleCount: number;
+  duration: number;
+  launchLatitude?: number;
+  launchLongitude?: number;
+  channels: string[];
+  events: CatsFlightEvent[];
+};
+
+type TimedValue<T> = T & { ts: number };
+type CatsCflLog = {
+  firmwareVersion: string;
+  firstTimestamp: number;
+  lastTimestamp: number;
+  liftoffTimestamp: number;
+  flight: TimedValue<{ height: number; velocity: number; acceleration: number }>[];
+  filtered: TimedValue<{ height: number; acceleration: number }>[];
+  barometer: TimedValue<{ pressure: number; temperature: number }>[];
+  gnss: TimedValue<{ latitude: number; longitude: number; satellites: number }>[];
+  voltage: TimedValue<{ voltage: number }>[];
+  events: TimedValue<{ event: number; action: number; argument: number }>[];
+  truncated: boolean;
+};
+
+const CATS_RECORD = {
+  IMU: 1 << 4,
+  BAROMETER: 1 << 5,
+  FLIGHT: 1 << 6,
+  ORIENTATION: 1 << 7,
+  FILTERED: 1 << 8,
+  FLIGHT_STATE: 1 << 9,
+  EVENT: 1 << 10,
+  ERROR: 1 << 11,
+  GNSS: 1 << 12,
+  VOLTAGE: 1 << 13,
+} as const;
+
+const CATS_RECORD_BYTES = new Map<number, number>([
+  [CATS_RECORD.IMU, 12], [CATS_RECORD.BAROMETER, 8], [CATS_RECORD.FLIGHT, 12],
+  [CATS_RECORD.ORIENTATION, 8], [CATS_RECORD.FILTERED, 8], [CATS_RECORD.FLIGHT_STATE, 4],
+  [CATS_RECORD.EVENT, 8], [CATS_RECORD.ERROR, 4], [CATS_RECORD.GNSS, 9], [CATS_RECORD.VOLTAGE, 2],
+]);
+
+const CATS_EVENT_NAMES: Record<number, string> = {
+  0: "Moving", 1: "Ready", 2: "Liftoff", 3: "Burnout", 4: "Apogee",
+  5: "Main deployment", 6: "Touchdown", 7: "Custom event 1", 8: "Custom event 2",
+};
+
+const CATS_NATIVE_COLUMNS = [
+  "Elapsed time (s)", "Flight height AGL (m)", "Velocity (m/s)", "Acceleration (m/s²)",
+  "GNSS latitude", "GNSS longitude", "Barometric pressure (Pa)", "Temperature (°C)", "Battery voltage (V)",
+];
+
+function catsView(input: ArrayBuffer | Uint8Array) {
+  const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
+  return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+}
+
+function readCatsVersion(view: DataView) {
+  let offset = 0;
+  let firmwareVersion = "";
+  while (offset < Math.min(view.byteLength, 32)) {
+    const code = view.getUint8(offset);
+    offset += 1;
+    if (code === 0) break;
+    if (code < 32 || code > 126) throw new Error("This file does not contain a valid CATS CFL header.");
+    firmwareVersion += String.fromCharCode(code);
+  }
+  if (!/^\d+\.\d+(?:\.\d+)?(?:[-+].*)?$/.test(firmwareVersion) || offset > view.byteLength || view.getUint8(offset - 1) !== 0) {
+    throw new Error("This file does not contain a valid CATS CFL header.");
+  }
+  return { firmwareVersion, offset };
+}
+
+export function isCatsCfl(input: ArrayBuffer | Uint8Array) {
+  try {
+    const view = catsView(input);
+    const { offset } = readCatsVersion(view);
+    if (offset + 8 > view.byteLength) return false;
+    const recordType = view.getUint32(offset + 4, true) & ~0x0f;
+    return CATS_RECORD_BYTES.has(recordType);
+  } catch {
+    return false;
+  }
+}
+
+function parseCatsCfl(input: ArrayBuffer | Uint8Array): CatsCflLog {
+  const view = catsView(input);
+  const header = readCatsVersion(view);
+  let offset = header.offset;
+  let firstTimestamp = -1;
+  let lastTimestamp = -1;
+  let truncated = false;
+  const flight: CatsCflLog["flight"] = [];
+  const filtered: CatsCflLog["filtered"] = [];
+  const barometer: CatsCflLog["barometer"] = [];
+  const gnss: CatsCflLog["gnss"] = [];
+  const voltage: CatsCflLog["voltage"] = [];
+  const events: CatsCflLog["events"] = [];
+
+  while (offset + 8 <= view.byteLength) {
+    const ts = view.getUint32(offset, true);
+    const recordType = view.getUint32(offset + 4, true) & ~0x0f;
+    const payloadBytes = CATS_RECORD_BYTES.get(recordType);
+    offset += 8;
+    if (!payloadBytes) throw new Error(`Unsupported CATS CFL record type 0x${recordType.toString(16)} at byte ${offset - 8}.`);
+    if (offset + payloadBytes > view.byteLength) { truncated = true; break; }
+    if (firstTimestamp < 0) firstTimestamp = ts;
+    lastTimestamp = ts;
+    if (recordType === CATS_RECORD.BAROMETER) {
+      barometer.push({ ts, pressure: view.getUint32(offset, true), temperature: view.getUint32(offset + 4, true) / 100 });
+    } else if (recordType === CATS_RECORD.FLIGHT) {
+      flight.push({ ts, height: view.getFloat32(offset, true), velocity: view.getFloat32(offset + 4, true), acceleration: view.getFloat32(offset + 8, true) });
+    } else if (recordType === CATS_RECORD.FILTERED) {
+      filtered.push({ ts, height: view.getFloat32(offset, true), acceleration: view.getFloat32(offset + 4, true) });
+    } else if (recordType === CATS_RECORD.EVENT) {
+      events.push({ ts, event: view.getUint32(offset, true), action: view.getUint16(offset + 4, true), argument: view.getUint16(offset + 6, true) });
+    } else if (recordType === CATS_RECORD.GNSS) {
+      gnss.push({ ts, latitude: view.getFloat32(offset, true), longitude: view.getFloat32(offset + 4, true), satellites: view.getUint8(offset + 8) });
+    } else if (recordType === CATS_RECORD.VOLTAGE) {
+      voltage.push({ ts, voltage: view.getUint16(offset, true) / 1000 });
+    }
+    offset += payloadBytes;
+  }
+  if (!flight.length && !filtered.length) throw new Error("The CFL contains no CATS flight-estimate records.");
+  const liftoffTimestamp = events.find((event) => event.event === 2)?.ts ?? firstTimestamp;
+  return { firmwareVersion: header.firmwareVersion, firstTimestamp, lastTimestamp, liftoffTimestamp, flight, filtered, barometer, gnss, voltage, events, truncated };
+}
+
+function validCatsGnss(reading: { latitude: number; longitude: number; satellites: number } | undefined) {
+  return Boolean(reading && reading.satellites >= 4 && Math.abs(reading.latitude) <= 90 && Math.abs(reading.longitude) <= 180
+    && !(reading.latitude === 0 && reading.longitude === 0));
+}
+
+function catsEventList(log: CatsCflLog): CatsFlightEvent[] {
+  const distinct = new Map<string, CatsCflLog["events"][number]>();
+  for (const event of log.events) {
+    const key = String(event.event);
+    if (!distinct.has(key)) distinct.set(key, event);
+  }
+  return [...distinct.values()].map((event) => ({
+    time: (event.ts - log.liftoffTimestamp) / 1000,
+    name: CATS_EVENT_NAMES[event.event] ?? `Event ${event.event}`,
+    action: event.action,
+    argument: event.argument,
+  }));
+}
+
+export function inspectCatsCfl(input: ArrayBuffer | Uint8Array): CatsCflInspection {
+  const log = parseCatsCfl(input);
+  const launch = log.gnss.find(validCatsGnss);
+  const channels = ["Filtered altitude", "Velocity", "Acceleration"];
+  if (log.gnss.some(validCatsGnss)) channels.push("GNSS position");
+  if (log.barometer.length) channels.push("Pressure", "Temperature");
+  if (log.voltage.length) channels.push("Battery voltage");
+  return {
+    firmwareVersion: log.firmwareVersion,
+    sampleCount: log.flight.length || log.filtered.length,
+    duration: Math.max(0, (log.lastTimestamp - log.firstTimestamp) / 1000),
+    launchLatitude: launch?.latitude,
+    launchLongitude: launch?.longitude,
+    channels,
+    events: catsEventList(log),
+  };
+}
+
+export function buildCatsCflFlightData(input: ArrayBuffer | Uint8Array, options: FlightImportOptions): ParsedFlightData {
+  const log = parseCatsCfl(input);
+  const base = log.flight.length ? log.flight : log.filtered.map((sample) => ({ ...sample, velocity: 0 }));
+  const stride = Math.max(1, Math.ceil(base.length / 5000));
+  const sampled = base.filter((_, index) => index % stride === 0 || index === base.length - 1);
+  let gnssIndex = 0;
+  let barometerIndex = 0;
+  let voltageIndex = 0;
+  const points = sampled.map((sample) => {
+    while (gnssIndex + 1 < log.gnss.length && log.gnss[gnssIndex + 1].ts <= sample.ts) gnssIndex += 1;
+    while (barometerIndex + 1 < log.barometer.length && log.barometer[barometerIndex + 1].ts <= sample.ts) barometerIndex += 1;
+    while (voltageIndex + 1 < log.voltage.length && log.voltage[voltageIndex + 1].ts <= sample.ts) voltageIndex += 1;
+    const before = log.gnss[gnssIndex];
+    const after = log.gnss[Math.min(gnssIndex + 1, log.gnss.length - 1)];
+    let latitude = options.launchLatitude;
+    let longitude = options.launchLongitude;
+    if (validCatsGnss(before)) {
+      latitude = before.latitude;
+      longitude = before.longitude;
+      if (after !== before && validCatsGnss(after) && after.ts > before.ts) {
+        const fraction = Math.max(0, Math.min(1, (sample.ts - before.ts) / (after.ts - before.ts)));
+        latitude += (after.latitude - before.latitude) * fraction;
+        longitude += (after.longitude - before.longitude) * fraction;
+      }
+    }
+    const barometer = log.barometer[barometerIndex];
+    const voltage = log.voltage[voltageIndex];
+    return {
+      time: (sample.ts - log.liftoffTimestamp) / 1000,
+      latitude,
+      longitude,
+      altitude: options.launchAltitude + sample.height,
+      velocity: Math.abs(sample.velocity),
+      verticalVelocity: sample.velocity,
+      acceleration: sample.acceleration,
+      pressure: barometer?.pressure,
+      temperature: barometer?.temperature,
+      battery: voltage?.voltage,
+    } satisfies FlightPoint;
+  });
+  const hasGps = log.gnss.filter(validCatsGnss).length >= 3;
+  const warnings: string[] = [];
+  if (!hasGps) warnings.push("The CFL contains no continuous valid GNSS fix. Its measured altitude is shown above the selected launch datum without an inferred horizontal path.");
+  if (log.truncated) warnings.push("The last CFL record was incomplete; all complete records before it were retained.");
+  return {
+    columns: CATS_NATIVE_COLUMNS,
+    mapping: {
+      time: CATS_NATIVE_COLUMNS[0], altitude: CATS_NATIVE_COLUMNS[1], velocity: CATS_NATIVE_COLUMNS[2],
+      verticalVelocity: CATS_NATIVE_COLUMNS[2], acceleration: CATS_NATIVE_COLUMNS[3], latitude: CATS_NATIVE_COLUMNS[4],
+      longitude: CATS_NATIVE_COLUMNS[5], pressure: CATS_NATIVE_COLUMNS[6], temperature: CATS_NATIVE_COLUMNS[7], battery: CATS_NATIVE_COLUMNS[8],
+    },
+    points,
+    summary: summariseFlight(points, hasGps),
+    sourceRows: base.length,
+    warnings,
+    sourceFormat: "CFL",
+    firmwareVersion: log.firmwareVersion,
+    events: catsEventList(log),
+  };
+}
 
 const aliases: Record<FlightChannel, string[]> = {
   time: ["time", "times", "time sec", "time s", "elapsed", "elapsed time", "timestamp", "mission time", "flight time"],
@@ -262,7 +500,7 @@ export function buildFlightData(text: string, options: FlightImportOptions): Par
   const warnings: string[] = [];
   if (!hasGps) warnings.push("No continuous GNSS coordinates were found. The ground track is reconstructed from available offsets or speed and the selected launch heading.");
   if (!mapping.velocity && !mapping.verticalVelocity) warnings.push("No velocity channel was mapped; speed is unavailable and non-GPS samples are shown vertically above the launch site.");
-  return { columns, mapping, points, summary: summariseFlight(points, hasGps), sourceRows: rows.length, warnings };
+  return { columns, mapping, points, summary: summariseFlight(points, hasGps), sourceRows: rows.length, warnings, sourceFormat: "CSV" };
 }
 
 export function simulatedGroundTrack(samples: Array<{ time: number; altitude: number; velocity: number; verticalVelocity: number }>, site: { latitude: number; longitude: number; altitude: number; headingDegrees: number }) {
