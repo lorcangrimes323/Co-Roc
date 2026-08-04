@@ -339,7 +339,9 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(map, /altitudeSpan/);
   assert.match(map, /following \? Math\.min\(8\.75, altitudeAwareZoom\)/);
   assert.match(map, /function guidedFlightCamera/);
-  assert.match(map, /altitudeSpan \/ 3_000/);
+  assert.match(map, /altitudeAsLatitude = altitudeSpan \/ 111_320/);
+  assert.match(map, /map\.cameraForBounds\(bounds/);
+  assert.match(map, /elevation: \(launch\.altitude \+ apogee\.altitude\) \/ 2/);
   assert.match(map, /map\.jumpTo\(camera\)/);
   assert.match(map, /guidedEnvelope = "launch-apogee"/);
   assert.match(map, /cameraFollow = "framed"/);

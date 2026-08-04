@@ -34,19 +34,31 @@ function trajectoryFitMaxZoom(points: MapPoint[], following = false) {
   return following ? Math.min(8.75, altitudeAwareZoom) : altitudeAwareZoom;
 }
 
-function guidedFlightCamera(points: MapPoint[]) {
+function guidedFlightCamera(map: MapLibreMap, points: MapPoint[]) {
   const launch = points[0];
   const apogee = points.reduce((highest, point) => point.altitude > highest.altitude ? point : highest, launch);
-  const altitudeSpan = Math.max(1, apogee.altitude - launch.altitude);
-  // Hold a close engineering view for ordinary high-power flights, then only
-  // widen it when the vertical envelope genuinely exceeds roughly 3 km.
-  const zoom = Math.max(11.25, Math.min(13.25, 13.15 - Math.log2(Math.max(1, altitudeSpan / 3_000))));
+  const center: [number, number] = [
+    (launch.longitude + apogee.longitude) / 2,
+    (launch.latitude + apogee.latitude) / 2,
+  ];
+  const altitudeSpan = Math.abs(apogee.altitude - launch.altitude);
+  const altitudeAsLatitude = altitudeSpan / 111_320;
+  // cameraForBounds is a real viewport fit, but geographic bounds normally
+  // discard altitude. Add the measured launch-to-apogee height to those bounds
+  // as an equivalent vertical extent, then centre the camera at the real
+  // midpoint elevation. No hand-picked zoom level is involved.
+  const bounds = new maplibregl.LngLatBounds([launch.longitude, launch.latitude], [launch.longitude, launch.latitude]);
+  bounds.extend([apogee.longitude, apogee.latitude]);
+  bounds.extend([center[0], center[1] - altitudeAsLatitude / 2]);
+  bounds.extend([center[0], center[1] + altitudeAsLatitude / 2]);
+  const width = map.getContainer().clientWidth;
+  const camera = map.cameraForBounds(bounds, {
+    padding: width < 720 ? 42 : { top: 84, right: 84, bottom: 84, left: 84 },
+  });
   return {
-    center: [
-      (launch.longitude + apogee.longitude) / 2,
-      (launch.latitude + apogee.latitude) / 2,
-    ] as [number, number],
-    zoom,
+    center: camera?.center ?? center,
+    zoom: camera?.zoom ?? map.getZoom(),
+    elevation: (launch.altitude + apogee.altitude) / 2,
     pitch: 42,
     bearing: -8,
   };
@@ -481,7 +493,7 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
     if (!map || !ready || !followActive || !measured.length) {
       return;
     }
-    const camera = guidedFlightCamera(measured);
+    const camera = guidedFlightCamera(map, measured);
     map.stop();
     map.jumpTo(camera);
     if (container.current) {
