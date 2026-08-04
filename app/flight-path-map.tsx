@@ -1,6 +1,6 @@
 "use client";
 
-import maplibregl, { type CustomLayerInterface, type GeoJSONSource, type Map as MapLibreMap } from "maplibre-gl";
+import maplibregl, { type CustomLayerInterface, type Map as MapLibreMap } from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CatsFlightEvent, FlightPoint } from "../lib/flight-data";
 
@@ -50,13 +50,22 @@ function geoPoints(measured: MapPoint[], simulated: MapPoint[], events: CatsFlig
 function addTrajectoryLayer(map: MapLibreMap, id: string, points: MapPoint[], colour: string): CustomLayerInterface {
   let program: WebGLProgram | null = null;
   let buffer: WebGLBuffer | null = null;
-  let position = -1;
+  let startPosition = -1;
+  let endPosition = -1;
+  let progressPosition = -1;
+  let sidePosition = -1;
   let matrixLocation: WebGLUniformLocation | null = null;
   let colourLocation: WebGLUniformLocation | null = null;
-  const coordinates = points.flatMap((point) => {
-    const coordinate = maplibregl.MercatorCoordinate.fromLngLat([point.longitude, point.latitude], point.altitude);
-    return [coordinate.x, coordinate.y, coordinate.z];
-  });
+  let viewportLocation: WebGLUniformLocation | null = null;
+  let widthLocation: WebGLUniformLocation | null = null;
+  const coordinates = points.map((point) => maplibregl.MercatorCoordinate.fromLngLat([point.longitude, point.latitude], point.altitude));
+  const vertices: number[] = [];
+  const corners: Array<[number, number]> = [[0, -1], [0, 1], [1, 1], [0, -1], [1, 1], [1, -1]];
+  for (let index = 0; index < coordinates.length - 1; index += 1) {
+    const start = coordinates[index];
+    const end = coordinates[index + 1];
+    for (const [progress, side] of corners) vertices.push(start.x, start.y, start.z, end.x, end.y, end.z, progress, side);
+  }
   const rgb = colour.match(/[a-f\d]{2}/gi)?.map((value) => parseInt(value, 16) / 255) ?? [1, 0, 0];
   return {
     id,
@@ -64,7 +73,59 @@ function addTrajectoryLayer(map: MapLibreMap, id: string, points: MapPoint[], co
     renderingMode: "3d",
     onAdd(_map, gl) {
       const vertex = gl.createShader(gl.VERTEX_SHADER)!;
-      gl.shaderSource(vertex, "attribute vec3 a_position; uniform mat4 u_matrix; void main(){gl_Position=u_matrix*vec4(a_position,1.0); gl_PointSize=5.0;}");
+      gl.shaderSource(vertex, "attribute vec3 a_start; attribute vec3 a_end; attribute float a_progress; attribute float a_side; uniform mat4 u_matrix; uniform vec2 u_viewport; uniform float u_width; void main(){vec4 start=u_matrix*vec4(a_start,1.0); vec4 end=u_matrix*vec4(a_end,1.0); vec2 start_px=(start.xy/start.w*.5+.5)*u_viewport; vec2 end_px=(end.xy/end.w*.5+.5)*u_viewport; vec2 direction=normalize(end_px-start_px); if(length(end_px-start_px)<.001) direction=vec2(1.0,0.0); vec2 normal=vec2(-direction.y,direction.x); vec4 current=mix(start,end,a_progress); vec2 offset=normal*(u_width*.5)*a_side/u_viewport*2.0; current.xy+=offset*current.w; gl_Position=current;}");
+      gl.compileShader(vertex);
+      const fragment = gl.createShader(gl.FRAGMENT_SHADER)!;
+      gl.shaderSource(fragment, "precision mediump float; uniform vec4 u_colour; void main(){gl_FragColor=u_colour;}");
+      gl.compileShader(fragment);
+      program = gl.createProgram()!;
+      gl.attachShader(program, vertex); gl.attachShader(program, fragment); gl.linkProgram(program);
+      buffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+      startPosition = gl.getAttribLocation(program, "a_start");
+      endPosition = gl.getAttribLocation(program, "a_end");
+      progressPosition = gl.getAttribLocation(program, "a_progress");
+      sidePosition = gl.getAttribLocation(program, "a_side");
+      matrixLocation = gl.getUniformLocation(program, "u_matrix");
+      colourLocation = gl.getUniformLocation(program, "u_colour");
+      viewportLocation = gl.getUniformLocation(program, "u_viewport");
+      widthLocation = gl.getUniformLocation(program, "u_width");
+    },
+    render(gl, options) {
+      if (!program || !buffer) return;
+      gl.useProgram(program);
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      const stride = 8 * Float32Array.BYTES_PER_ELEMENT;
+      gl.enableVertexAttribArray(startPosition); gl.vertexAttribPointer(startPosition, 3, gl.FLOAT, false, stride, 0);
+      gl.enableVertexAttribArray(endPosition); gl.vertexAttribPointer(endPosition, 3, gl.FLOAT, false, stride, 3 * Float32Array.BYTES_PER_ELEMENT);
+      gl.enableVertexAttribArray(progressPosition); gl.vertexAttribPointer(progressPosition, 1, gl.FLOAT, false, stride, 6 * Float32Array.BYTES_PER_ELEMENT);
+      gl.enableVertexAttribArray(sidePosition); gl.vertexAttribPointer(sidePosition, 1, gl.FLOAT, false, stride, 7 * Float32Array.BYTES_PER_ELEMENT);
+      gl.uniformMatrix4fv(matrixLocation, false, options.defaultProjectionData.mainMatrix);
+      gl.uniform2f(viewportLocation, gl.drawingBufferWidth, gl.drawingBufferHeight);
+      gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthFunc(gl.LEQUAL);
+      gl.uniform4f(colourLocation, rgb[0], rgb[1], rgb[2], 0.26); gl.uniform1f(widthLocation, 14);
+      gl.drawArrays(gl.TRIANGLES, 0, vertices.length / 8);
+      gl.uniform4f(colourLocation, rgb[0], rgb[1], rgb[2], 0.98); gl.uniform1f(widthLocation, 6);
+      gl.drawArrays(gl.TRIANGLES, 0, vertices.length / 8);
+    },
+    onRemove(_map, gl) { if (buffer) gl.deleteBuffer(buffer); if (program) gl.deleteProgram(program); },
+  };
+}
+
+function addActiveFlightMarker(map: MapLibreMap, id: string, pointRef: { current: MapPoint | undefined }): CustomLayerInterface {
+  let program: WebGLProgram | null = null;
+  let buffer: WebGLBuffer | null = null;
+  let position = -1;
+  let matrixLocation: WebGLUniformLocation | null = null;
+  let colourLocation: WebGLUniformLocation | null = null;
+  let sizeLocation: WebGLUniformLocation | null = null;
+  return {
+    id,
+    type: "custom",
+    renderingMode: "3d",
+    onAdd(_map, gl) {
+      const vertex = gl.createShader(gl.VERTEX_SHADER)!;
+      gl.shaderSource(vertex, "attribute vec3 a_position; uniform mat4 u_matrix; uniform float u_size; void main(){gl_Position=u_matrix*vec4(a_position,1.0); gl_PointSize=u_size;}");
       gl.compileShader(vertex);
       const fragment = gl.createShader(gl.FRAGMENT_SHADER)!;
       gl.shaderSource(fragment, "precision mediump float; uniform vec3 u_colour; void main(){if(length(gl_PointCoord-vec2(.5))>.5) discard; gl_FragColor=vec4(u_colour,1.0);}");
@@ -72,22 +133,27 @@ function addTrajectoryLayer(map: MapLibreMap, id: string, points: MapPoint[], co
       program = gl.createProgram()!;
       gl.attachShader(program, vertex); gl.attachShader(program, fragment); gl.linkProgram(program);
       buffer = gl.createBuffer();
-      gl.bindBuffer(gl.ARRAY_BUFFER, buffer); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(coordinates), gl.STATIC_DRAW);
       position = gl.getAttribLocation(program, "a_position");
       matrixLocation = gl.getUniformLocation(program, "u_matrix");
       colourLocation = gl.getUniformLocation(program, "u_colour");
+      sizeLocation = gl.getUniformLocation(program, "u_size");
     },
     render(gl, options) {
-      if (!program || !buffer) return;
+      const point = pointRef.current;
+      if (!program || !buffer || !point) return;
+      const coordinate = maplibregl.MercatorCoordinate.fromLngLat([point.longitude, point.latitude], point.altitude);
       gl.useProgram(program);
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([coordinate.x, coordinate.y, coordinate.z]), gl.DYNAMIC_DRAW);
       gl.enableVertexAttribArray(position);
       gl.vertexAttribPointer(position, 3, gl.FLOAT, false, 0, 0);
       gl.uniformMatrix4fv(matrixLocation, false, options.defaultProjectionData.mainMatrix);
-      gl.uniform3f(colourLocation, rgb[0], rgb[1], rgb[2]);
-      gl.lineWidth(4);
-      gl.drawArrays(gl.LINE_STRIP, 0, points.length);
-      gl.drawArrays(gl.POINTS, 0, points.length);
+      gl.uniform3f(colourLocation, 0.96, 0.55, 0.08);
+      gl.uniform1f(sizeLocation, 19);
+      gl.drawArrays(gl.POINTS, 0, 1);
+      gl.uniform3f(colourLocation, 1, 1, 1);
+      gl.uniform1f(sizeLocation, 10);
+      gl.drawArrays(gl.POINTS, 0, 1);
     },
     onRemove(_map, gl) { if (buffer) gl.deleteBuffer(buffer); if (program) gl.deleteProgram(program); },
   };
@@ -96,6 +162,7 @@ function addTrajectoryLayer(map: MapLibreMap, id: string, points: MapPoint[], co
 export function FlightPathMap({ measured = [], simulated = [], currentIndex, activePoint: suppliedActivePoint, events = [], launchSite, onLaunchSiteChange, theme = "light", compact = false }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
+  const activePointRef = useRef<MapPoint | undefined>(activePoint);
   const [terrain, setTerrain] = useState(true);
   const [ready, setReady] = useState(false);
   const activePoint = suppliedActivePoint ?? measured[Math.min(currentIndex ?? measured.length - 1, Math.max(0, measured.length - 1))];
@@ -141,14 +208,14 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready || !map.isStyleLoaded() || !map.getSource("terrain-dem")) return;
-    for (const id of ["measured-3d", "simulated-3d", "measured-glow", "simulated-glow", "measured-ground", "simulated-ground", "flight-markers", "active-flight-point"]) {
+    for (const id of ["measured-3d", "simulated-3d", "measured-glow", "simulated-glow", "measured-ground", "simulated-ground", "flight-markers", "active-flight-point", "active-flight-marker-3d"]) {
       if (map.getLayer(id)) map.removeLayer(id);
     }
     for (const id of ["measured", "simulated", "flight-markers", "active-flight-point"]) if (map.getSource(id)) map.removeSource(id);
     if (measured.length > 1) {
       map.addSource("measured", { type: "geojson", data: geoLine(measured) });
-      map.addLayer({ id: "measured-glow", type: "line", source: "measured", paint: { "line-color": "#f59e0b", "line-width": 11, "line-blur": 5, "line-opacity": 0.3 } });
-      map.addLayer({ id: "measured-ground", type: "line", source: "measured", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#f5a524", "line-width": 5, "line-opacity": 0.96 } });
+      map.addLayer({ id: "measured-glow", type: "line", source: "measured", paint: { "line-color": "#f59e0b", "line-width": 4, "line-blur": 3, "line-opacity": 0.12 } });
+      map.addLayer({ id: "measured-ground", type: "line", source: "measured", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#b7791f", "line-width": 1.5, "line-dasharray": [2, 2], "line-opacity": 0.45 } });
       map.addLayer(addTrajectoryLayer(map, "measured-3d", measured, "#f5a524"));
     }
     if (simulated.length > 1) {
@@ -159,6 +226,7 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
     }
     map.addSource("flight-markers", { type: "geojson", data: geoPoints(measured.length ? measured : [{ ...launchSite, time: 0 }], simulated, events) });
     map.addLayer({ id: "flight-markers", type: "circle", source: "flight-markers", paint: { "circle-radius": ["match", ["get", "kind"], "event", 5, 6], "circle-color": ["match", ["get", "kind"], "launch", "#111111", "apogee", "#d4253b", "simulation", "#157f54", "event", "#b1721b", "#f4b942"], "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 } });
+    if (activePointRef.current) map.addLayer(addActiveFlightMarker(map, "active-flight-marker-3d", activePointRef));
     map.on("mouseenter", "flight-markers", () => { map.getCanvas().style.cursor = "pointer"; });
     map.on("mouseleave", "flight-markers", () => { map.getCanvas().style.cursor = onLaunchSiteChange ? "crosshair" : ""; });
     map.on("click", "flight-markers", (event) => {
@@ -176,14 +244,10 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !ready || !map.isStyleLoaded() || !activePoint) return;
-    const data = { type: "Feature" as const, properties: {}, geometry: { type: "Point" as const, coordinates: [activePoint.longitude, activePoint.latitude] } };
-    const source = map.getSource("active-flight-point") as GeoJSONSource | undefined;
-    if (source) source.setData(data);
-    else {
-      map.addSource("active-flight-point", { type: "geojson", data });
-      map.addLayer({ id: "active-flight-point", type: "circle", source: "active-flight-point", paint: { "circle-radius": 8, "circle-color": "#ffffff", "circle-stroke-color": "#d4253b", "circle-stroke-width": 4 } });
-    }
+    activePointRef.current = activePoint;
+    if (!map || !ready || !map.isStyleLoaded()) return;
+    if (activePoint && !map.getLayer("active-flight-marker-3d")) map.addLayer(addActiveFlightMarker(map, "active-flight-marker-3d", activePointRef));
+    map.triggerRepaint();
   }, [activePoint, ready]);
 
   useEffect(() => {

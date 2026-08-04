@@ -319,6 +319,9 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(map, /openfreemap\.org/);
   assert.match(map, /mapterhorn\.com/);
   assert.match(map, /renderingMode: "3d"/);
+  assert.match(map, /gl\.TRIANGLES/);
+  assert.match(map, /uniform float u_width/);
+  assert.match(map, /active-flight-marker-3d/);
   assert.match(map, /activePoint/);
   assert.match(map, /Fit flight/);
   assert.match(map, /maxPitch: 85/);
