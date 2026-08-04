@@ -268,6 +268,58 @@ test("uses site accounts, separates demo data and recovers local drafts", async 
   assert.match(missionControl, /mode !== "live"/);
 });
 
+test("imports, reconstructs and stores post-flight trajectories", async () => {
+  const [workspace, map, parser, route, store, schema, missionControl, simulation, tour, styles] = await Promise.all([
+    source("app/post-flight-workspace.tsx"),
+    source("app/flight-path-map.tsx"),
+    source("lib/flight-data.ts"),
+    source("app/api/flights/route.ts"),
+    source("db/flight-store.ts"),
+    source("db/schema.ts"),
+    source("app/mission-control.tsx"),
+    source("app/simulation-workspace.tsx"),
+    source("app/guided-demo-tour.tsx"),
+    source("app/globals.css"),
+  ]);
+
+  assert.match(parser, /export function parseFlightTable/);
+  assert.match(parser, /export function inferFlightMapping/);
+  assert.match(parser, /export function buildFlightData/);
+  assert.match(parser, /simulatedGroundTrack/);
+  assert.match(parser, /latitude: \["latitude", "lat", "gps latitude"/);
+  assert.match(parser, /north: \["north", "northing", "north offset"/);
+  assert.match(parser, /normalized\.length \/ 5000/);
+
+  assert.match(route, /requireProjectAccess\(request, "uploadEvidence"\)/);
+  assert.match(route, /requireProjectAccess\(request, "manageProjects"\)/);
+  assert.match(route, /MAX_FLIGHT_BYTES/);
+  assert.match(route, /reserveProjectStorage/);
+  assert.match(route, /raw-flight/);
+  assert.match(route, /processed-flight/);
+  assert.match(store, /CREATE TABLE IF NOT EXISTS flight_records/);
+  assert.match(schema, /export const flightRecords/);
+
+  assert.match(workspace, /Post-flight visualisation/);
+  assert.match(workspace, /Import a CATS Vega flight/);
+  assert.match(workspace, /Channel mapping/);
+  assert.match(workspace, /Launch datum/);
+  assert.match(workspace, /MEASURED FLIGHT/);
+  assert.match(workspace, /Simulation overlay/);
+  assert.match(map, /openfreemap\.org/);
+  assert.match(map, /mapterhorn\.com/);
+  assert.match(map, /renderingMode: "3d"/);
+  assert.match(map, /Click the map to set the launch datum/);
+  assert.match(simulation, /FlightPathMap/);
+  assert.match(simulation, /Pick the real launch datum on the map/);
+  assert.match(missionControl, /name="postflight"/);
+  assert.match(missionControl, /Post-flight/);
+  assert.match(tour, /id: "postflight"/);
+  assert.match(tour, /CATS Vega or generic CSV/);
+  assert.match(styles, /\.postflight-layout/);
+  assert.match(styles, /\.flight-map-shell/);
+  assert.match(styles, /@media \(max-width: 700px\)/);
+});
+
 test("provides a complete touch-first mobile engineering workspace", async () => {
   const [styles, missionControl, workspaceApp, sessionRoute] = await Promise.all([
     source("app/globals.css"),

@@ -12,6 +12,7 @@ import { SimulationWorkspace, liveToSimulation, type LiveResult } from "./simula
 import { ThemeModeSelector, useThemePreference } from "./theme-preference";
 import { WorkspaceIcon } from "./workspace-icon";
 import { GuidedDemoTour, type GuidedDemoModule } from "./guided-demo-tour";
+import { PostFlightWorkspace } from "./post-flight-workspace";
 import {
   OpenRocketEditableField,
   OpenRocketModel,
@@ -586,6 +587,7 @@ export function MissionControl({
   const moduleLabel: Record<WorkspaceModule, string> = {
     configuration: "CONFIGURATION",
     simulation: "SIMULATION",
+    postflight: "POST-FLIGHT VISUALISATION",
     history: "REVISION HISTORY",
     tests: "TEST REGISTER",
     documents: "DOCUMENTATION",
@@ -1515,19 +1517,21 @@ export function MissionControl({
       <aside className="rail">
         <button className={`rail-button ${workspaceModule === "configuration" ? "rail-active" : ""}`} type="button" aria-label="Configuration" data-label="Configuration" onClick={() => changeWorkspaceModule("configuration")}><WorkspaceIcon name="configuration" /></button>
         <button className={`rail-button rail-mobile-secondary ${workspaceModule === "simulation" ? "rail-active" : ""}`} type="button" aria-label="Simulation" data-label="Simulation" onClick={() => changeWorkspaceModule("simulation")}><WorkspaceIcon name="simulation" /></button>
+        <button className={`rail-button rail-mobile-secondary ${workspaceModule === "postflight" ? "rail-active" : ""}`} type="button" aria-label="Post-flight visualisation" data-label="Post-flight" onClick={() => changeWorkspaceModule("postflight")}><WorkspaceIcon name="postflight" /></button>
         <button className={`rail-button ${workspaceModule === "history" ? "rail-active" : ""}`} type="button" aria-label="Revision history" data-label="Revision history" onClick={() => changeWorkspaceModule("history")}><WorkspaceIcon name="history" /></button>
         <button className={`rail-button ${workspaceModule === "tests" ? "rail-active" : ""}`} type="button" aria-label="Tests" data-label="Tests" onClick={() => changeWorkspaceModule("tests")}><WorkspaceIcon name="tests" /></button>
         <button className={`rail-button ${workspaceModule === "documents" ? "rail-active" : ""}`} type="button" aria-label="Documentation" data-label="Documentation" onClick={() => changeWorkspaceModule("documents")}><WorkspaceIcon name="documents" /></button>
         <button className={`rail-button rail-mobile-secondary ${workspaceModule === "checklists" ? "rail-active" : ""}`} type="button" aria-label="Launch checklists" data-label="Checklists" onClick={() => changeWorkspaceModule("checklists")}><WorkspaceIcon name="checklists" /></button>
         <div className="rail-spacer" />
         <button data-tour="workspace-settings-button" className={`rail-button rail-desktop-settings ${settingsOpen ? "rail-settings-active" : ""}`} type="button" aria-label="Workspace settings" data-label="Settings" aria-expanded={settingsOpen} aria-controls="workspace-settings" onClick={() => setSettingsOpen((open) => !open)}><WorkspaceIcon name="settings" /></button>
-        <button className={`rail-button rail-mobile-more ${mobileMoreOpen || workspaceModule === "simulation" || workspaceModule === "checklists" ? "rail-active" : ""}`} type="button" aria-label="More tools" data-label="More" aria-expanded={mobileMoreOpen} aria-controls="mobile-more-menu" onClick={() => { setSettingsOpen(false); setMobileMoreOpen((open) => !open); }}><WorkspaceIcon name="settings" /></button>
+        <button className={`rail-button rail-mobile-more ${mobileMoreOpen || workspaceModule === "simulation" || workspaceModule === "postflight" || workspaceModule === "checklists" ? "rail-active" : ""}`} type="button" aria-label="More tools" data-label="More" aria-expanded={mobileMoreOpen} aria-controls="mobile-more-menu" onClick={() => { setSettingsOpen(false); setMobileMoreOpen((open) => !open); }}><WorkspaceIcon name="settings" /></button>
       </aside>
 
       {mobileMoreOpen && <div className="mobile-more-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setMobileMoreOpen(false)}>
         <section id="mobile-more-menu" className="mobile-more-menu" aria-label="More workspace tools">
           <header><div><span>MORE TOOLS</span><h2>Workspace</h2></div><button type="button" aria-label="Close more tools" onClick={() => setMobileMoreOpen(false)}>&times;</button></header>
           <button type="button" onClick={() => changeWorkspaceModule("simulation")}><WorkspaceIcon name="simulation" /><span><strong>Simulation</strong><small>Run and compare OpenRocket cases</small></span></button>
+          <button type="button" onClick={() => changeWorkspaceModule("postflight")}><WorkspaceIcon name="postflight" /><span><strong>Post-flight visualisation</strong><small>CATS Vega logs, 3D paths and prediction overlay</small></span></button>
           <button type="button" onClick={() => changeWorkspaceModule("checklists")}><WorkspaceIcon name="checklists" /><span><strong>Launch checklists</strong><small>Assembly, arming and sign-off</small></span></button>
           <button type="button" onClick={() => { setMobileMoreOpen(false); setSettingsOpen(true); }}><WorkspaceIcon name="settings" /><span><strong>Appearance</strong><small>Theme and accent colour</small></span></button>
           <button type="button" onClick={() => { setMobileMoreOpen(false); onManageTeam?.(); }}><WorkspaceIcon name="configuration" /><span><strong>{can("manageTeam") ? "Team administration" : "Team and access"}</strong><small>{can("manageTeam") ? "Members, roles and rocket access" : "View your access and projects"}</small></span></button>
@@ -1860,6 +1864,7 @@ export function MissionControl({
       </div>}
 
       {workspaceModule === "simulation" && <SimulationWorkspace key={`${workspace.project.id}:${workspaceVersion ?? "none"}`} model={orkModel} mode={mode} workspaceVersion={workspaceVersion} headers={collaborationHeaders} canRun={can("editOrk") && (mode === "demo" || saveState === "saved")} runBlockedReason={!can("editOrk") ? "Your team role cannot edit or calculate this configuration." : saveState === "offline" ? "The simulation setup has not reached the shared file. Co-Roc will retry automatically when the connection recovers." : saveState === "conflict" ? "A teammate saved another version first. Resolve the shared-file conflict before calculating." : saveState !== "saved" ? "The simulation setup is still being written to the shared ORK." : undefined} onNotice={setNotice} onModelChange={updateSimulationModel} themeKey={resolvedTheme} />}
+      {workspaceModule === "postflight" && <PostFlightWorkspace model={orkModel} mode={mode} workspaceVersion={workspaceVersion} headers={collaborationHeaders} canImport={can("uploadEvidence") || mode === "demo"} canDelete={can("manageProjects")} theme={resolvedTheme} onNotice={setNotice} />}
       {workspaceModule === "history" && <RevisionWorkspace changes={auditChanges} releases={controlledReleases} requests={releaseRequests} proposals={orkProposals} canApprove={can("approveRelease")} canReviewOrk={can("reviewOrkChange")} onOpenComponent={(componentId) => openComponentWorkspace(componentId)} onReleaseAction={handleReleaseAction} onProposalAction={reviewOrkProposal} onDownloadProposal={downloadProposedOrk} />}
       {(workspaceModule === "tests" || workspaceModule === "documents") && <ProjectRecordWorkspace kind={workspaceModule} components={components} headers={collaborationHeaders} projectId={workspace.project.id} mode={mode} onSelectComponent={(componentId, panel) => openComponentWorkspace(componentId, panel)} onNotice={setNotice} />}
       {workspaceModule === "checklists" && <LaunchChecklistWorkspace parts={components.map(({ id, code, name, type }) => ({ id, code, name, type }))} releases={controlledReleases.map(({ releaseNumber, title }) => ({ releaseNumber, title }))} mode={mode} headers={collaborationHeaders} canEdit={can("editChecklist")} canRelease={can("releaseChecklist")} onNotice={setNotice} />}

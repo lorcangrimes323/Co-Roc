@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 
-export type GuidedDemoModule = "configuration" | "simulation" | "history" | "tests" | "documents" | "checklists";
+export type GuidedDemoModule = "configuration" | "simulation" | "postflight" | "history" | "tests" | "documents" | "checklists";
 
 type TourStep = {
   id: string;
@@ -89,8 +89,17 @@ const steps: TourStep[] = [
     module: "simulation",
   },
   {
+    id: "postflight",
+    eyebrow: "08 · POST-FLIGHT DATA",
+    title: "Put the measured flight back over the prediction",
+    description: "Import a CATS Vega or generic CSV log, map its channels and select the real launch datum on keyless 3D terrain. Co-Roc reconstructs the measured path and can overlay the OpenRocket prediction from the same configuration.",
+    detail: "GNSS tracks are retained as measured. Logs without continuous coordinates are clearly marked as reconstructed and use logger offsets or velocity plus the selected launch heading. Playback, apogee, range, velocity, acceleration and provenance stay attached to the working W revision used for comparison.",
+    target: ".postflight-module",
+    module: "postflight",
+  },
+  {
     id: "versions",
-    eyebrow: "08 · CONFIGURATION CONTROL",
+    eyebrow: "09 · CONFIGURATION CONTROL",
     title: "Live work is not the same as a release",
     description: "Every incremental ORK save remains attributable, while formal V1, V2 and V3 baselines are created only through the release workflow.",
     detail: "Engineers can request a version from their current work. A lead reviews and approves it, and any released baseline can later be restored without erasing what happened after it.",
@@ -99,7 +108,7 @@ const steps: TourStep[] = [
   },
   {
     id: "tests",
-    eyebrow: "09 · VERIFICATION",
+    eyebrow: "10 · VERIFICATION",
     title: "See required and completed tests across the rocket",
     description: "The verification module gathers component-level test requirements into one feature tree, so open work can be reviewed by part and against the correct configuration.",
     detail: "Team leads issue measurable requirements; authorised engineers attach completion evidence. The record keeps the owner, outcome, time and working version together.",
@@ -108,7 +117,7 @@ const steps: TourStep[] = [
   },
   {
     id: "documents",
-    eyebrow: "10 · CONTROLLED DOCUMENTATION",
+    eyebrow: "11 · CONTROLLED DOCUMENTATION",
     title: "Find evidence through the vehicle structure",
     description: "Drawings, analyses, photographs and videos are arranged by component rather than presented as one undifferentiated file list.",
     detail: "That makes design reviews faster: select a vehicle feature, see its current controlled record, then inspect superseded revisions when the history matters.",
@@ -117,7 +126,7 @@ const steps: TourStep[] = [
   },
   {
     id: "checklists",
-    eyebrow: "11 · LAUNCH OPERATIONS",
+    eyebrow: "12 · LAUNCH OPERATIONS",
     title: "Build and release a launch checklist",
     description: "Authorised engineers draft phased assembly, arming and launch procedures using ORK parts or operational hardware that does not belong in the aerodynamic model. Drafts remain editable until they are submitted for release.",
     detail: "Role permissions control the workflow: engineers can prepare and revise steps, while only an authorised lead can approve and release the checklist against a vehicle baseline. Released procedures preserve warnings, hold points, witness sign-off and part references for read-only use or field printing.",
@@ -126,7 +135,7 @@ const steps: TourStep[] = [
   },
   {
     id: "finish",
-    eyebrow: "12 · YOUR WORKSPACE",
+    eyebrow: "13 · YOUR WORKSPACE",
     title: "You are ready to explore",
     description: "Use Settings to choose light, dark or system appearance and to replay this tour whenever you need it.",
     detail: "Start by selecting a component, opening a simulation case, or reviewing the launch checklist. Nothing you change in this demo is written to a team project.",

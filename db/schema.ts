@@ -284,6 +284,41 @@ export const simulationRuns = sqliteTable("simulation_runs", {
   index("simulation_runs_project_idx").on(table.projectId, table.createdAt),
 ]);
 
+export const flightRecords = sqliteTable("flight_records", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id").notNull(),
+  name: text("name").notNull(),
+  flightDate: text("flight_date"),
+  computer: text("computer").notNull().default("CATS Vega"),
+  sourceFileName: text("source_file_name").notNull(),
+  sourceFormat: text("source_format").notNull().default("CSV"),
+  launchSiteName: text("launch_site_name").notNull().default(""),
+  launchLatitude: real("launch_latitude").notNull(),
+  launchLongitude: real("launch_longitude").notNull(),
+  launchAltitude: real("launch_altitude").notNull(),
+  headingDegrees: real("heading_degrees").notNull().default(0),
+  orkVersion: integer("ork_version"),
+  rawObjectKey: text("raw_object_key").notNull().unique(),
+  processedObjectKey: text("processed_object_key").notNull().unique(),
+  sourceSizeBytes: integer("source_size_bytes").notNull().default(0),
+  processedSizeBytes: integer("processed_size_bytes").notNull().default(0),
+  sampleCount: integer("sample_count").notNull().default(0),
+  duration: real("duration").notNull().default(0),
+  maxAltitude: real("max_altitude").notNull().default(0),
+  maxVelocity: real("max_velocity"),
+  maxAcceleration: real("max_acceleration"),
+  maxDistance: real("max_distance").notNull().default(0),
+  landingDistance: real("landing_distance").notNull().default(0),
+  hasGps: integer("has_gps", { mode: "boolean" }).notNull().default(false),
+  mappingJson: text("mapping_json").notNull().default("{}"),
+  warningsJson: text("warnings_json").notNull().default("[]"),
+  importedByName: text("imported_by_name").notNull(),
+  importedByEmail: text("imported_by_email").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("flight_records_project_idx").on(table.projectId, table.createdAt),
+]);
+
 export const launchChecklists = sqliteTable("launch_checklists", {
   id: text("id").primaryKey(),
   projectId: text("project_id").notNull(),
