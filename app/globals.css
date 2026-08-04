@@ -380,9 +380,11 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .conflict-banner button { border: 0; background: var(--red); color: var(--accent-ink); padding: 8px 11px; white-space: nowrap; }
 
 @media (max-width: 1100px) {
+  .access-page { height: 100vh; height: 100dvh; min-height: 0; display: block; overflow-y: auto; }
   .account-main { width: min(900px, calc(100% - 48px)); min-height: 0; display: flex; flex-direction: column; gap: 20px; padding: 24px 0 54px; }
+  .account-main > *, .account-hero, .account-panel, .account-control-list { flex: 0 0 auto; }
   .account-hero { order: 1; width: 100%; }
-  .account-panel { order: 2; position: static; width: min(560px, 100%); align-self: flex-end; }
+  .account-panel { order: 2; position: static; width: min(560px, 100%); height: auto; max-height: none; align-self: flex-end; overflow: visible; }
   .account-control-list { order: 3; width: 100%; }
   .account-hero h1 { font-size: clamp(58px, 8.5vw, 82px); }
 }
@@ -398,10 +400,11 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .account-header-actions { gap: 8px; }
   .account-header-actions .account-tour-link { display: none; }
   .account-header-actions > button { padding: 0 10px; }
-  .account-mobile-demo { position: relative; z-index: 2; width: min(100% - 20px, 620px); min-height: 68px; margin: 10px auto 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: center; gap: 5px 16px; padding: 12px 15px; border: 1px solid color-mix(in srgb, var(--landing-stage-text) 28%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--landing-stage) 91%, transparent); color: var(--landing-stage-text); box-shadow: 0 12px 30px rgba(0,0,0,.16); text-decoration: none; backdrop-filter: blur(18px) saturate(120%); }
+  .account-mobile-demo { position: relative; z-index: 2; width: min(100% - 20px, 620px); min-height: 92px; margin: 10px auto 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: center; gap: 5px 16px; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--accent) 58%, var(--landing-stage-text)); border-left: 4px solid var(--accent); border-radius: 8px; background: linear-gradient(105deg, color-mix(in srgb, var(--accent) 16%, var(--landing-stage)) 0%, color-mix(in srgb, var(--landing-stage) 94%, transparent) 62%); color: var(--landing-stage-text); box-shadow: 0 14px 36px rgba(0,0,0,.22); text-decoration: none; backdrop-filter: blur(18px) saturate(120%); }
   .account-mobile-demo span { color: var(--accent); font: 8px/1 var(--font-geist-mono); letter-spacing: .12em; }
-  .account-mobile-demo strong { grid-column: 1; font-size: 15px; line-height: 1.15; }
-  .account-mobile-demo i { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: var(--landing-stage-text); font: normal 10px/1 var(--font-geist-mono); }
+  .account-mobile-demo strong { grid-column: 1; font-size: 18px; line-height: 1.15; }
+  .account-mobile-demo small { grid-column: 1; color: color-mix(in srgb, var(--landing-stage-text) 65%, transparent); font-size: 11px; line-height: 1.35; }
+  .account-mobile-demo i { grid-column: 2; grid-row: 1 / span 3; align-self: center; min-height: 34px; display: inline-flex; align-items: center; padding: 0 10px; border: 1px solid color-mix(in srgb, var(--landing-stage-text) 35%, transparent); background: var(--landing-stage-text); color: var(--landing-stage); font: normal 700 9px/1 var(--font-geist-mono); }
   .account-main { width: min(100% - 20px, 620px); gap: 12px; padding: 10px 0 38px; }
   .account-hero { min-height: 0; height: auto; display: block; padding: 13px 14px 16px; border-radius: 8px; }
   .account-hero::before { display: none; }
@@ -422,7 +425,8 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .account-control-list article:nth-child(3n) { border-right: 1px solid var(--landing-rule); }
   .account-control-list article:nth-child(even) { border-right: 0; }
   .account-control-list article:nth-last-child(3) { border-bottom: 1px solid var(--landing-rule); }
-  .account-panel { width: 100%; align-self: stretch; }
+  .account-panel { width: 100%; height: auto; max-height: none; align-self: stretch; overflow: visible; }
+  .account-form { height: auto; max-height: none; overflow: visible; }
   .account-form { padding: 24px 20px; }
   .account-form input { min-height: 48px; font-size: 16px; }
   .account-submit { min-height: 48px; }

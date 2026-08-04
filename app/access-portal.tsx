@@ -61,8 +61,9 @@ export function AccessPortal() {
 
       <Link className="account-mobile-demo" href="/demo?tour=1">
         <span>GUIDED PRODUCT TOUR</span>
-        <strong>See Co-Roc in action</strong>
-        <i>12 steps →</i>
+        <strong>Start the guided demo</strong>
+        <small>A three-minute walkthrough of the complete workflow</small>
+        <i>START TOUR →</i>
       </Link>
 
       <section className="account-main">
