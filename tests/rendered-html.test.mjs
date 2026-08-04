@@ -326,6 +326,12 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(map, /gl\.drawArrays\(gl\.POINTS/);
   assert.match(map, /altitudeAwareMaxZoom/);
   assert.match(map, /active-flight-marker-3d/);
+  assert.match(map, /flight-event-markers-3d/);
+  assert.match(map, /eventPoints/);
+  assert.match(workspace, /flight-timeline-event/);
+  assert.match(workspace, /Jump to \$\{event\.name\}/);
+  assert.match(workspace, /channel="altitude" label="Altitude · m MSL" colour=\{accent\}/);
+  assert.match(styles, /--flight-accent/);
   assert.match(workspace, /\[showSimulation, setShowSimulation\] = useState\(false\)/);
   assert.ok(map.indexOf("const activePoint =") < map.indexOf("const activePointRef ="), "the active sample must exist before the 3D playback reference is initialised");
   assert.match(map, /activePoint/);

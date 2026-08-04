@@ -2164,7 +2164,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .flight-map-dark::after { content: ""; position: absolute; z-index: 1; inset: 0; background: rgba(8, 12, 11, .2); pointer-events: none; mix-blend-mode: multiply; }
 .flight-map-legend { position: absolute; z-index: 4; left: 12px; top: 12px; display: flex; gap: 8px; padding: 7px 9px; border: 1px solid rgba(255,255,255,.32); background: rgba(15,17,16,.82); color: #fff; box-shadow: 0 8px 24px rgba(0,0,0,.2); backdrop-filter: blur(8px); font: 8px var(--font-geist-mono); }
 .flight-map-legend span { display: flex; align-items: center; gap: 5px; }
-.flight-map-legend i { width: 16px; height: 3px; border-radius: 99px; background: var(--accent); box-shadow: 0 0 7px color-mix(in srgb, var(--accent) 74%, transparent); }
+.flight-map-legend i { width: 16px; height: 3px; border-radius: 99px; background: var(--flight-accent, var(--accent)); box-shadow: 0 0 7px color-mix(in srgb, var(--flight-accent, var(--accent)) 74%, transparent); }
 .flight-map-legend i.flight-simulated { height: 0; border-top: 2px dashed #62c694; background: transparent; }
 .flight-terrain-toggle { position: absolute; z-index: 4; left: 12px; top: 46px; min-height: 28px; padding: 0 9px; border: 1px solid rgba(255,255,255,.32); background: rgba(15,17,16,.82); color: #fff; font: 8px var(--font-geist-mono); cursor: pointer; backdrop-filter: blur(8px); }
 .flight-fit-toggle { position: absolute; z-index: 4; left: 88px; top: 46px; min-height: 28px; padding: 0 9px; border: 1px solid rgba(255,255,255,.32); background: rgba(15,17,16,.82); color: #fff; font: 8px var(--font-geist-mono); cursor: pointer; backdrop-filter: blur(8px); }
@@ -2177,6 +2177,13 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .flight-playback button { height: 28px; padding: 0 11px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); font-size: 9px; font-weight: 700; }
 .flight-playback span { color: var(--muted); font: 9px var(--font-geist-mono); text-align: center; }
 .flight-playback input { width: 100%; accent-color: var(--accent); }
+.flight-playback-track { position: relative; display: flex; align-items: center; min-width: 0; padding-top: 30px; }
+.flight-playback-track > input { position: relative; z-index: 2; }
+.flight-timeline-event { position: absolute; z-index: 3; top: 0; width: 1px; height: 30px; padding: 0; transform: translateX(-50%); border: 0; background: transparent; color: var(--accent); cursor: pointer; overflow: visible; }
+.flight-timeline-event i { position: absolute; left: -2px; bottom: 0; width: 5px; height: 9px; border-radius: 3px 3px 0 0; background: currentColor; box-shadow: 0 0 0 2px var(--panel); }
+.flight-timeline-event em { position: absolute; left: 0; top: 0; max-width: 110px; transform: translateX(-50%); overflow: hidden; color: var(--muted); font: 7px var(--font-geist-mono); font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.flight-timeline-event:nth-of-type(even) em { top: 10px; }
+.flight-timeline-event:hover em, .flight-timeline-event:focus-visible em { z-index: 2; max-width: none; padding: 2px 4px; background: var(--panel-raised); color: var(--text); }
 .postflight-empty-map { display: grid; place-content: center; gap: 7px; height: 100%; color: var(--muted); text-align: center; }
 .flight-inspector { min-width: 0; overflow-y: auto; border-left: 1px solid var(--line-strong); background: var(--panel); }
 .flight-inspector > header { padding: 15px; border-bottom: 1px solid var(--line); }

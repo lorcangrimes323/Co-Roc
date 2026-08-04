@@ -1,7 +1,7 @@
 "use client";
 
 import maplibregl, { type CustomLayerInterface, type Map as MapLibreMap } from "maplibre-gl";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { CatsFlightEvent, FlightPoint } from "../lib/flight-data";
 
 type MapPoint = Pick<FlightPoint, "latitude" | "longitude" | "altitude" | "time">;
@@ -44,19 +44,26 @@ function closestPoint(points: MapPoint[], time: number) {
   return points.reduce((closest, point) => Math.abs(point.time - time) < Math.abs(closest.time - time) ? point : closest, points[0]);
 }
 
-function geoPoints(measured: MapPoint[], simulated: MapPoint[], events: CatsFlightEvent[]) {
+function geoPoints(measured: MapPoint[], simulated: MapPoint[]) {
   const entries = [
     measured[0] && { point: measured[0], kind: "launch", label: "Launch" },
     measured.length && { point: measured.reduce((high, point) => point.altitude > high.altitude ? point : high, measured[0]), kind: "apogee", label: "Measured apogee" },
     measured.at(-1) && { point: measured.at(-1)!, kind: "landing", label: "Landing" },
     simulated.length && { point: simulated.reduce((high, point) => point.altitude > high.altitude ? point : high, simulated[0]), kind: "simulation", label: "Simulated apogee" },
-    ...events.filter((event) => measured.length && event.time >= measured[0].time && event.time <= measured.at(-1)!.time)
-      .map((event) => ({ point: closestPoint(measured, event.time), kind: "event", label: event.name })),
   ].filter(Boolean) as Array<{ point: MapPoint; kind: string; label: string }>;
   return {
     type: "FeatureCollection" as const,
     features: entries.map(({ point, kind, label }) => ({ type: "Feature" as const, properties: { kind, label, altitude: point.altitude }, geometry: { type: "Point" as const, coordinates: [point.longitude, point.latitude] } })),
   };
+}
+
+function eventPoints(measured: MapPoint[], events: CatsFlightEvent[]) {
+  if (!measured.length) return [];
+  const firstTime = measured[0].time;
+  const lastTime = measured.at(-1)!.time;
+  return events
+    .filter((event) => event.time >= firstTime && event.time <= lastTime)
+    .map((event) => ({ ...closestPoint(measured, event.time), event }));
 }
 
 function trajectoryRibbon(points: MapPoint[], widthMetres = 7, thicknessMetres = 3) {
@@ -203,13 +210,62 @@ function addActiveFlightMarker(map: MapLibreMap, id: string, pointRef: { current
       gl.enableVertexAttribArray(position);
       gl.vertexAttribPointer(position, 3, gl.FLOAT, false, 0, 0);
       gl.uniformMatrix4fv(matrixLocation, false, options.defaultProjectionData.mainMatrix);
-      const [red, green, blue] = colourChannels(colour);
-      gl.uniform3f(colourLocation, red, green, blue);
+      gl.uniform3f(colourLocation, 1, 1, 1);
       gl.uniform1f(sizeLocation, 19);
       gl.drawArrays(gl.POINTS, 0, 1);
-      gl.uniform3f(colourLocation, 1, 1, 1);
-      gl.uniform1f(sizeLocation, 10);
+      const [red, green, blue] = colourChannels(colour);
+      gl.uniform3f(colourLocation, red, green, blue);
+      gl.uniform1f(sizeLocation, 13);
       gl.drawArrays(gl.POINTS, 0, 1);
+    },
+    onRemove(_map, gl) { if (buffer) gl.deleteBuffer(buffer); if (program) gl.deleteProgram(program); },
+  };
+}
+
+function addFlightEventMarkersLayer(id: string, points: ReturnType<typeof eventPoints>, colour: string): CustomLayerInterface {
+  let program: WebGLProgram | null = null;
+  let buffer: WebGLBuffer | null = null;
+  let position = -1;
+  let matrixLocation: WebGLUniformLocation | null = null;
+  let colourLocation: WebGLUniformLocation | null = null;
+  let sizeLocation: WebGLUniformLocation | null = null;
+  const positions = points.flatMap((point) => {
+    const coordinate = maplibregl.MercatorCoordinate.fromLngLat([point.longitude, point.latitude], point.altitude);
+    return [coordinate.x, coordinate.y, coordinate.z];
+  });
+  return {
+    id,
+    type: "custom",
+    renderingMode: "3d",
+    onAdd(_map, gl) {
+      const vertex = gl.createShader(gl.VERTEX_SHADER)!;
+      gl.shaderSource(vertex, "attribute vec3 a_position; uniform mat4 u_matrix; uniform float u_size; void main(){gl_Position=u_matrix*vec4(a_position,1.0); gl_PointSize=u_size;}");
+      gl.compileShader(vertex);
+      const fragment = gl.createShader(gl.FRAGMENT_SHADER)!;
+      gl.shaderSource(fragment, "precision mediump float; uniform vec3 u_colour; void main(){float d=length(gl_PointCoord-vec2(.5)); if(d>.5) discard; gl_FragColor=vec4(u_colour,1.0);}");
+      gl.compileShader(fragment);
+      program = gl.createProgram()!;
+      gl.attachShader(program, vertex); gl.attachShader(program, fragment); gl.linkProgram(program);
+      buffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+      position = gl.getAttribLocation(program, "a_position");
+      matrixLocation = gl.getUniformLocation(program, "u_matrix");
+      colourLocation = gl.getUniformLocation(program, "u_colour");
+      sizeLocation = gl.getUniformLocation(program, "u_size");
+    },
+    render(gl, options) {
+      if (!program || !buffer || !positions.length) return;
+      gl.useProgram(program);
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.enableVertexAttribArray(position);
+      gl.vertexAttribPointer(position, 3, gl.FLOAT, false, 0, 0);
+      gl.uniformMatrix4fv(matrixLocation, false, options.defaultProjectionData.mainMatrix);
+      gl.disable(gl.DEPTH_TEST);
+      gl.uniform3f(colourLocation, 1, 1, 1); gl.uniform1f(sizeLocation, 14);
+      gl.drawArrays(gl.POINTS, 0, positions.length / 3);
+      const [red, green, blue] = colourChannels(colour);
+      gl.uniform3f(colourLocation, red, green, blue); gl.uniform1f(sizeLocation, 9);
+      gl.drawArrays(gl.POINTS, 0, positions.length / 3);
     },
     onRemove(_map, gl) { if (buffer) gl.deleteBuffer(buffer); if (program) gl.deleteProgram(program); },
   };
@@ -222,6 +278,7 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
   const [ready, setReady] = useState(false);
   const activePoint = suppliedActivePoint ?? measured[Math.min(currentIndex ?? measured.length - 1, Math.max(0, measured.length - 1))];
   const activePointRef = useRef<MapPoint | undefined>(activePoint);
+  const measuredEventPoints = useMemo(() => eventPoints(measured, events), [measured, events]);
   const boundsKey = useMemo(() => [...measured, ...simulated].map((point) => `${point.latitude.toFixed(5)},${point.longitude.toFixed(5)}`).join("|"), [measured, simulated]);
 
   useEffect(() => {
@@ -264,7 +321,7 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready || !map.isStyleLoaded() || !map.getSource("terrain-dem")) return;
-    for (const id of ["measured-3d", "simulated-3d", "measured-ribbon", "simulated-ribbon", "measured-glow", "simulated-glow", "measured-ground", "simulated-ground", "flight-markers", "active-flight-point", "active-flight-marker-3d"]) {
+    for (const id of ["measured-3d", "simulated-3d", "measured-ribbon", "simulated-ribbon", "measured-glow", "simulated-glow", "measured-ground", "simulated-ground", "flight-markers", "flight-event-markers-3d", "active-flight-point", "active-flight-marker-3d"]) {
       if (map.getLayer(id)) map.removeLayer(id);
     }
     for (const id of ["measured", "simulated", "measured-3d", "simulated-3d", "flight-markers", "active-flight-point"]) if (map.getSource(id)) map.removeSource(id);
@@ -284,8 +341,9 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
       map.addLayer({ id: "simulated-3d", type: "fill-extrusion", source: "simulated-3d", paint: { "fill-extrusion-color": "#157f54", "fill-extrusion-base": ["get", "base"], "fill-extrusion-height": ["get", "height"], "fill-extrusion-opacity": 0.72 } });
       map.addLayer(addPointRibbonLayer("simulated-ribbon", simulated, "#157f54"));
     }
-    map.addSource("flight-markers", { type: "geojson", data: geoPoints(measured.length ? measured : [{ ...launchSite, time: 0 }], simulated, events) });
-    map.addLayer({ id: "flight-markers", type: "circle", source: "flight-markers", paint: { "circle-radius": ["match", ["get", "kind"], "event", 5, 6], "circle-color": ["match", ["get", "kind"], "launch", "#111111", "apogee", "#d4253b", "simulation", "#157f54", "event", "#b1721b", "#f4b942"], "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 } });
+    map.addSource("flight-markers", { type: "geojson", data: geoPoints(measured.length ? measured : [{ ...launchSite, time: 0 }], simulated) });
+    map.addLayer({ id: "flight-markers", type: "circle", source: "flight-markers", paint: { "circle-radius": 6, "circle-color": ["match", ["get", "kind"], "launch", "#111111", "simulation", "#157f54", accent], "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 } });
+    if (measuredEventPoints.length) map.addLayer(addFlightEventMarkersLayer("flight-event-markers-3d", measuredEventPoints, accent));
     if (activePointRef.current) map.addLayer(addActiveFlightMarker(map, "active-flight-marker-3d", activePointRef, accent));
     map.on("mouseenter", "flight-markers", () => { map.getCanvas().style.cursor = "pointer"; });
     map.on("mouseleave", "flight-markers", () => { map.getCanvas().style.cursor = onLaunchSiteChange ? "crosshair" : ""; });
@@ -324,7 +382,7 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
     map.fitBounds(bounds, { padding: compact ? 38 : 72, maxZoom: altitudeAwareMaxZoom(map, all), pitch: terrain ? 58 : 0, bearing: terrain ? -18 : 0, duration: 700 });
   }
 
-  return <div className={`flight-map-shell ${compact ? "flight-map-compact" : ""} flight-map-${theme}`}>
+  return <div className={`flight-map-shell ${compact ? "flight-map-compact" : ""} flight-map-${theme}`} style={{ "--flight-accent": accent } as CSSProperties}>
     <div
       ref={container}
       className="flight-map"
