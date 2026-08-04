@@ -315,7 +315,7 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(workspace, /MEASURED FLIGHT/);
   assert.match(workspace, /Simulation overlay/);
   assert.match(workspace, /requestAnimationFrame/);
-  assert.match(workspace, /Pause flight/);
+  assert.match(workspace, /aria-label=\{playing \? "Pause flight" : "Play flight"\}/);
   assert.match(map, /openfreemap\.org/);
   assert.match(map, /mapterhorn\.com/);
   assert.match(map, /renderingMode: "3d"/);
@@ -328,7 +328,14 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(map, /active-flight-marker-3d/);
   assert.match(map, /flight-event-markers-3d/);
   assert.match(map, /eventPoints/);
+  assert.match(map, /lastFittedBoundsKey/);
+  assert.match(map, /lastFittedBoundsKey\.current !== boundsKey/);
+  assert.match(map, /geometryFingerprint/);
+  assert.match(map, /withStableOverlayState/);
   assert.match(workspace, /flight-timeline-event/);
+  assert.match(workspace, /flight-event-key/);
+  assert.match(styles, /\.flight-playback > button/);
+  assert.doesNotMatch(styles, /\.flight-playback button \{/);
   assert.match(workspace, /Jump to \$\{event\.name\}/);
   assert.match(workspace, /channel="altitude" label="Altitude · m MSL" colour=\{accent\}/);
   assert.match(styles, /--flight-accent/);

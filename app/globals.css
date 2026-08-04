@@ -2174,16 +2174,23 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .flight-map .maplibregl-ctrl-group { border-radius: 0; }
 .flight-map .maplibregl-popup-content { padding: 9px 11px; border-radius: 0; color: #191919; font-size: 10px; }
 .flight-playback { display: grid; grid-template-columns: auto 64px minmax(120px, 1fr) 64px; align-items: center; gap: 10px; padding: 0 12px; border-top: 1px solid var(--line-strong); background: var(--panel); }
-.flight-playback button { height: 28px; padding: 0 11px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); font-size: 9px; font-weight: 700; }
+.flight-playback > button { height: 34px; padding: 0 14px; border: 1px solid var(--accent); border-radius: 5px; background: var(--accent); color: var(--accent-ink); font-size: 9px; font-weight: 700; }
+.flight-playback > .flight-playback-toggle { width: 38px; padding: 0; display: grid; place-items: center; font-size: 15px; line-height: 1; cursor: pointer; }
+.flight-playback > .flight-playback-toggle span { color: inherit; font: inherit; transform: translateX(1px); }
 .flight-playback span { color: var(--muted); font: 9px var(--font-geist-mono); text-align: center; }
 .flight-playback input { width: 100%; accent-color: var(--accent); }
-.flight-playback-track { position: relative; display: flex; align-items: center; min-width: 0; padding-top: 30px; }
-.flight-playback-track > input { position: relative; z-index: 2; }
-.flight-timeline-event { position: absolute; z-index: 3; top: 0; width: 1px; height: 30px; padding: 0; transform: translateX(-50%); border: 0; background: transparent; color: var(--accent); cursor: pointer; overflow: visible; }
-.flight-timeline-event i { position: absolute; left: -2px; bottom: 0; width: 5px; height: 9px; border-radius: 3px 3px 0 0; background: currentColor; box-shadow: 0 0 0 2px var(--panel); }
-.flight-timeline-event em { position: absolute; left: 0; top: 0; max-width: 110px; transform: translateX(-50%); overflow: hidden; color: var(--muted); font: 7px var(--font-geist-mono); font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
-.flight-timeline-event:nth-of-type(even) em { top: 10px; }
-.flight-timeline-event:hover em, .flight-timeline-event:focus-visible em { z-index: 2; max-width: none; padding: 2px 4px; background: var(--panel-raised); color: var(--text); }
+.flight-playback-track { min-width: 0; padding: 7px 0 5px; }
+.flight-event-key { display: flex; gap: 5px; min-width: 0; margin-bottom: 7px; overflow-x: auto; scrollbar-width: thin; }
+.flight-event-key button { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; min-height: 27px; padding: 3px 8px 3px 4px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--panel-raised); color: var(--text); cursor: pointer; text-align: left; }
+.flight-event-key button:hover, .flight-event-key button:focus-visible { border-color: var(--accent); }
+.flight-event-key b { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 4px; background: var(--accent); color: var(--accent-ink); font: 7px var(--font-geist-mono); }
+.flight-event-key span { display: block; color: var(--text); font: 8px var(--font-geist-sans), Arial, sans-serif; font-weight: 650; white-space: nowrap; }
+.flight-event-key small { display: block; margin-top: 1px; color: var(--faint); font: 7px var(--font-geist-mono); }
+.flight-range-track { position: relative; display: flex; align-items: center; height: 22px; min-width: 0; }
+.flight-range-track > input { position: relative; z-index: 2; }
+.flight-timeline-event { position: absolute; z-index: 3; top: 0; width: 18px; height: 18px; padding: 0; transform: translateX(-50%); border: 2px solid var(--panel); border-radius: 50%; background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+.flight-timeline-event i { display: grid; place-items: center; width: 100%; height: 100%; font: 6px var(--font-geist-mono); font-style: normal; }
+.flight-timeline-event:hover, .flight-timeline-event:focus-visible { z-index: 5; transform: translateX(-50%) scale(1.18); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 28%, transparent); }
 .postflight-empty-map { display: grid; place-content: center; gap: 7px; height: 100%; color: var(--muted); text-align: center; }
 .flight-inspector { min-width: 0; overflow-y: auto; border-left: 1px solid var(--line-strong); background: var(--panel); }
 .flight-inspector > header { padding: 15px; border-bottom: 1px solid var(--line); }
