@@ -269,10 +269,11 @@ test("uses site accounts, separates demo data and recovers local drafts", async 
 });
 
 test("imports, reconstructs and stores post-flight trajectories", async () => {
-  const [workspace, map, parser, route, store, schema, missionControl, simulation, tour, styles] = await Promise.all([
+  const [workspace, map, parser, demoFlight, route, store, schema, missionControl, simulation, tour, styles] = await Promise.all([
     source("app/post-flight-workspace.tsx"),
     source("app/flight-path-map.tsx"),
     source("lib/flight-data.ts"),
+    source("lib/demo-cats-flight.ts"),
     source("app/api/flights/route.ts"),
     source("db/flight-store.ts"),
     source("db/schema.ts"),
@@ -318,6 +319,12 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(workspace, /aria-label=\{playing \? "Pause flight" : "Play flight"\}/);
   assert.match(workspace, /guidedPlayback = false/);
   assert.match(workspace, /if \(!guidedPlayback \|\| !trajectory\?\.points\.length\) return/);
+  assert.match(workspace, /playbackRate = guidedPlayback \? 4 : 1/);
+  assert.match(workspace, /followActive=\{guidedPlayback\}/);
+  assert.match(workspace, /QPL_Mach26-flightData\.cfl/);
+  assert.match(demoFlight, /55\.4352913/);
+  assert.match(demoFlight, /demoCatsPoints/);
+  assert.match(demoFlight, /"name":"Apogee"/);
   assert.match(workspace, /data-tour="postflight-visualiser"/);
   assert.match(map, /openfreemap\.org/);
   assert.match(map, /mapterhorn\.com/);
@@ -325,6 +332,12 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(map, /addPointRibbonLayer/);
   assert.match(map, /gl\.drawArrays\(gl\.POINTS/);
   assert.match(map, /trajectoryFitMaxZoom/);
+  assert.match(map, /altitudeSpan/);
+  assert.match(map, /following \? Math\.min\(12, altitudeAwareZoom\)/);
+  assert.match(map, /dataset\.cameraFollow/);
+  assert.match(map, /map\.easeTo\(\{/);
+  assert.match(map, /zoom: map\.getZoom\(\)/);
+  assert.match(map, /followSuspended\.current = true/);
   assert.match(map, /addActiveFlightMarker\(map, "active-flight-marker"/);
   assert.match(map, /addFlightEventMarkersLayer\("flight-event-markers"/);
   assert.match(map, /eventPoints/);

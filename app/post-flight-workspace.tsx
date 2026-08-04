@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { OpenRocketModel } from "../lib/openrocket";
 import { buildCatsCflFlightData, buildFlightData, inferFlightMapping, inspectCatsCfl, isCatsCfl, parseFlightTable, simulatedGroundTrack, type CatsCflInspection, type CatsFlightEvent, type FlightChannel, type FlightColumnMapping, type FlightPoint, type FlightSummary } from "../lib/flight-data";
+import { demoCatsEvents, demoCatsLaunch, demoCatsPoints, demoCatsSummary } from "../lib/demo-cats-flight";
 import { FlightPathMap } from "./flight-path-map";
 
 type FlightRecord = Omit<FlightSummary, "apogee"> & {
@@ -33,39 +34,9 @@ const channelDetails: Array<{ key: FlightChannel; label: string; optional?: bool
   { key: "north", label: "North offset", optional: true }, { key: "east", label: "East offset", optional: true },
 ];
 
-function demoTrajectory() {
-  const launch = { latitude: 54.4899, longitude: -6.0995, altitude: 62 };
-  const points = Array.from({ length: 241 }, (_, index) => {
-    const time = index * 0.8;
-    const rise = 3900 * (1 - Math.exp(-time / 10.5));
-    const altitudeAgl = time < 30 ? rise * (1 - Math.max(0, time - 22) / 22) : Math.max(0, 4050 * (1 - (time - 30) / 165));
-    const north = Math.sin(time / 35) * 70 + time * 1.25;
-    const east = time * 0.82 + Math.sin(time / 9) * 8;
-    const earth = 6_378_137;
-    return {
-      time,
-      latitude: launch.latitude + north / earth * 180 / Math.PI,
-      longitude: launch.longitude + east / (earth * Math.cos(launch.latitude * Math.PI / 180)) * 180 / Math.PI,
-      altitude: launch.altitude + altitudeAgl,
-      velocity: time < 18 ? 390 * Math.sin(Math.PI * time / 36) : Math.max(7, 95 - time * .44),
-      verticalVelocity: time < 30 ? 170 * Math.sin(Math.PI * time / 60) : -24,
-      acceleration: time < 8 ? 146 * Math.sin(Math.PI * time / 16) : 9.8,
-      pressure: 1012 * Math.exp(-altitudeAgl / 8500), temperature: 15 - altitudeAgl * .0065, battery: 8.35 - time * .0007,
-    };
-  });
-  const summary: FlightSummary = { sampleCount: points.length, duration: points.at(-1)!.time, apogee: Math.max(...points.map((point) => point.altitude)), maxVelocity: 390, maxAcceleration: 146, maxDistance: 365, landingDistance: 342, hasGps: true };
-  return { launch, points, summary };
-}
-
-const demo = demoTrajectory();
-const demoEvents: CatsFlightEvent[] = [
-  { time: 0.4, name: "Launch detected", action: 1, argument: 0 },
-  { time: 6.4, name: "Motor burnout", action: 2, argument: 0 },
-  { time: 30.4, name: "Apogee", action: 3, argument: 0 },
-  { time: 31.2, name: "Drogue deployment", action: 4, argument: 0 },
-  { time: 142.4, name: "Main deployment", action: 5, argument: 0 },
-];
-const demoRecord: FlightRecord = { id: "demo-banshee", name: "Banshee Mk II · Flight 02", flightDate: "2026-07-28", computer: "CATS Vega", sourceFileName: "banshee-flight-02.cfl", sourceFormat: "CFL", launchSiteName: "L4C approved range", launchLatitude: demo.launch.latitude, launchLongitude: demo.launch.longitude, launchAltitude: demo.launch.altitude, headingDegrees: 32, orkVersion: 5, importedByName: "Demo dataset", createdAt: "2026-07-28T12:14:00Z", warnings: [], sampleCount: demo.summary.sampleCount, duration: demo.summary.duration, maxAltitude: demo.summary.apogee, maxVelocity: demo.summary.maxVelocity, maxAcceleration: demo.summary.maxAcceleration, maxDistance: demo.summary.maxDistance, landingDistance: demo.summary.landingDistance, hasGps: demo.summary.hasGps };
+const demo = { launch: demoCatsLaunch, points: demoCatsPoints, summary: demoCatsSummary };
+const demoEvents: CatsFlightEvent[] = demoCatsEvents;
+const demoRecord: FlightRecord = { id: "demo-mach26", name: "QPL Mach26 · Measured flight", flightDate: "2026-03-26", computer: "CATS Vega", sourceFileName: "QPL_Mach26-flightData.cfl", sourceFormat: "CFL", launchSiteName: "Campbeltown Airport", launchLatitude: demo.launch.latitude, launchLongitude: demo.launch.longitude, launchAltitude: demo.launch.altitude, headingDegrees: 0, orkVersion: 5, importedByName: "Demo dataset", createdAt: "2026-03-26T12:14:00Z", warnings: [], sampleCount: demo.summary.sampleCount, duration: demo.summary.duration, maxAltitude: demo.summary.apogee, maxVelocity: demo.summary.maxVelocity, maxAcceleration: demo.summary.maxAcceleration, maxDistance: demo.summary.maxDistance, landingDistance: demo.summary.landingDistance, hasGps: demo.summary.hasGps };
 
 function Metric({ label, value, unit, detail }: { label: string; value: string; unit?: string; detail?: string }) {
   return <div className="flight-metric"><span>{label}</span><strong>{value} {unit && <small>{unit}</small>}</strong>{detail && <em>{detail}</em>}</div>;
@@ -206,7 +177,8 @@ export function PostFlightWorkspace({ model, mode, workspaceVersion, headers, ca
     const startedAt = performance.now();
     let frame = 0;
     const advance = (now: number) => {
-      const targetTime = firstTime + (now - startedAt) / 1000;
+      const playbackRate = guidedPlayback ? 4 : 1;
+      const targetTime = firstTime + (now - startedAt) / 1000 * playbackRate;
       if (targetTime >= points.at(-1)!.time) {
         setTimeIndex(points.length - 1);
         setPlaying(false);
@@ -224,7 +196,7 @@ export function PostFlightWorkspace({ model, mode, workspaceVersion, headers, ca
     };
     frame = window.requestAnimationFrame(advance);
     return () => window.cancelAnimationFrame(frame);
-  }, [playing, trajectory?.points]);
+  }, [playing, guidedPlayback, trajectory?.points]);
   async function removeFlight() { if (!selected || !window.confirm(`Remove ${selected.name} and its stored telemetry? This cannot be undone.`)) return; const response = await fetch(`/api/flights?flightId=${encodeURIComponent(selected.id)}`, { method: "DELETE", headers: headers() }); const payload = await response.json() as { flights?: FlightRecord[]; error?: string }; if (!response.ok) { onNotice(payload.error || "Flight record could not be removed"); return; } setFlights(payload.flights ?? []); setSelectedId(payload.flights?.[0]?.id ?? ""); onNotice("Flight record removed"); }
   function complete(record?: FlightRecord, nextTrajectory?: Trajectory) { setImportOpen(false); if (!record) { void loadList(); return; } setFlights((items) => [record, ...items.filter((item) => item.id !== record.id)]); if (nextTrajectory) setTrajectories((items) => ({ ...items, [record.id]: nextTrajectory })); setSelectedId(record.id); }
 
@@ -239,7 +211,7 @@ export function PostFlightWorkspace({ model, mode, workspaceVersion, headers, ca
   return <section className="workspace-module postflight-module"><header className="postflight-heading"><div><span>FLIGHT TEST DATA</span><h1>Post-flight visualisation</h1><p>Decode CATS Vega CFL logs, reconstruct measured flights on 3D terrain and retain the evidence against the working configuration.</p></div><button className="button button-primary" type="button" disabled={!canImport} onClick={() => setImportOpen(true)}>＋ Import .CFL flight</button></header>
     <div className="postflight-layout"><aside className="flight-record-list"><header><span>FLIGHT RECORDS</span><strong>{flights.length}</strong></header>{loading && <p>Loading flight records…</p>}{flights.map((flight) => <button key={flight.id} type="button" className={flight.id === selected?.id ? "active" : ""} onClick={() => setSelectedId(flight.id)}><span>{flight.flightDate ? new Date(`${flight.flightDate}T12:00:00`).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) : "UNDATED"}</span><strong>{flight.name}</strong><small>{flight.computer} · {flight.sampleCount.toLocaleString()} samples</small><em>{flight.sourceFormat === "CFL" ? "CATS CFL" : flight.hasGps ? "GNSS" : "RECONSTRUCTED"}</em></button>)}{!loading && !flights.length && <div className="flight-empty"><strong>No flight data yet</strong><span>Import the native .cfl log from a CATS Vega to start the post-flight record.</span></div>}</aside>
       <main className="flight-visualiser" data-tour="postflight-visualiser">{selected ? <><div className="flight-visualiser-bar"><div><span>MEASURED FLIGHT</span><h2>{selected.name}</h2><p>{selected.launchSiteName || `${selected.launchLatitude.toFixed(5)}, ${selected.launchLongitude.toFixed(5)}`} · linked to W{selected.orkVersion ?? "—"}</p></div><label><input type="checkbox" checked={showSimulation} disabled={!simulated.length} onChange={(event) => setShowSimulation(event.target.checked)} /> Simulation overlay</label></div>
-        <FlightPathMap theme={theme} accent={accent} measured={mapPoints} simulated={showSimulation ? simulated : []} events={trajectory?.events ?? []} activePoint={activeMapPoint} launchSite={{ latitude: selected.launchLatitude, longitude: selected.launchLongitude, altitude: selected.launchAltitude }} />
+        <FlightPathMap theme={theme} accent={accent} measured={mapPoints} simulated={showSimulation ? simulated : []} events={trajectory?.events ?? []} activePoint={activeMapPoint} followActive={guidedPlayback} launchSite={{ latitude: selected.launchLatitude, longitude: selected.launchLongitude, altitude: selected.launchAltitude }} />
         <div className="flight-playback"><button className="flight-playback-toggle" type="button" aria-label={playing ? "Pause flight" : "Play flight"} title={playing ? "Pause flight" : "Play flight"} aria-pressed={playing} disabled={!trajectory?.points.length} onClick={() => { if (playing) { setPlaying(false); return; } if (timeIndex >= (trajectory?.points.length ?? 1) - 1) setTimeIndex(0); setPlaying(true); }}><span aria-hidden="true">{playing ? "Ⅱ" : "▶"}</span></button><span>{active ? `${active.time.toFixed(1)} s` : "—"}</span><FlightTimeline points={trajectory?.points ?? []} events={trajectory?.events ?? []} duration={selected.duration} value={timeIndex} onChange={(index) => { setPlaying(false); setTimeIndex(index); }} /><span>{selected.duration.toFixed(1)} s</span></div></> : <div className="postflight-empty-map"><strong>Select or import a flight</strong><span>The 3D trajectory and flight channels will appear here.</span></div>}</main>
       <aside className="flight-inspector">{selected && <><header><span>FLIGHT SUMMARY</span><h2>{selected.name}</h2><p>{selected.sourceFileName}</p></header><div className="flight-metric-grid"><Metric label="Apogee" value={Math.round(selected.maxAltitude).toLocaleString()} unit="m" /><Metric label="Max speed" value={selected.maxVelocity === null ? "—" : selected.maxVelocity.toFixed(1)} unit="m/s" /><Metric label="Max accel." value={selected.maxAcceleration === null ? "—" : selected.maxAcceleration.toFixed(1)} unit="m/s²" /><Metric label="Ground range" value={Math.round(selected.maxDistance).toLocaleString()} unit="m" /></div><section className="flight-current-state"><span>CURSOR</span><dl><div><dt>Time</dt><dd>{active?.time.toFixed(2) ?? "—"} s</dd></div><div><dt>Altitude</dt><dd>{active ? Math.round(active.altitude).toLocaleString() : "—"} m</dd></div><div><dt>Velocity</dt><dd>{active?.velocity?.toFixed(1) ?? "—"} m/s</dd></div><div><dt>Position</dt><dd>{active ? `${active.latitude.toFixed(5)}, ${active.longitude.toFixed(5)}` : "—"}</dd></div></dl></section><div className="flight-charts"><ChannelChart points={trajectory?.points ?? []} channel="altitude" label="Altitude · m MSL" colour={accent} /><ChannelChart points={trajectory?.points ?? []} channel="velocity" label="Velocity · m/s" colour="#157f54" /><ChannelChart points={trajectory?.points ?? []} channel="acceleration" label="Acceleration · m/s²" colour="#b1721b" /></div>{trajectory?.events?.length ? <section className="flight-events"><span>CATS FLIGHT EVENTS</span>{trajectory.events.map((event, index) => <div key={`${event.time}-${event.name}-${index}`}><strong>{event.name}</strong><em>{event.time.toFixed(2)} s</em></div>)}</section> : null}<section className="flight-provenance"><span>TRACEABILITY</span><p><strong>Source</strong>{selected.sourceFormat ?? trajectory?.sourceFormat ?? "CSV"}</p>{trajectory?.firmwareVersion && <p><strong>CATS firmware</strong>{trajectory.firmwareVersion}</p>}<p><strong>Imported by</strong>{selected.importedByName}</p><p><strong>Working copy</strong>W{selected.orkVersion ?? "—"}</p><p><strong>Trajectory</strong>{selected.hasGps ? "Measured GNSS" : "Vertical reconstruction"}</p></section>{canDelete && mode === "live" && <button className="flight-delete" type="button" onClick={() => void removeFlight()}>Remove flight record</button>}</>}</aside></div>
     {importOpen && <FlightImportModal model={model} workspaceVersion={workspaceVersion} theme={theme} accent={accent} onCancel={() => setImportOpen(false)} onComplete={complete} onNotice={onNotice} mode={mode} headers={headers} />}

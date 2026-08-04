@@ -17,12 +17,19 @@ type Props = {
   theme?: "light" | "dark";
   accent?: string;
   compact?: boolean;
+  followActive?: boolean;
 };
 
 const styleUrl = "https://tiles.openfreemap.org/styles/liberty";
 
-function trajectoryFitMaxZoom(points: MapPoint[]) {
-  return points.length > 1 ? 15 : 13.5;
+function trajectoryFitMaxZoom(points: MapPoint[], following = false) {
+  if (points.length <= 1) return 13.5;
+  const altitudes = points.map((point) => point.altitude).filter(Number.isFinite);
+  const altitudeSpan = altitudes.length ? Math.max(...altitudes) - Math.min(...altitudes) : 0;
+  const altitudeAwareZoom = altitudeSpan > 20
+    ? Math.max(10.75, Math.min(15, 15.4 - Math.log2(Math.max(1, altitudeSpan / 250))))
+    : 15;
+  return following ? Math.min(12, altitudeAwareZoom) : altitudeAwareZoom;
 }
 
 function geoLine(points: MapPoint[]) {
@@ -325,7 +332,7 @@ function addFlightEventMarkersLayer(id: string, points: ReturnType<typeof eventP
   };
 }
 
-export function FlightPathMap({ measured = [], simulated = [], currentIndex, activePoint: suppliedActivePoint, events = [], launchSite, onLaunchSiteChange, theme = "light", accent = "#c92335", compact = false }: Props) {
+export function FlightPathMap({ measured = [], simulated = [], currentIndex, activePoint: suppliedActivePoint, events = [], launchSite, onLaunchSiteChange, theme = "light", accent = "#c92335", compact = false, followActive = false }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [terrain, setTerrain] = useState(true);
@@ -333,6 +340,10 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
   const activePoint = suppliedActivePoint ?? measured[Math.min(currentIndex ?? measured.length - 1, Math.max(0, measured.length - 1))];
   const activePointRef = useRef<MapPoint | undefined>(activePoint);
   const lastFittedBoundsKey = useRef("");
+  const lastFollowAt = useRef(0);
+  const followSuspended = useRef(false);
+  const followActiveRef = useRef(followActive);
+  followActiveRef.current = followActive;
   const measuredEventPoints = useMemo(() => eventPoints(measured, events), [measured, events]);
   const measuredGeometryKey = useMemo(() => geometryFingerprint(measured), [measured]);
   const simulatedGeometryKey = useMemo(() => geometryFingerprint(simulated), [simulated]);
@@ -364,6 +375,13 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
     if (!compact) map.addControl(new maplibregl.FullscreenControl(), "top-right");
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
+    const suspendFollow = () => {
+      if (!followActiveRef.current) return;
+      followSuspended.current = true;
+      if (container.current) container.current.dataset.cameraFollow = "paused-by-user";
+    };
+    map.getCanvas().addEventListener("pointerdown", suspendFollow);
+    map.getCanvas().addEventListener("wheel", suspendFollow, { passive: true });
     map.on("load", () => {
       if (!map.getSource("terrain-dem")) map.addSource("terrain-dem", { type: "raster-dem", url: "https://tiles.mapterhorn.com/tilejson.json", tileSize: 512, maxzoom: 13 });
       map.setTerrain({ source: "terrain-dem", exaggeration: 1.35 });
@@ -373,8 +391,19 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
       if (map.isStyleLoaded() && map.getSource("terrain-dem")) setReady(true);
     });
     map.on("click", (event) => onLaunchSiteChange?.({ latitude: event.lngLat.lat, longitude: event.lngLat.lng }));
-    return () => { map.remove(); mapRef.current = null; };
+    return () => {
+      map.getCanvas().removeEventListener("pointerdown", suspendFollow);
+      map.getCanvas().removeEventListener("wheel", suspendFollow);
+      map.remove();
+      mapRef.current = null;
+    };
   }, []);
+
+  useEffect(() => {
+    followSuspended.current = false;
+    lastFollowAt.current = 0;
+    if (container.current) container.current.dataset.cameraFollow = followActive ? "active" : "off";
+  }, [followActive, boundsKey]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -417,14 +446,14 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
     const all = [...measured, ...simulated];
     if (all.length && lastFittedBoundsKey.current !== boundsKey) {
       const bounds = all.reduce((value, point) => value.extend([point.longitude, point.latitude]), new maplibregl.LngLatBounds([all[0].longitude, all[0].latitude], [all[0].longitude, all[0].latitude]));
-      map.fitBounds(bounds, { padding: compact ? 38 : 72, maxZoom: trajectoryFitMaxZoom(all), duration: 900 });
+      map.fitBounds(bounds, { padding: compact ? 38 : 72, maxZoom: trajectoryFitMaxZoom(all, followActive), duration: 900 });
       lastFittedBoundsKey.current = boundsKey;
     } else if (!all.length && !lastFittedBoundsKey.current) {
       map.flyTo({ center: [launchSite.longitude, launchSite.latitude], zoom: compact ? 10 : 13 });
       lastFittedBoundsKey.current = "launch-site";
     }
     if (container.current) container.current.dataset.trailState = measured.length > 1 ? "ready" : "empty";
-  }, [ready, boundsKey, eventKey, compact, accent]);
+  }, [ready, boundsKey, eventKey, compact, accent, followActive]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -433,8 +462,20 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
     if (activePoint && !map.getLayer("active-flight-marker")) {
       map.addLayer(addActiveFlightMarker(map, "active-flight-marker", activePointRef, accent));
     }
+    if (activePoint && followActive && !followSuspended.current && performance.now() - lastFollowAt.current > 280) {
+      map.easeTo({
+        center: [activePoint.longitude, activePoint.latitude],
+        zoom: map.getZoom(),
+        pitch: map.getPitch(),
+        bearing: map.getBearing(),
+        duration: 260,
+        essential: true,
+      });
+      lastFollowAt.current = performance.now();
+      if (container.current) container.current.dataset.cameraFollow = "active";
+    }
     map.triggerRepaint();
-  }, [activePoint, ready, accent]);
+  }, [activePoint, ready, accent, followActive]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -447,7 +488,9 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
     const all = [...measured, ...simulated];
     if (!map || !all.length) return;
     const bounds = all.reduce((value, point) => value.extend([point.longitude, point.latitude]), new maplibregl.LngLatBounds([all[0].longitude, all[0].latitude], [all[0].longitude, all[0].latitude]));
-    map.fitBounds(bounds, { padding: compact ? 38 : 72, maxZoom: trajectoryFitMaxZoom(all), pitch: terrain ? 58 : 0, bearing: terrain ? -18 : 0, duration: 700 });
+    followSuspended.current = false;
+    if (container.current) container.current.dataset.cameraFollow = followActive ? "active" : "off";
+    map.fitBounds(bounds, { padding: compact ? 38 : 72, maxZoom: trajectoryFitMaxZoom(all, followActive), pitch: terrain ? 58 : 0, bearing: terrain ? -18 : 0, duration: 700 });
   }
 
   return <div className={`flight-map-shell ${compact ? "flight-map-compact" : ""} flight-map-${theme}`} style={{ "--flight-accent": accent } as CSSProperties}>
