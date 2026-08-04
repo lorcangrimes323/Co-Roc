@@ -29,7 +29,7 @@ function trajectoryFitMaxZoom(points: MapPoint[], following = false) {
   const altitudeAwareZoom = altitudeSpan > 20
     ? Math.max(10.75, Math.min(15, 15.4 - Math.log2(Math.max(1, altitudeSpan / 250))))
     : 15;
-  return following ? Math.min(11, altitudeAwareZoom) : altitudeAwareZoom;
+  return following ? Math.min(10.5, altitudeAwareZoom) : altitudeAwareZoom;
 }
 
 function geoLine(points: MapPoint[]) {
@@ -444,10 +444,11 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
       new maplibregl.Popup().setLngLat([coordinates[0], coordinates[1]]).setHTML(`<strong>${feature.properties?.label ?? "Flight point"}</strong><br>${Math.round(Number(feature.properties?.altitude ?? 0)).toLocaleString()} m MSL`).addTo(map);
     });
     const all = [...measured, ...simulated];
-    if (all.length && lastFittedBoundsKey.current !== boundsKey) {
+    const fittedViewKey = `${boundsKey}|${followActive ? "guided" : "standard"}`;
+    if (all.length && lastFittedBoundsKey.current !== fittedViewKey) {
       const bounds = all.reduce((value, point) => value.extend([point.longitude, point.latitude]), new maplibregl.LngLatBounds([all[0].longitude, all[0].latitude], [all[0].longitude, all[0].latitude]));
-      map.fitBounds(bounds, { padding: compact ? 38 : 72, maxZoom: trajectoryFitMaxZoom(all, followActive), duration: 900 });
-      lastFittedBoundsKey.current = boundsKey;
+      map.fitBounds(bounds, { padding: compact ? 38 : followActive ? 110 : 72, maxZoom: trajectoryFitMaxZoom(all, followActive), pitch: followActive ? 45 : map.getPitch(), bearing: followActive ? -12 : map.getBearing(), duration: 900 });
+      lastFittedBoundsKey.current = fittedViewKey;
     } else if (!all.length && !lastFittedBoundsKey.current) {
       map.flyTo({ center: [launchSite.longitude, launchSite.latitude], zoom: compact ? 10 : 13 });
       lastFittedBoundsKey.current = "launch-site";

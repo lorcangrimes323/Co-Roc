@@ -198,8 +198,12 @@ export function PostFlightWorkspace({ model, mode, workspaceVersion, headers, ca
     if (!guidedPlayback || !trajectory?.points.length) return;
     setTimeIndex(0);
     setPlayheadTime(trajectory.points[0].time);
-    setPlaying(true);
-    return () => setPlaying(false);
+    setPlaying(false);
+    const startDelay = window.setTimeout(() => setPlaying(true), 1000);
+    return () => {
+      window.clearTimeout(startDelay);
+      setPlaying(false);
+    };
   }, [guidedPlayback, selectedId, trajectory?.points]);
   useEffect(() => {
     const points = trajectory?.points;

@@ -319,6 +319,7 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(workspace, /aria-label=\{playing \? "Pause flight" : "Play flight"\}/);
   assert.match(workspace, /guidedPlayback = false/);
   assert.match(workspace, /if \(!guidedPlayback \|\| !trajectory\?\.points\.length\) return/);
+  assert.match(workspace, /window\.setTimeout\(\(\) => setPlaying\(true\), 1000\)/);
   assert.match(workspace, /playbackRate = guidedPlayback \? 4 : 1/);
   assert.match(workspace, /function interpolateFlightPoint/);
   assert.match(workspace, /setPlayheadTime\(targetTime\)/);
@@ -336,7 +337,9 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(map, /gl\.drawArrays\(gl\.POINTS/);
   assert.match(map, /trajectoryFitMaxZoom/);
   assert.match(map, /altitudeSpan/);
-  assert.match(map, /following \? Math\.min\(11, altitudeAwareZoom\)/);
+  assert.match(map, /following \? Math\.min\(10\.5, altitudeAwareZoom\)/);
+  assert.match(map, /fittedViewKey = `\$\{boundsKey\}\|\$\{followActive \? "guided" : "standard"\}`/);
+  assert.match(map, /pitch: followActive \? 45/);
   assert.match(map, /dataset\.cameraFollow/);
   assert.match(map, /map\.easeTo\(\{/);
   assert.match(map, /zoom: map\.getZoom\(\)/);
@@ -345,7 +348,7 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(map, /addFlightEventMarkersLayer\("flight-event-markers"/);
   assert.match(map, /eventPoints/);
   assert.match(map, /lastFittedBoundsKey/);
-  assert.match(map, /lastFittedBoundsKey\.current !== boundsKey/);
+  assert.match(map, /lastFittedBoundsKey\.current !== fittedViewKey/);
   assert.match(map, /geometryFingerprint/);
   assert.match(map, /id: "measured-ground"/);
   assert.match(map, /addPointRibbonLayer\("measured-ribbon", measured, accent\)/);
