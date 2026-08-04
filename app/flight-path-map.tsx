@@ -162,10 +162,10 @@ function addActiveFlightMarker(map: MapLibreMap, id: string, pointRef: { current
 export function FlightPathMap({ measured = [], simulated = [], currentIndex, activePoint: suppliedActivePoint, events = [], launchSite, onLaunchSiteChange, theme = "light", compact = false }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
-  const activePointRef = useRef<MapPoint | undefined>(activePoint);
   const [terrain, setTerrain] = useState(true);
   const [ready, setReady] = useState(false);
   const activePoint = suppliedActivePoint ?? measured[Math.min(currentIndex ?? measured.length - 1, Math.max(0, measured.length - 1))];
+  const activePointRef = useRef<MapPoint | undefined>(activePoint);
   const boundsKey = useMemo(() => [...measured, ...simulated].map((point) => `${point.latitude.toFixed(5)},${point.longitude.toFixed(5)}`).join("|"), [measured, simulated]);
 
   useEffect(() => {

@@ -322,6 +322,7 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(map, /gl\.TRIANGLES/);
   assert.match(map, /uniform float u_width/);
   assert.match(map, /active-flight-marker-3d/);
+  assert.ok(map.indexOf("const activePoint =") < map.indexOf("const activePointRef ="), "the active sample must exist before the 3D playback reference is initialised");
   assert.match(map, /activePoint/);
   assert.match(map, /Fit flight/);
   assert.match(map, /maxPitch: 85/);
