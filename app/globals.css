@@ -2153,7 +2153,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .flight-empty { display: grid; gap: 7px; margin: 14px; padding: 18px; border: 1px dashed var(--line-strong); }
 .flight-empty strong { font-size: 12px; }
 .flight-empty span { color: var(--muted); font-size: 10px; line-height: 1.45; }
-.flight-visualiser { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(300px, 1fr) 46px; overflow: hidden; background: var(--panel-2); }
+.flight-visualiser { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(220px, 1fr) minmax(76px, auto); overflow: hidden; background: var(--panel-2); }
 .flight-visualiser-bar { min-height: 70px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 11px 16px; border-bottom: 1px solid var(--line-strong); background: var(--panel); }
 .flight-visualiser-bar h2 { margin: 4px 0 2px; font-size: 17px; }
 .flight-visualiser-bar p { margin: 0; color: var(--muted); font: 9px var(--font-geist-mono); }
@@ -2173,7 +2173,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .flight-map-compact { height: 260px; min-height: 260px; margin-top: 12px; border: 1px solid var(--line-strong); }
 .flight-map .maplibregl-ctrl-group { border-radius: 0; }
 .flight-map .maplibregl-popup-content { padding: 9px 11px; border-radius: 0; color: #191919; font-size: 10px; }
-.flight-playback { display: grid; grid-template-columns: auto 64px minmax(120px, 1fr) 64px; align-items: center; gap: 10px; padding: 0 12px; border-top: 1px solid var(--line-strong); background: var(--panel); }
+.flight-playback { min-height: 76px; display: grid; grid-template-columns: auto 64px minmax(120px, 1fr) 64px; align-items: center; gap: 10px; padding: 6px 12px; border-top: 1px solid var(--line-strong); background: var(--panel); }
 .flight-playback > button { height: 34px; padding: 0 14px; border: 1px solid var(--accent); border-radius: 5px; background: var(--accent); color: var(--accent-ink); font-size: 9px; font-weight: 700; }
 .flight-playback > .flight-playback-toggle { width: 38px; padding: 0; display: grid; place-items: center; font-size: 15px; line-height: 1; cursor: pointer; }
 .flight-playback > .flight-playback-toggle span { color: inherit; font: inherit; transform: translateX(1px); }

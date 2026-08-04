@@ -336,6 +336,8 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(workspace, /flight-event-key/);
   assert.match(styles, /\.flight-playback > button/);
   assert.doesNotMatch(styles, /\.flight-playback button \{/);
+  assert.match(styles, /\.flight-visualiser \{[^}]*grid-template-rows: auto minmax\(220px, 1fr\) minmax\(76px, auto\)/);
+  assert.match(styles, /\.flight-playback \{[^}]*min-height: 76px/);
   assert.match(workspace, /Jump to \$\{event\.name\}/);
   assert.match(workspace, /channel="altitude" label="Altitude · m MSL" colour=\{accent\}/);
   assert.match(styles, /--flight-accent/);
