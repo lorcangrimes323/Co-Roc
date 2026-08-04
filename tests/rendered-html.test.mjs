@@ -290,6 +290,9 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(parser, /export function buildCatsCflFlightData/);
   assert.match(parser, /CATS_RECORD\.GNSS/);
   assert.match(parser, /CATS_EVENT_NAMES/);
+  assert.match(parser, /gnssPoints/);
+  assert.match(parser, /Number\.isFinite\(reading\.latitude\)/);
+  assert.doesNotMatch(parser, /reading\.satellites >= 4/);
   assert.match(parser, /simulatedGroundTrack/);
   assert.match(parser, /latitude: \["latitude", "lat", "gps latitude"/);
   assert.match(parser, /north: \["north", "northing", "north offset"/);
@@ -311,9 +314,15 @@ test("imports, reconstructs and stores post-flight trajectories", async () => {
   assert.match(workspace, /Launch datum/);
   assert.match(workspace, /MEASURED FLIGHT/);
   assert.match(workspace, /Simulation overlay/);
+  assert.match(workspace, /requestAnimationFrame/);
+  assert.match(workspace, /Pause flight/);
   assert.match(map, /openfreemap\.org/);
   assert.match(map, /mapterhorn\.com/);
   assert.match(map, /renderingMode: "3d"/);
+  assert.match(map, /activePoint/);
+  assert.match(map, /Fit flight/);
+  assert.match(map, /maxPitch: 85/);
+  assert.match(map, /measured\.length\.toLocaleString\(\)/);
   assert.match(map, /Click the map to set the launch datum/);
   assert.match(simulation, /FlightPathMap/);
   assert.match(simulation, /Pick the real launch datum on the map/);

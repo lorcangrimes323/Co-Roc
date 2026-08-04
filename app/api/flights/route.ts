@@ -32,12 +32,45 @@ export async function GET(request: Request) {
   const flightId = url.searchParams.get("flightId");
   if (!flightId) return Response.json({ flights: await list(result.access.project.id) });
   const { DB, FILES } = getFlightEnvironment();
-  const row = await DB.prepare(`SELECT processed_object_key AS processedObjectKey FROM flight_records WHERE id = ? AND project_id = ?`)
-    .bind(flightId, result.access.project.id).first<{ processedObjectKey: string }>();
+  const row = await DB.prepare(`SELECT processed_object_key AS processedObjectKey, raw_object_key AS rawObjectKey,
+    source_format AS sourceFormat, launch_latitude AS launchLatitude, launch_longitude AS launchLongitude,
+    launch_altitude AS launchAltitude, heading_degrees AS headingDegrees, mapping_json AS mappingJson,
+    processed_size_bytes AS processedSizeBytes
+    FROM flight_records WHERE id = ? AND project_id = ?`)
+    .bind(flightId, result.access.project.id).first<{ processedObjectKey: string; rawObjectKey: string; sourceFormat: string; launchLatitude: number; launchLongitude: number; launchAltitude: number; headingDegrees: number; mappingJson: string; processedSizeBytes: number }>();
   if (!row) return Response.json({ error: "Flight record not found." }, { status: 404 });
   const object = await FILES.get(row.processedObjectKey);
   if (!object) return Response.json({ error: "Flight trajectory is temporarily unavailable." }, { status: 503 });
-  return new Response(object.body, { headers: { "content-type": "application/json", "cache-control": "private, no-store" } });
+  const existing = await object.text();
+  try {
+    const decoded = JSON.parse(existing) as { parserVersion?: number };
+    if (row.sourceFormat !== "CFL" || decoded.parserVersion === 2) {
+      return new Response(existing, { headers: { "content-type": "application/json", "cache-control": "private, no-store" } });
+    }
+    const raw = await FILES.get(row.rawObjectKey);
+    if (!raw) throw new Error("The original CFL is unavailable.");
+    let mapping: FlightColumnMapping = {};
+    try { mapping = JSON.parse(row.mappingJson || "{}"); } catch { /* native CFL mappings are automatic */ }
+    const parsed = buildCatsCflFlightData(await raw.arrayBuffer(), {
+      mapping,
+      launchLatitude: Number(row.launchLatitude),
+      launchLongitude: Number(row.launchLongitude),
+      launchAltitude: Number(row.launchAltitude),
+      headingDegrees: Number(row.headingDegrees),
+    });
+    const rebuilt = JSON.stringify({ parserVersion: 2, points: parsed.points, gnssPoints: parsed.gnssPoints, summary: parsed.summary, mapping: parsed.mapping, columns: parsed.columns, warnings: parsed.warnings, sourceRows: parsed.sourceRows, sourceFormat: "CFL", firmwareVersion: parsed.firmwareVersion, events: parsed.events });
+    const rebuiltBytes = new TextEncoder().encode(rebuilt).byteLength;
+    const difference = rebuiltBytes - Number(row.processedSizeBytes || 0);
+    if (difference <= 0 || await reserveProjectStorage(result.access.project.id, difference, 0)) {
+      await FILES.put(row.processedObjectKey, rebuilt, { httpMetadata: { contentType: "application/json" }, customMetadata: { projectId: result.access.project.id, flightId, kind: "processed-flight", parserVersion: "2" } });
+      await DB.prepare(`UPDATE flight_records SET processed_size_bytes = ?, sample_count = ?, duration = ?, max_altitude = ?, max_velocity = ?, max_acceleration = ?, max_distance = ?, landing_distance = ?, has_gps = ? WHERE id = ? AND project_id = ?`)
+        .bind(rebuiltBytes, parsed.summary.sampleCount, parsed.summary.duration, parsed.summary.apogee, parsed.summary.maxVelocity, parsed.summary.maxAcceleration, parsed.summary.maxDistance, parsed.summary.landingDistance, parsed.summary.hasGps ? 1 : 0, flightId, result.access.project.id).run();
+      if (difference < 0) await releaseProjectStorage(result.access.project.id, -difference, 0);
+    }
+    return new Response(rebuilt, { headers: { "content-type": "application/json", "cache-control": "private, no-store" } });
+  } catch {
+    return new Response(existing, { headers: { "content-type": "application/json", "cache-control": "private, no-store" } });
+  }
 }
 
 export async function POST(request: Request) {
@@ -74,7 +107,7 @@ export async function POST(request: Request) {
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 120) || "flight.cfl";
   const rawKey = `projects/${project.id}/flights/${id}/raw-${safeName}`;
   const processedKey = `projects/${project.id}/flights/${id}/trajectory.json`;
-  const processed = JSON.stringify({ points: parsed.points, mapping: parsed.mapping, columns: parsed.columns, warnings: parsed.warnings, sourceRows: parsed.sourceRows, sourceFormat, firmwareVersion: parsed.firmwareVersion, events: parsed.events });
+  const processed = JSON.stringify({ parserVersion: 2, points: parsed.points, gnssPoints: parsed.gnssPoints, summary: parsed.summary, mapping: parsed.mapping, columns: parsed.columns, warnings: parsed.warnings, sourceRows: parsed.sourceRows, sourceFormat, firmwareVersion: parsed.firmwareVersion, events: parsed.events });
   const processedBytes = new TextEncoder().encode(processed).byteLength;
   const storageBytes = file.size + processedBytes;
   if (!await reserveProjectStorage(project.id, storageBytes, 2)) return Response.json({ error: "This project has reached its storage allowance." }, { status: 507 });

@@ -2164,9 +2164,11 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .flight-map-dark::after { content: ""; position: absolute; z-index: 1; inset: 0; background: rgba(8, 12, 11, .2); pointer-events: none; mix-blend-mode: multiply; }
 .flight-map-legend { position: absolute; z-index: 4; left: 12px; top: 12px; display: flex; gap: 8px; padding: 7px 9px; border: 1px solid rgba(255,255,255,.32); background: rgba(15,17,16,.82); color: #fff; box-shadow: 0 8px 24px rgba(0,0,0,.2); backdrop-filter: blur(8px); font: 8px var(--font-geist-mono); }
 .flight-map-legend span { display: flex; align-items: center; gap: 5px; }
-.flight-map-legend i { width: 16px; height: 2px; background: #d4253b; }
+.flight-map-legend i { width: 16px; height: 3px; border-radius: 99px; background: #f5a524; box-shadow: 0 0 7px rgba(245,165,36,.8); }
 .flight-map-legend i.flight-simulated { height: 0; border-top: 2px dashed #62c694; background: transparent; }
 .flight-terrain-toggle { position: absolute; z-index: 4; left: 12px; top: 46px; min-height: 28px; padding: 0 9px; border: 1px solid rgba(255,255,255,.32); background: rgba(15,17,16,.82); color: #fff; font: 8px var(--font-geist-mono); cursor: pointer; backdrop-filter: blur(8px); }
+.flight-fit-toggle { position: absolute; z-index: 4; left: 88px; top: 46px; min-height: 28px; padding: 0 9px; border: 1px solid rgba(255,255,255,.32); background: rgba(15,17,16,.82); color: #fff; font: 8px var(--font-geist-mono); cursor: pointer; backdrop-filter: blur(8px); }
+.flight-map-controls-hint { position: absolute; z-index: 4; left: 12px; bottom: 10px; padding: 6px 8px; border: 1px solid rgba(255,255,255,.24); background: rgba(15,17,16,.76); color: rgba(255,255,255,.88); font: 8px var(--font-geist-mono); backdrop-filter: blur(8px); pointer-events: none; }
 .flight-map-pick-hint { position: absolute; z-index: 4; left: 50%; bottom: 9px; transform: translateX(-50%); padding: 7px 10px; border: 1px solid rgba(255,255,255,.25); background: rgba(15,17,16,.82); color: #fff; font: 8px var(--font-geist-mono); white-space: nowrap; }
 .flight-map-compact { height: 260px; min-height: 260px; margin-top: 12px; border: 1px solid var(--line-strong); }
 .flight-map .maplibregl-ctrl-group { border-radius: 0; }
@@ -2286,6 +2288,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .flight-import-modal > header h2 { font-size: 20px; }
   .flight-import-form { padding: 0 15px 18px; }
   .flight-map-compact { height: 230px; min-height: 230px; }
+  .flight-map-controls-hint { display: none; }
   .flight-import-modal > footer { padding: 10px 15px calc(10px + env(safe-area-inset-bottom)); }
   .flight-import-modal > footer .button { flex: 1; min-height: 44px; }
 }

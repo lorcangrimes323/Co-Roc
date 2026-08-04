@@ -50,6 +50,8 @@ export type ParsedFlightData = {
   columns: string[];
   mapping: FlightColumnMapping;
   points: FlightPoint[];
+  /** Native GNSS fixes for the map. High-rate flight estimates remain in `points` for charts and playback. */
+  gnssPoints?: FlightPoint[];
   summary: FlightSummary;
   sourceRows: number;
   warnings: string[];
@@ -196,8 +198,32 @@ function parseCatsCfl(input: ArrayBuffer | Uint8Array): CatsCflLog {
 }
 
 function validCatsGnss(reading: { latitude: number; longitude: number; satellites: number } | undefined) {
-  return Boolean(reading && reading.satellites >= 4 && Math.abs(reading.latitude) <= 90 && Math.abs(reading.longitude) <= 180
+  // Some Vega 3.x logs retain valid positions while the recorded satellite-count
+  // byte is zero during flight. CATS' own visualiser keeps these fixes, so reject
+  // impossible coordinates rather than discarding an otherwise valid trajectory.
+  return Boolean(reading && Number.isFinite(reading.latitude) && Number.isFinite(reading.longitude)
+    && Math.abs(reading.latitude) <= 90 && Math.abs(reading.longitude) <= 180
     && !(reading.latitude === 0 && reading.longitude === 0));
+}
+
+function catsEstimateAt(base: CatsCflLog["flight"], timestamp: number) {
+  let low = 0;
+  let high = base.length - 1;
+  while (low < high) {
+    const middle = Math.floor((low + high + 1) / 2);
+    if (base[middle].ts <= timestamp) low = middle;
+    else high = middle - 1;
+  }
+  const before = base[low];
+  const after = base[Math.min(low + 1, base.length - 1)];
+  if (before === after || after.ts <= before.ts) return before;
+  const fraction = Math.max(0, Math.min(1, (timestamp - before.ts) / (after.ts - before.ts)));
+  return {
+    ts: timestamp,
+    height: before.height + (after.height - before.height) * fraction,
+    velocity: before.velocity + (after.velocity - before.velocity) * fraction,
+    acceleration: before.acceleration + (after.acceleration - before.acceleration) * fraction,
+  };
 }
 
 function catsEventList(log: CatsCflLog): CatsFlightEvent[] {
@@ -272,7 +298,20 @@ export function buildCatsCflFlightData(input: ArrayBuffer | Uint8Array, options:
       battery: voltage?.voltage,
     } satisfies FlightPoint;
   });
-  const hasGps = log.gnss.filter(validCatsGnss).length >= 3;
+  const validGnss = log.gnss.filter(validCatsGnss);
+  const gnssPoints = validGnss.map((fix) => {
+    const estimate = catsEstimateAt(base, fix.ts);
+    return {
+      time: (fix.ts - log.liftoffTimestamp) / 1000,
+      latitude: fix.latitude,
+      longitude: fix.longitude,
+      altitude: options.launchAltitude + estimate.height,
+      velocity: Math.abs(estimate.velocity),
+      verticalVelocity: estimate.velocity,
+      acceleration: estimate.acceleration,
+    } satisfies FlightPoint;
+  });
+  const hasGps = gnssPoints.length >= 3;
   const warnings: string[] = [];
   if (!hasGps) warnings.push("The CFL contains no continuous valid GNSS fix. Its measured altitude is shown above the selected launch datum without an inferred horizontal path.");
   if (log.truncated) warnings.push("The last CFL record was incomplete; all complete records before it were retained.");
@@ -284,7 +323,8 @@ export function buildCatsCflFlightData(input: ArrayBuffer | Uint8Array, options:
       longitude: CATS_NATIVE_COLUMNS[5], pressure: CATS_NATIVE_COLUMNS[6], temperature: CATS_NATIVE_COLUMNS[7], battery: CATS_NATIVE_COLUMNS[8],
     },
     points,
-    summary: summariseFlight(points, hasGps),
+    gnssPoints,
+    summary: summariseFlight(hasGps ? gnssPoints : points, hasGps, points),
     sourceRows: base.length,
     warnings,
     sourceFormat: "CFL",
@@ -430,16 +470,18 @@ export function distanceMetres(a: { latitude: number; longitude: number }, b: { 
   return 6_371_000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
 
-export function summariseFlight(points: FlightPoint[], hasGps: boolean): FlightSummary {
+export function summariseFlight(points: FlightPoint[], hasGps: boolean, metricPoints: FlightPoint[] = points): FlightSummary {
   const first = points[0];
   const last = points.at(-1);
   const launch = first ?? { latitude: 0, longitude: 0 };
+  const metricFirst = metricPoints[0];
+  const metricLast = metricPoints.at(-1);
   return {
-    sampleCount: points.length,
-    duration: first && last ? Math.max(0, last.time - first.time) : 0,
-    apogee: points.reduce((maximum, point) => Math.max(maximum, point.altitude), points[0]?.altitude ?? 0),
-    maxVelocity: points.reduce<number | null>((maximum, point) => point.velocity === undefined ? maximum : Math.max(maximum ?? -Infinity, Math.abs(point.velocity)), null),
-    maxAcceleration: points.reduce<number | null>((maximum, point) => point.acceleration === undefined ? maximum : Math.max(maximum ?? -Infinity, Math.abs(point.acceleration)), null),
+    sampleCount: metricPoints.length,
+    duration: metricFirst && metricLast ? Math.max(0, metricLast.time - metricFirst.time) : 0,
+    apogee: metricPoints.reduce((maximum, point) => Math.max(maximum, point.altitude), metricPoints[0]?.altitude ?? 0),
+    maxVelocity: metricPoints.reduce<number | null>((maximum, point) => point.velocity === undefined ? maximum : Math.max(maximum ?? -Infinity, Math.abs(point.velocity)), null),
+    maxAcceleration: metricPoints.reduce<number | null>((maximum, point) => point.acceleration === undefined ? maximum : Math.max(maximum ?? -Infinity, Math.abs(point.acceleration)), null),
     maxDistance: points.reduce((maximum, point) => Math.max(maximum, distanceMetres(launch, point)), 0),
     landingDistance: last ? distanceMetres(launch, last) : 0,
     hasGps,
