@@ -37,19 +37,17 @@ function trajectoryFitMaxZoom(points: MapPoint[], following = false) {
 function guidedFlightCamera(points: MapPoint[]) {
   const launch = points[0];
   const apogee = points.reduce((highest, point) => point.altitude > highest.altitude ? point : highest, launch);
-  const landing = points.at(-1) ?? launch;
-  const altitudeSpan = Math.max(1, apogee.altitude - Math.min(launch.altitude, landing.altitude));
-  // The ordinary map fit only sees latitude and longitude. Convert the actual
-  // launch-to-apogee height into a deliberately wider zoom so both endpoints
-  // remain visible in the pitched 3D view throughout guided playback.
-  const zoom = Math.max(7.5, Math.min(10.5, 10.5 - Math.log2(Math.max(1, altitudeSpan / 500))));
+  const altitudeSpan = Math.max(1, apogee.altitude - launch.altitude);
+  // Hold a close engineering view for ordinary high-power flights, then only
+  // widen it when the vertical envelope genuinely exceeds roughly 3 km.
+  const zoom = Math.max(11.25, Math.min(13.25, 13.15 - Math.log2(Math.max(1, altitudeSpan / 3_000))));
   return {
     center: [
-      (launch.longitude + apogee.longitude + landing.longitude) / 3,
-      (launch.latitude + apogee.latitude + landing.latitude) / 3,
+      (launch.longitude + apogee.longitude) / 2,
+      (launch.latitude + apogee.latitude) / 2,
     ] as [number, number],
     zoom,
-    pitch: 28,
+    pitch: 42,
     bearing: -8,
   };
 }
@@ -362,8 +360,6 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
   const activePoint = suppliedActivePoint ?? measured[Math.min(currentIndex ?? measured.length - 1, Math.max(0, measured.length - 1))];
   const activePointRef = useRef<MapPoint | undefined>(activePoint);
   const lastFittedBoundsKey = useRef("");
-  const lastFollowAt = useRef(0);
-  const guidedZoom = useRef<number | null>(null);
   const followSuspended = useRef(false);
   const followActiveRef = useRef(followActive);
   followActiveRef.current = followActive;
@@ -424,8 +420,7 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
 
   useEffect(() => {
     followSuspended.current = false;
-    lastFollowAt.current = 0;
-    if (container.current) container.current.dataset.cameraFollow = followActive ? "active" : "off";
+    if (container.current) container.current.dataset.cameraFollow = followActive ? "framed" : "off";
   }, [followActive, boundsKey]);
 
   useEffect(() => {
@@ -469,8 +464,10 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
     const all = [...measured, ...simulated];
     const fittedViewKey = `${boundsKey}|${followActive ? "guided" : "standard"}`;
     if (all.length && lastFittedBoundsKey.current !== fittedViewKey) {
-      const bounds = all.reduce((value, point) => value.extend([point.longitude, point.latitude]), new maplibregl.LngLatBounds([all[0].longitude, all[0].latitude], [all[0].longitude, all[0].latitude]));
-      map.fitBounds(bounds, { padding: compact ? 38 : followActive ? 120 : 72, maxZoom: trajectoryFitMaxZoom(all, followActive), pitch: followActive ? 32 : map.getPitch(), bearing: followActive ? -8 : map.getBearing(), duration: 900 });
+      if (!followActive) {
+        const bounds = all.reduce((value, point) => value.extend([point.longitude, point.latitude]), new maplibregl.LngLatBounds([all[0].longitude, all[0].latitude], [all[0].longitude, all[0].latitude]));
+        map.fitBounds(bounds, { padding: compact ? 38 : 72, maxZoom: trajectoryFitMaxZoom(all), pitch: map.getPitch(), bearing: map.getBearing(), duration: 900 });
+      }
       lastFittedBoundsKey.current = fittedViewKey;
     } else if (!all.length && !lastFittedBoundsKey.current) {
       map.flyTo({ center: [launchSite.longitude, launchSite.latitude], zoom: compact ? 10 : 13 });
@@ -482,15 +479,13 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready || !followActive || !measured.length) {
-      guidedZoom.current = null;
       return;
     }
     const camera = guidedFlightCamera(measured);
-    guidedZoom.current = camera.zoom;
     map.stop();
     map.jumpTo(camera);
     if (container.current) {
-      container.current.dataset.cameraFollow = "active";
+      container.current.dataset.cameraFollow = "framed";
       container.current.dataset.guidedEnvelope = "launch-apogee";
       container.current.dataset.cameraZoom = camera.zoom.toFixed(2);
     }
@@ -503,18 +498,8 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
     if (activePoint && !map.getLayer("active-flight-marker")) {
       map.addLayer(addActiveFlightMarker(map, "active-flight-marker", activePointRef, accent));
     }
-    if (activePoint && followActive && !followSuspended.current && performance.now() - lastFollowAt.current > 280) {
-      map.easeTo({
-        center: [activePoint.longitude, activePoint.latitude],
-        zoom: guidedZoom.current ?? map.getZoom(),
-        pitch: map.getPitch(),
-        bearing: map.getBearing(),
-        duration: 260,
-        essential: true,
-      });
-      lastFollowAt.current = performance.now();
-      if (container.current) container.current.dataset.cameraFollow = "active";
-    }
+    // In guided playback the marker moves through a stable launch-to-apogee
+    // frame. Recentring on every point made the map wander and hid the context.
     map.triggerRepaint();
   }, [activePoint, ready, accent, followActive]);
 
