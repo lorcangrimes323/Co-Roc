@@ -46,7 +46,7 @@ export function AccessPortal() {
     <main className="access-page">
       <header className="account-header">
         <div className="account-header-brand" aria-label="Co-Roc configuration control">
-          <span>CONFIGURATION CONTROL / LAUNCH VEHICLES</span>
+          <span>SYSTEM 01 / CONFIGURATION CONTROL</span>
           <span>OPENROCKET TEAM WORKSPACE</span>
         </div>
         <nav className="account-header-actions" aria-label="Account actions">
