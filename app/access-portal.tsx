@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, Fragment, useEffect, useState } from "react";
 import { CoRocLogo } from "./co-roc-logo";
 import { useThemePreference } from "./theme-preference";
 
@@ -10,6 +10,11 @@ export function AccessPortal() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    document.body.classList.add("landing-page-active");
+    return () => document.body.classList.remove("landing-page-active");
+  }, []);
 
   function chooseMode(nextMode: "signin" | "signup") {
     setMode(nextMode);
@@ -67,7 +72,7 @@ export function AccessPortal() {
       </Link>
 
       <section className="account-main">
-        <div className="account-context">
+        <Fragment>
           <section className="account-hero">
             <header className="account-hero-chrome">
               <span>WORKING FILE / CONTROLLED RECORD</span>
@@ -98,19 +103,7 @@ export function AccessPortal() {
               </div>
             </div>
           </section>
-
-          <section className="account-control-list" id="controlled-workflow" aria-label="Co-Roc engineering controls">
-              <header><span>THE CONTROL LOOP</span><span>06 CONNECTED WORKFLOWS</span></header>
-              <div>
-                <article><b>01</b><span><strong>Authoritative ORK</strong><small>Upload, inspect and download the current vehicle file.</small></span></article>
-                <article><b>02</b><span><strong>Review changes before they land</strong><small>Compare geometry and route intentional changes to a lead.</small></span></article>
-                <article><b>03</b><span><strong>Part records</strong><small>Keep drawings, tests, media, comments and tags with the component.</small></span></article>
-                <article><b>04</b><span><strong>Run traceable simulations</strong><small>Retain stability and performance results against their working revision.</small></span></article>
-                <article><b>05</b><span><strong>Control teams and releases</strong><small>Assign access, approve work and recover release baselines.</small></span></article>
-                <article><b>06</b><span><strong>Prepare the launch</strong><small>Build approved assembly, arming and launch checklists.</small></span></article>
-              </div>
-          </section>
-        </div>
+        </Fragment>
 
         <div className="account-panel" id="account-access">
           <form className="account-form" onSubmit={submit}>
@@ -128,6 +121,18 @@ export function AccessPortal() {
             <small>Every action is attributed to an account. Team leads control roles, project access, approvals and releases.</small>
           </form>
         </div>
+
+        <section className="account-control-list" id="controlled-workflow" aria-label="Co-Roc engineering controls">
+          <header><span>THE CONTROL LOOP</span><span>06 CONNECTED WORKFLOWS</span></header>
+          <div>
+            <article><b>01</b><span><strong>Authoritative ORK</strong><small>Upload, inspect and download the current vehicle file.</small></span></article>
+            <article><b>02</b><span><strong>Review changes before they land</strong><small>Compare geometry and route intentional changes to a lead.</small></span></article>
+            <article><b>03</b><span><strong>Part records</strong><small>Keep drawings, tests, media, comments and tags with the component.</small></span></article>
+            <article><b>04</b><span><strong>Run traceable simulations</strong><small>Retain stability and performance results against their working revision.</small></span></article>
+            <article><b>05</b><span><strong>Control teams and releases</strong><small>Assign access, approve work and recover release baselines.</small></span></article>
+            <article><b>06</b><span><strong>Prepare the launch</strong><small>Build approved assembly, arming and launch checklists.</small></span></article>
+          </div>
+        </section>
       </section>
 
       <footer className="account-page-footer"><span>Co-Roc · OpenRocket-compatible configuration control</span><span>Geometry · evidence · approvals · launch procedures</span></footer>

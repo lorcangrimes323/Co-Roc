@@ -252,7 +252,8 @@ test("uses site accounts, separates demo data and recovers local drafts", async 
   assert.match(portal, /\/api\/auth/);
   assert.doesNotMatch(portal, /QPL|LOCAL ROLE CHECK/);
   const styles = await source("app/globals.css");
-  assert.match(styles, /\.access-page \{[^}]*height: 100vh; height: 100dvh; min-height: 0;/);
+  assert.match(styles, /body\.landing-page-active \{[^}]*overflow-y: auto/);
+  assert.match(styles, /\.access-page \{[^}]*min-height: 100vh;[^}]*min-height: 100svh;[^}]*overflow: visible;/);
   assert.match(styles, /overflow-y: auto/);
   assert.match(styles, /@media \(max-height: 760px\)/);
   assert.match(styles, /@media \(max-width: 420px\)/);
@@ -277,7 +278,7 @@ test("provides a complete touch-first mobile engineering workspace", async () =>
     source("app/workspace-app.tsx"),
     source("app/api/session/route.ts"),
   ]);
-  assert.match(styles, /@media \(max-width: 820px\)/);
+  assert.match(styles, /@media \(max-width: 1024px\)/);
   assert.match(styles, /\.rail \{[\s\S]*position: fixed;[\s\S]*inset: auto 0 0;/);
   assert.match(styles, /\.rail-button::after \{[\s\S]*position: static;/);
   assert.match(styles, /\.workspace-actions \{ width: 100%; display: grid; grid-template-columns: 1fr 1fr;/);
@@ -417,11 +418,14 @@ test("provides a paced first-run guided demo across the engineering workflow", a
   assert.match(tour, /Simulation definitions are analysis records/);
   assert.match(tour, /Running a case never creates a new working revision/);
   assert.match(tour, /scrollIntoView/);
+  assert.match(tour, /visibleTarget/);
+  assert.match(missionControl, /setMobilePane\("record"\)/);
   assert.match(tour, /prefers-reduced-motion/);
   assert.match(tour, /ArrowRight/);
   assert.match(css, /\.guided-tour-spotlight/);
   assert.match(css, /transition: left \.72s/);
-  assert.match(css, /@media \(max-width: 720px\)/);
+  assert.match(css, /@media \(max-width: 1024px\)/);
+  assert.match(tour, /bottom: "calc\(8px \+ env\(safe-area-inset-bottom\)\)"/);
 });
 
 test("reviews externally edited ORK files before promoting them to the working copy", async () => {

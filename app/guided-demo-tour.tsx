@@ -130,7 +130,7 @@ const steps: TourStep[] = [
     title: "You are ready to explore",
     description: "Use Settings to choose light, dark or system appearance and to replay this tour whenever you need it.",
     detail: "Start by selecting a component, opening a simulation case, or reviewing the launch checklist. Nothing you change in this demo is written to a team project.",
-    target: "[data-tour='workspace-settings-button']",
+    target: "[data-tour='workspace-settings-button'], .rail-mobile-more",
     module: "configuration",
   },
 ];
@@ -139,9 +139,31 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum);
 }
 
+function visibleTarget(selector?: string) {
+  if (!selector) return null;
+  return Array.from(document.querySelectorAll(selector)).find((element) => {
+    const bounds = element.getBoundingClientRect();
+    const style = window.getComputedStyle(element);
+    return bounds.width > 0 && bounds.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+  }) ?? null;
+}
+
 function expandedRect(element: Element): TourRect {
   const bounds = element.getBoundingClientRect();
   const padding = 9;
+  if (window.innerWidth <= 1024) {
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+    const exposedBottom = Math.max(150, viewportHeight * .42);
+    const top = clamp(bounds.top - padding, 8, exposedBottom - 42);
+    const right = clamp(bounds.right + padding, 16, window.innerWidth - 8);
+    const bottom = clamp(bounds.bottom + padding, top + 36, exposedBottom);
+    return {
+      left: clamp(bounds.left - padding, 8, window.innerWidth - 24),
+      top,
+      width: Math.max(16, right - clamp(bounds.left - padding, 8, window.innerWidth - 24)),
+      height: Math.max(36, bottom - top),
+    };
+  }
   return {
     left: clamp(bounds.left - padding, 8, window.innerWidth - 24),
     top: clamp(bounds.top - padding, 8, window.innerHeight - 24),
@@ -155,10 +177,9 @@ function cardPosition(rect: TourRect | null): CSSProperties {
   const viewportHeight = window.innerHeight;
   const width = Math.min(rect ? 390 : 510, viewportWidth - 32);
   const height = Math.min(rect ? 390 : 410, viewportHeight - 32);
-  if (viewportWidth <= 720) {
-    if (!rect) return { left: 14, top: Math.max(14, (viewportHeight - height) / 2) };
-    const mobileCardHeight = Math.min(520, viewportHeight * .62);
-    return { left: 14, top: Math.max(14, viewportHeight - mobileCardHeight - 14) };
+  if (viewportWidth <= 1024) {
+    const compactWidth = Math.min(620, viewportWidth - 16);
+    return { left: (viewportWidth - compactWidth) / 2, top: "auto", bottom: "calc(8px + env(safe-area-inset-bottom))" };
   }
   if (!rect) return { left: (viewportWidth - width) / 2, top: (viewportHeight - height) / 2 };
 
@@ -200,13 +221,14 @@ export function GuidedDemoTour({ currentModule, onModuleChange, onStepChange, on
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     function locate() {
-      const target = step.target ? document.querySelector(step.target) : null;
+      const target = visibleTarget(step.target);
       if (!target) {
         setSpotlight(null);
         setSettled(true);
         return;
       }
-      target.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "center", inline: "center" });
+      const mobile = window.innerWidth <= 1024;
+      target.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: mobile ? "start" : "center", inline: "center" });
       window.setTimeout(() => {
         setSpotlight(expandedRect(target));
         setSettled(true);
@@ -215,7 +237,7 @@ export function GuidedDemoTour({ currentModule, onModuleChange, onStepChange, on
 
     const timer = window.setTimeout(locate, step.module && step.module !== currentModule ? 480 : 120);
     function refresh() {
-      const target = step.target ? document.querySelector(step.target) : null;
+      const target = visibleTarget(step.target);
       if (target) setSpotlight(expandedRect(target));
     }
     window.addEventListener("resize", refresh);

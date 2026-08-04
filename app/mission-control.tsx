@@ -1872,12 +1872,18 @@ export function MissionControl({
           if (module === "history") void refreshHistory();
         }}
         onStepChange={(stepId) => {
-          if (stepId !== "record") return;
-          const tourComponent = components.find((component) => component.depth > 0 && /body tube/i.test(component.type))
-            ?? components.find((component) => component.depth > 0)
-            ?? components[0];
-          if (tourComponent) setSelectedId(tourComponent.id);
-          setActivePanel("properties");
+          setSettingsOpen(false);
+          setMobileMoreOpen(false);
+          if (stepId === "tree") setMobilePane("tree");
+          else if (["project", "summary", "geometry", "ork-push-pull", "finish"].includes(stepId)) setMobilePane("model");
+          else if (stepId === "record") {
+            const tourComponent = components.find((component) => component.depth > 0 && /body tube/i.test(component.type))
+              ?? components.find((component) => component.depth > 0)
+              ?? components[0];
+            if (tourComponent) setSelectedId(tourComponent.id);
+            setActivePanel("properties");
+            setMobilePane("record");
+          }
         }}
         onClose={closeGuidedTour}
       />}
