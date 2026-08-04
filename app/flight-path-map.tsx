@@ -21,15 +21,8 @@ type Props = {
 
 const styleUrl = "https://tiles.openfreemap.org/styles/liberty";
 
-function altitudeAwareMaxZoom(map: MapLibreMap, points: MapPoint[]) {
-  if (!points.length) return 13.5;
-  const lowest = Math.min(...points.map((point) => point.altitude));
-  const verticalRange = Math.max(1, Math.max(...points.map((point) => point.altitude)) - lowest);
-  const latitude = points.reduce((sum, point) => sum + point.latitude, 0) / points.length;
-  const usableHeight = Math.max(120, map.getCanvas().clientHeight * 0.58);
-  const requiredMetresPerPixel = verticalRange / usableHeight;
-  const zoom = Math.log2(156_543.03392 * Math.max(0.1, Math.cos(latitude * Math.PI / 180)) / requiredMetresPerPixel);
-  return Math.max(8, Math.min(15, zoom));
+function trajectoryFitMaxZoom(points: MapPoint[]) {
+  return points.length > 1 ? 15 : 13.5;
 }
 
 function geoLine(points: MapPoint[]) {
@@ -106,6 +99,31 @@ function trajectoryRibbon(points: MapPoint[], widthMetres = 7, thicknessMetres =
         ]],
       },
     }];
+  });
+  return { type: "FeatureCollection" as const, features };
+}
+
+function pointPrisms(points: MapPoint[], radiusMetres = 7, heightMetres = 14) {
+  const features = points.map((point, index) => {
+    const metresPerLatitude = 111_320;
+    const metresPerLongitude = Math.max(1, metresPerLatitude * Math.cos(point.latitude * Math.PI / 180));
+    const latitudeRadius = radiusMetres / metresPerLatitude;
+    const longitudeRadius = radiusMetres / metresPerLongitude;
+    const base = Math.max(0, point.altitude - heightMetres / 2);
+    return {
+      type: "Feature" as const,
+      properties: { base, height: Math.max(base + 1, point.altitude + heightMetres / 2), sequence: index },
+      geometry: {
+        type: "Polygon" as const,
+        coordinates: [[
+          [point.longitude - longitudeRadius, point.latitude - latitudeRadius],
+          [point.longitude + longitudeRadius, point.latitude - latitudeRadius],
+          [point.longitude + longitudeRadius, point.latitude + latitudeRadius],
+          [point.longitude - longitudeRadius, point.latitude + latitudeRadius],
+          [point.longitude - longitudeRadius, point.latitude - latitudeRadius],
+        ]],
+      },
+    };
   });
   return { type: "FeatureCollection" as const, features };
 }
@@ -360,15 +378,19 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !ready || !map.isStyleLoaded() || !map.getSource("terrain-dem")) return;
+    if (!map || !ready) return;
+    if (container.current) container.current.dataset.trailState = "building";
     for (const id of ["measured-3d", "simulated-3d", "measured-ribbon", "simulated-ribbon", "measured-glow", "simulated-glow", "measured-ground", "simulated-ground", "flight-markers", "flight-event-markers-3d", "active-flight-point", "active-flight-marker-3d"]) {
       if (map.getLayer(id)) map.removeLayer(id);
     }
-    for (const id of ["measured", "simulated", "measured-3d", "simulated-3d", "flight-markers", "active-flight-point"]) if (map.getSource(id)) map.removeSource(id);
+    for (const id of ["measured", "simulated", "measured-3d", "simulated-3d", "flight-markers", "flight-event-markers-3d", "active-flight-point"]) if (map.getSource(id)) map.removeSource(id);
     if (measured.length > 1) {
       map.addSource("measured", { type: "geojson", data: geoLine(measured) });
-      map.addLayer({ id: "measured-ground", type: "line", source: "measured", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": accent, "line-width": 5, "line-opacity": 0.34 } });
-      map.addLayer(addPointRibbonLayer("measured-ribbon", measured, accent));
+      map.addLayer({ id: "measured-glow", type: "line", source: "measured", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": accent, "line-width": 16, "line-blur": 5, "line-opacity": 0.26 } });
+      map.addLayer({ id: "measured-ground", type: "line", source: "measured", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": accent, "line-width": 6, "line-opacity": 0.96 } });
+      map.addSource("measured-3d", { type: "geojson", data: trajectoryRibbon(measured, 10, 5) });
+      map.addLayer({ id: "measured-3d", type: "fill-extrusion", source: "measured-3d", paint: { "fill-extrusion-color": accent, "fill-extrusion-base": ["get", "base"], "fill-extrusion-height": ["get", "height"], "fill-extrusion-opacity": 0.9 } });
+      if (container.current) container.current.dataset.trailState = "measured-ready";
     }
     if (simulated.length > 1) {
       map.addSource("simulated", { type: "geojson", data: geoLine(simulated) });
@@ -376,12 +398,17 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
       map.addLayer({ id: "simulated-ground", type: "line", source: "simulated", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#157f54", "line-width": 4, "line-dasharray": [2, 1.5], "line-opacity": 0.88 } });
       map.addSource("simulated-3d", { type: "geojson", data: trajectoryRibbon(simulated, 5, 2) });
       map.addLayer({ id: "simulated-3d", type: "fill-extrusion", source: "simulated-3d", paint: { "fill-extrusion-color": "#157f54", "fill-extrusion-base": ["get", "base"], "fill-extrusion-height": ["get", "height"], "fill-extrusion-opacity": 0.72 } });
-      map.addLayer(addPointRibbonLayer("simulated-ribbon", simulated, "#157f54"));
     }
     map.addSource("flight-markers", { type: "geojson", data: geoPoints(measured.length ? measured : [{ ...launchSite, time: 0 }], simulated) });
     map.addLayer({ id: "flight-markers", type: "circle", source: "flight-markers", paint: { "circle-radius": 6, "circle-color": ["match", ["get", "kind"], "launch", "#111111", "simulation", "#157f54", accent], "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 } });
-    if (measuredEventPoints.length) map.addLayer(addFlightEventMarkersLayer("flight-event-markers-3d", measuredEventPoints, accent));
-    if (activePointRef.current) map.addLayer(addActiveFlightMarker(map, "active-flight-marker-3d", activePointRef, accent));
+    if (measuredEventPoints.length) {
+      map.addSource("flight-event-markers-3d", { type: "geojson", data: pointPrisms(measuredEventPoints, 9, 18) });
+      map.addLayer({ id: "flight-event-markers-3d", type: "fill-extrusion", source: "flight-event-markers-3d", paint: { "fill-extrusion-color": accent, "fill-extrusion-base": ["get", "base"], "fill-extrusion-height": ["get", "height"], "fill-extrusion-opacity": 1 } });
+    }
+    if (activePointRef.current) {
+      map.addSource("active-flight-point", { type: "geojson", data: pointPrisms([activePointRef.current], 11, 24) });
+      map.addLayer({ id: "active-flight-marker-3d", type: "fill-extrusion", source: "active-flight-point", paint: { "fill-extrusion-color": accent, "fill-extrusion-base": ["get", "base"], "fill-extrusion-height": ["get", "height"], "fill-extrusion-opacity": 1 } });
+    }
     map.on("mouseenter", "flight-markers", () => { map.getCanvas().style.cursor = "pointer"; });
     map.on("mouseleave", "flight-markers", () => { map.getCanvas().style.cursor = onLaunchSiteChange ? "crosshair" : ""; });
     map.on("click", "flight-markers", (event) => {
@@ -393,25 +420,31 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
     const all = [...measured, ...simulated];
     if (all.length && lastFittedBoundsKey.current !== boundsKey) {
       const bounds = all.reduce((value, point) => value.extend([point.longitude, point.latitude]), new maplibregl.LngLatBounds([all[0].longitude, all[0].latitude], [all[0].longitude, all[0].latitude]));
-      map.fitBounds(bounds, { padding: compact ? 38 : 72, maxZoom: altitudeAwareMaxZoom(map, all), duration: 900 });
+      map.fitBounds(bounds, { padding: compact ? 38 : 72, maxZoom: trajectoryFitMaxZoom(all), duration: 900 });
       lastFittedBoundsKey.current = boundsKey;
     } else if (!all.length && !lastFittedBoundsKey.current) {
       map.flyTo({ center: [launchSite.longitude, launchSite.latitude], zoom: compact ? 10 : 13 });
       lastFittedBoundsKey.current = "launch-site";
     }
+    if (container.current) container.current.dataset.trailState = measured.length > 1 ? "ready" : "empty";
   }, [ready, boundsKey, eventKey, compact, accent]);
 
   useEffect(() => {
     const map = mapRef.current;
     activePointRef.current = activePoint;
-    if (!map || !ready || !map.isStyleLoaded()) return;
-    if (activePoint && !map.getLayer("active-flight-marker-3d")) map.addLayer(addActiveFlightMarker(map, "active-flight-marker-3d", activePointRef, accent));
+    if (!map || !ready) return;
+    const source = map.getSource("active-flight-point") as maplibregl.GeoJSONSource | undefined;
+    if (activePoint && source) source.setData(pointPrisms([activePoint], 11, 24));
+    else if (activePoint && !map.getLayer("active-flight-marker-3d")) {
+      map.addSource("active-flight-point", { type: "geojson", data: pointPrisms([activePoint], 11, 24) });
+      map.addLayer({ id: "active-flight-marker-3d", type: "fill-extrusion", source: "active-flight-point", paint: { "fill-extrusion-color": accent, "fill-extrusion-base": ["get", "base"], "fill-extrusion-height": ["get", "height"], "fill-extrusion-opacity": 1 } });
+    }
     map.triggerRepaint();
   }, [activePoint, ready, accent]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !ready || !map.isStyleLoaded()) return;
+    if (!map || !ready || !map.getSource("terrain-dem")) return;
     map.setTerrain(terrain ? { source: "terrain-dem", exaggeration: 1.35 } : null);
   }, [terrain, ready]);
 
@@ -420,7 +453,7 @@ export function FlightPathMap({ measured = [], simulated = [], currentIndex, act
     const all = [...measured, ...simulated];
     if (!map || !all.length) return;
     const bounds = all.reduce((value, point) => value.extend([point.longitude, point.latitude]), new maplibregl.LngLatBounds([all[0].longitude, all[0].latitude], [all[0].longitude, all[0].latitude]));
-    map.fitBounds(bounds, { padding: compact ? 38 : 72, maxZoom: altitudeAwareMaxZoom(map, all), pitch: terrain ? 58 : 0, bearing: terrain ? -18 : 0, duration: 700 });
+    map.fitBounds(bounds, { padding: compact ? 38 : 72, maxZoom: trajectoryFitMaxZoom(all), pitch: terrain ? 58 : 0, bearing: terrain ? -18 : 0, duration: 700 });
   }
 
   return <div className={`flight-map-shell ${compact ? "flight-map-compact" : ""} flight-map-${theme}`} style={{ "--flight-accent": accent } as CSSProperties}>
