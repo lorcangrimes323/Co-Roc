@@ -10,9 +10,9 @@ export const themeModes: ThemeMode[] = ["light", "dark", "system"];
 const themeStorageKey = "rocket-theme";
 
 function storedTheme(): ThemeMode {
-  if (typeof window === "undefined") return "dark";
+  if (typeof window === "undefined") return "light";
   const value = window.localStorage.getItem(themeStorageKey);
-  return value === "light" || value === "dark" || value === "system" ? value : "dark";
+  return value === "light" || value === "dark" || value === "system" ? value : "light";
 }
 
 function subscribeTheme(listener: () => void) {
@@ -36,7 +36,7 @@ function resolvedTheme(mode: ThemeMode, prefersDark: boolean): ResolvedTheme {
 }
 
 export function useThemePreference() {
-  const mode = useSyncExternalStore(subscribeTheme, storedTheme, () => "dark" as ThemeMode);
+  const mode = useSyncExternalStore(subscribeTheme, storedTheme, () => "light" as ThemeMode);
   const prefersDark = useSyncExternalStore(subscribeColourScheme, () => window.matchMedia("(prefers-color-scheme: dark)").matches, () => false);
   const resolved = resolvedTheme(mode, prefersDark);
   const setMode = useCallback((next: ThemeMode) => {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, Fragment, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { CoRocLogo } from "./co-roc-logo";
 import { useThemePreference } from "./theme-preference";
 
@@ -59,7 +59,7 @@ export function AccessPortal() {
             <button type="button" aria-pressed={resolvedTheme === "light"} onClick={() => setThemeMode("light")}>Light</button>
             <button type="button" aria-pressed={resolvedTheme === "dark"} onClick={() => setThemeMode("dark")}>Dark</button>
           </div>
-          <Link className="account-tour-link" href="/demo?tour=1">Open guided demo</Link>
+          <Link className="account-tour-link" href="/demo?tour=1"><span>Start guided demo</span><b aria-hidden="true">→</b></Link>
           <button type="button" onClick={() => chooseMode(mode === "signin" ? "signup" : "signin")}>{mode === "signin" ? "Create account" : "Sign in"}</button>
         </nav>
       </header>
@@ -72,7 +72,6 @@ export function AccessPortal() {
       </Link>
 
       <section className="account-main">
-        <Fragment>
           <section className="account-hero">
             <header className="account-hero-chrome">
               <span>WORKING FILE / CONTROLLED RECORD</span>
@@ -98,12 +97,13 @@ export function AccessPortal() {
                 <div><dt>LAUNCH</dt><dd>CHECKLIST / SIGN-OFF</dd></div>
               </dl>
               <div className="account-hero-actions">
-                <Link className="account-primary-link" href="/demo?tour=1">Open guided demo <span aria-hidden="true">→</span></Link>
-                <a href="#controlled-workflow">See the control loop</a>
+                <Link className="account-primary-link" href="/demo?tour=1">
+                  <span className="account-demo-copy"><small>RECOMMENDED START</small><strong>Start guided demo</strong></span>
+                  <span aria-hidden="true">→</span>
+                </Link>
               </div>
             </div>
           </section>
-        </Fragment>
 
         <div className="account-panel" id="account-access">
           <form className="account-form" onSubmit={submit}>
@@ -122,17 +122,6 @@ export function AccessPortal() {
           </form>
         </div>
 
-        <section className="account-control-list" id="controlled-workflow" aria-label="Co-Roc engineering controls">
-          <header><span>THE CONTROL LOOP</span><span>06 CONNECTED WORKFLOWS</span></header>
-          <div>
-            <article><b>01</b><span><strong>Authoritative ORK</strong><small>Upload, inspect and download the current vehicle file.</small></span></article>
-            <article><b>02</b><span><strong>Review changes before they land</strong><small>Compare geometry and route intentional changes to a lead.</small></span></article>
-            <article><b>03</b><span><strong>Part records</strong><small>Keep drawings, tests, media, comments and tags with the component.</small></span></article>
-            <article><b>04</b><span><strong>Run traceable simulations</strong><small>Retain stability and performance results against their working revision.</small></span></article>
-            <article><b>05</b><span><strong>Control teams and releases</strong><small>Assign access, approve work and recover release baselines.</small></span></article>
-            <article><b>06</b><span><strong>Prepare the launch</strong><small>Build approved assembly, arming and launch checklists.</small></span></article>
-          </div>
-        </section>
       </section>
 
       <footer className="account-page-footer"><span>Co-Roc · OpenRocket-compatible configuration control</span><span>Geometry · evidence · approvals · launch procedures</span></footer>
