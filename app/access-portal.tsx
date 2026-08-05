@@ -101,6 +101,18 @@ export function AccessPortal() {
                   <span className="account-demo-copy"><small>RECOMMENDED START</small><strong>Start guided demo</strong></span>
                   <span aria-hidden="true">→</span>
                 </Link>
+                <nav className="account-social-links" aria-label="Co-Roc on LinkedIn">
+                  <a href="https://www.linkedin.com/company/co-roc" target="_blank" rel="noreferrer" aria-label="Follow Co-Roc on LinkedIn">
+                    <span className="account-linkedin-mark" aria-hidden="true">in</span>
+                    <strong>Co-Roc LinkedIn</strong>
+                    <i aria-hidden="true">↗</i>
+                  </a>
+                  <a href="https://lnkd.in/p/eCFZj_yu" target="_blank" rel="noreferrer" aria-label="Read the Co-Roc launch post on LinkedIn">
+                    <span className="account-linkedin-mark" aria-hidden="true">in</span>
+                    <strong>Launch post</strong>
+                    <i aria-hidden="true">↗</i>
+                  </a>
+                </nav>
               </div>
             </div>
           </section>
@@ -126,18 +138,6 @@ export function AccessPortal() {
 
       <footer className="account-page-footer">
         <span className="account-footer-product">Co-Roc · OpenRocket-compatible configuration control</span>
-        <nav className="account-social-links" aria-label="Co-Roc on LinkedIn">
-          <a href="https://www.linkedin.com/company/co-roc" target="_blank" rel="noreferrer" aria-label="Follow Co-Roc on LinkedIn">
-            <span className="account-linkedin-mark" aria-hidden="true">in</span>
-            <strong>Co-Roc LinkedIn</strong>
-            <i aria-hidden="true">↗</i>
-          </a>
-          <a href="https://lnkd.in/p/eCFZj_yu" target="_blank" rel="noreferrer" aria-label="Read the Co-Roc launch post on LinkedIn">
-            <span className="account-linkedin-mark" aria-hidden="true">in</span>
-            <strong>Launch post</strong>
-            <i aria-hidden="true">↗</i>
-          </a>
-        </nav>
         <span className="account-footer-scope">Geometry · evidence · approvals · launch procedures</span>
       </footer>
     </main>

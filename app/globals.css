@@ -269,7 +269,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .account-hero-console dl div:nth-last-child(-n + 2) { border-bottom: 0; }
 .account-hero-console dt { color: color-mix(in srgb, var(--landing-stage-text) 45%, transparent); font: 7px/1 var(--font-geist-mono); letter-spacing: .12em; }
 .account-hero-console dd { margin: 8px 0 0; color: var(--landing-stage-text); font: 9px/1 var(--font-geist-mono); letter-spacing: .05em; }
-.account-hero-actions { display: flex; align-items: stretch; flex-direction: column; gap: 9px; min-width: 224px; }
+.account-hero-actions { display: flex; align-items: stretch; flex-direction: column; gap: 10px; min-width: 296px; }
 .account-hero-actions a { min-height: 58px; display: inline-flex; align-items: center; justify-content: space-between; color: var(--landing-stage-text); font-size: 11px; font-weight: 720; text-decoration: none; }
 .account-primary-link { gap: 24px; padding: 0 17px; background: linear-gradient(112deg, color-mix(in srgb, var(--landing-red) 42%, #171713) 0%, #29221f 48%, color-mix(in srgb, var(--landing-green) 46%, #171713) 100%); color: #f3efe2 !important; border: 1px solid color-mix(in srgb, var(--landing-stage-text) 22%, transparent); box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 10px 26px rgba(0,0,0,.17); transition: transform .18s ease, box-shadow .18s ease, filter .18s ease; }
 .account-primary-link:hover { filter: brightness(1.1); transform: translateY(-2px); box-shadow: inset 0 1px 0 rgba(255,255,255,.13), 0 15px 32px rgba(0,0,0,.22); }
@@ -306,14 +306,14 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .account-theme-toggle button:first-child { border-radius: 6px 0 0 6px; }
 .account-theme-toggle button:last-child { border-radius: 0 6px 6px 0; }
 .account-tabs button { border-radius: 8px 8px 0 0; }
-.account-page-footer { position: relative; z-index: 1; min-height: 72px; display: grid; grid-template-columns: minmax(190px, 1fr) auto minmax(190px, 1fr); align-items: center; gap: 24px; padding: 10px max(28px, calc((100vw - 1450px) / 2)); color: color-mix(in srgb, var(--landing-stage-text) 68%, transparent); font: 10px var(--font-geist-mono); letter-spacing: .05em; border-top: 1px solid color-mix(in srgb, var(--landing-stage-text) 14%, transparent); background: color-mix(in srgb, var(--landing-stage) 78%, transparent); backdrop-filter: blur(18px); }
+.account-page-footer { position: relative; z-index: 1; min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 7px max(28px, calc((100vw - 1450px) / 2)); color: color-mix(in srgb, var(--landing-stage-text) 62%, transparent); font: 9px var(--font-geist-mono); letter-spacing: .06em; border-top: 1px solid color-mix(in srgb, var(--landing-stage-text) 14%, transparent); background: color-mix(in srgb, var(--landing-stage) 78%, transparent); backdrop-filter: blur(18px); }
 .account-footer-scope { justify-self: end; text-align: right; }
-.account-social-links { display: flex; align-items: center; justify-content: center; gap: 10px; }
-.account-social-links a { min-height: 46px; display: grid; grid-template-columns: 26px auto 14px; align-items: center; gap: 10px; padding: 0 15px 0 10px; border: 1px solid color-mix(in srgb, var(--landing-stage-text) 25%, transparent); border-radius: 11px; background: linear-gradient(135deg, color-mix(in srgb, var(--landing-stage-text) 7%, transparent), color-mix(in srgb, var(--landing-green) 10%, transparent)); color: var(--landing-stage-text); box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 22%, transparent), 0 4px 14px color-mix(in srgb, #000 8%, transparent); text-decoration: none; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
+.account-social-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; gap: 8px; }
+.account-social-links a { min-height: 44px; display: grid; grid-template-columns: 24px minmax(0, 1fr) 12px; align-items: center; gap: 8px; padding: 0 10px 0 9px; border: 1px solid color-mix(in srgb, var(--landing-stage-text) 23%, transparent); border-radius: 10px; background: linear-gradient(135deg, color-mix(in srgb, var(--landing-stage-text) 7%, transparent), color-mix(in srgb, var(--landing-green) 10%, transparent)); color: var(--landing-stage-text); box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 20%, transparent), 0 4px 14px color-mix(in srgb, #000 8%, transparent); text-decoration: none; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
 .account-social-links a:hover { border-color: color-mix(in srgb, var(--accent) 70%, var(--landing-stage-text)); background: color-mix(in srgb, var(--accent) 8%, var(--landing-stage)); transform: translateY(-1px); }
-.account-social-links strong { white-space: nowrap; font: 700 13px/1 var(--font-geist-sans); letter-spacing: -.01em; }
-.account-social-links i { color: var(--accent); font: normal 17px/1 var(--font-geist-sans); }
-.account-linkedin-mark { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 7px; background: var(--landing-stage-text); color: var(--landing-stage); font: 800 13px/1 Arial, sans-serif; letter-spacing: -.03em; }
+.account-social-links strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 700 11px/1 var(--font-geist-sans); letter-spacing: -.01em; }
+.account-social-links i { color: var(--accent); font: normal 15px/1 var(--font-geist-sans); }
+.account-linkedin-mark { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 6px; background: var(--landing-stage-text); color: var(--landing-stage); font: 800 12px/1 Arial, sans-serif; letter-spacing: -.03em; }
 .access-eyebrow { display: block; margin: 30px 0 13px; color: var(--accent); font: 10px var(--font-geist-mono); letter-spacing: .14em; }
 .gate-card h1 { max-width: 670px; margin: 0; font-size: clamp(32px, 5.2vw, 58px); line-height: 1.04; letter-spacing: -.045em; }
 .gate-card > p { max-width: 620px; color: var(--muted); font-size: 16px; line-height: 1.7; margin: 25px 0 30px; }
@@ -408,8 +408,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .account-hero { order: 1; width: 100%; }
   .account-panel { order: 2; position: static; width: min(560px, 100%); height: auto; max-height: none; align-self: flex-end; overflow: visible; }
   .account-hero h1 { font-size: clamp(58px, 8.5vw, 82px); }
-  .account-page-footer { grid-template-columns: 1fr auto; }
-  .account-footer-scope { display: none; }
+  .account-hero-actions { min-width: 280px; }
 }
 .app-shell-no-overview { grid-template-rows: 66px 74px 0 1fr 30px; }
 
@@ -446,10 +445,8 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .account-form { padding: 24px 20px; }
   .account-form input { min-height: 48px; font-size: 16px; }
   .account-submit { min-height: 48px; }
-  .account-page-footer { min-height: 0; grid-template-columns: 1fr; gap: 8px; padding: 10px 14px 12px; }
-  .account-footer-product { text-align: center; }
-  .account-social-links { width: min(100%, 390px); justify-self: center; }
-  .account-social-links a { min-width: 0; flex: 1 1 0; }
+  .account-page-footer { min-height: 42px; padding: 8px 14px; }
+  .account-footer-product { text-align: left; }
   .account-footer-scope { display: none; }
   .inline-team-form, .project-form, .project-admin-list, .invite-code-form, .project-check-grid { grid-template-columns: 1fr; }
   .invite-code-list > div { grid-template-columns: 78px 1fr; padding: 8px 0; }
@@ -480,9 +477,9 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .account-hero-actions a { justify-content: space-between; }
   .account-form { padding: 24px 18px; }
   .account-page-footer { min-height: 0; padding: 10px 8px 12px; }
-  .account-social-links { width: 100%; gap: 5px; }
-  .account-social-links a { padding: 0 10px 0 8px; }
-  .account-social-links strong { font-size: 11px; }
+  .account-social-links { width: 100%; gap: 6px; }
+  .account-social-links a { min-height: 42px; padding: 0 8px 0 7px; }
+  .account-social-links strong { font-size: 10px; }
 }
 
 @media (max-width: 320px) {
