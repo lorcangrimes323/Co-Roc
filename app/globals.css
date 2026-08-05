@@ -541,7 +541,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   grid-row: 4;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(220px, var(--tree-pane-width, 280px)) minmax(380px, 1fr) minmax(340px, var(--record-pane-width, 460px));
+  grid-template-columns: minmax(220px, var(--tree-pane-width, 260px)) minmax(520px, 1fr) minmax(340px, var(--record-pane-width, 400px));
   overflow: hidden;
   position: relative;
 }
@@ -1631,15 +1631,23 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 [data-theme="dark"] .field-label > select:hover,
 [data-theme="dark"] .account-form input:hover { border-color: rgba(255,255,255,.34); }
 
+@media (max-width: 1280px) {
+  .topbar { grid-template-columns: 260px minmax(0, 1fr) auto; }
+  .brand-lockup { padding-inline: 15px; }
+  .workspace-brand-logo { width: 225px; }
+  .project-switcher { padding-left: 20px; }
+  .topbar-actions { gap: 10px; padding-inline: 10px; }
+}
+
 @media (max-width: 1100px) {
-  .main-grid { grid-template-columns: 210px minmax(360px, 1fr) 330px; }
+  .main-grid { grid-template-columns: 210px minmax(420px, 1fr) 330px; }
   .user-name { display: none; }
   .topbar { grid-template-columns: 235px 1fr auto; }
   .metric { padding-left: 12px; padding-right: 12px; }
   .model-callout { display: none; }
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1140px) {
   html, body { width: 100%; overflow-x: hidden; }
   body { overflow-y: auto; }
 
@@ -2261,7 +2269,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .flight-mapping-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1140px) {
   .postflight-module {
     grid-column: 1;
     grid-row: 6;

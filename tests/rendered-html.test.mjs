@@ -160,6 +160,11 @@ test("keeps OpenRocket geometry and live edits traceable", async () => {
   assert.match(missionControl, /configuration-pane-widths/);
   assert.match(missionControl, /pane-resizer-tree/);
   assert.match(missionControl, /pane-resizer-record/);
+  assert.match(missionControl, /new ResizeObserver/);
+  assert.match(missionControl, /fitPaneWidthsToViewport/);
+  assert.match(missionControl, /total >= 1200 \? 600 : total >= 1080 \? 560 : 420/);
+  assert.match(styles, /minmax\(520px, 1fr\)/);
+  assert.match(styles, /@media \(max-width: 1140px\)/);
   assert.match(missionControl, /RELEASE BASELINE/);
   assert.doesNotMatch(missionControl, /WORKING VERSION<\/span>/);
   assert.match(missionControl, /CG:/);

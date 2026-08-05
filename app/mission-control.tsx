@@ -31,7 +31,7 @@ type WorkspaceModule = GuidedDemoModule;
 type PaneSide = "tree" | "record";
 type OrkProposalDraft = { file: File; comparison: OrkModelComparison };
 
-const defaultPaneWidths = { tree: 280, record: 460 };
+const defaultPaneWidths = { tree: 260, record: 400 };
 const accentPresets = [
   { name: "Signal red", value: "#c92335" },
   { name: "Safety orange", value: "#c2410c" },
@@ -549,10 +549,58 @@ export function MissionControl({
   }, [mode]);
 
   const constrainedPaneWidths = useCallback((side: PaneSide, requested: number, fixed: typeof defaultPaneWidths, total: number) => {
-    const centreMinimum = 420;
-    if (side === "tree") return { ...fixed, tree: Math.max(220, Math.min(requested, total - fixed.record - centreMinimum)) };
-    return { ...fixed, record: Math.max(340, Math.min(requested, total - fixed.tree - centreMinimum)) };
+    const centreMinimum = total >= 1200 ? 600 : total >= 1080 ? 560 : 420;
+    const treeMaximum = Math.min(360, total * .28);
+    const recordMaximum = Math.min(520, total * .36);
+    if (side === "tree") return { ...fixed, tree: Math.max(220, Math.min(requested, treeMaximum, total - fixed.record - centreMinimum)) };
+    return { ...fixed, record: Math.max(340, Math.min(requested, recordMaximum, total - fixed.tree - centreMinimum)) };
   }, []);
+
+  const fitPaneWidthsToViewport = useCallback((widths: typeof defaultPaneWidths, total: number) => {
+    const centreMinimum = total >= 1200 ? 600 : total >= 1080 ? 560 : 420;
+    const treeMinimum = 220;
+    const recordMinimum = 340;
+    let tree = Math.max(treeMinimum, Math.min(widths.tree, 360, total * .28));
+    let record = Math.max(recordMinimum, Math.min(widths.record, 520, total * .36));
+    const excess = tree + record + centreMinimum - total;
+
+    if (excess > 0) {
+      const treeCapacity = Math.max(0, tree - treeMinimum);
+      const recordCapacity = Math.max(0, record - recordMinimum);
+      const capacity = treeCapacity + recordCapacity;
+      if (capacity > 0) {
+        tree -= Math.min(treeCapacity, excess * (treeCapacity / capacity));
+        record -= Math.min(recordCapacity, excess * (recordCapacity / capacity));
+      }
+    }
+
+    return { tree: Math.round(tree), record: Math.round(record) };
+  }, []);
+
+  useEffect(() => {
+    const grid = mainGridRef.current;
+    if (!grid || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry || entry.contentRect.width <= 0) return;
+      setPaneWidths((current) => {
+        const fitted = fitPaneWidthsToViewport(current, entry.contentRect.width);
+        return fitted.tree === current.tree && fitted.record === current.record ? current : fitted;
+      });
+    });
+    observer.observe(grid);
+    return () => observer.disconnect();
+  }, [fitPaneWidthsToViewport, workspaceModule]);
+
+  useEffect(() => {
+    const grid = mainGridRef.current;
+    if (!grid) return;
+    const total = grid.getBoundingClientRect().width;
+    if (total <= 0) return;
+    setPaneWidths((current) => {
+      const fitted = fitPaneWidthsToViewport(current, total);
+      return fitted.tree === current.tree && fitted.record === current.record ? current : fitted;
+    });
+  }, [fitPaneWidthsToViewport, paneWidths.record, paneWidths.tree, workspaceModule]);
 
   function beginPaneResize(side: PaneSide, event: ReactPointerEvent<HTMLDivElement>) {
     const grid = mainGridRef.current;
