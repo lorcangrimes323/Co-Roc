@@ -32,6 +32,8 @@ type PaneSide = "tree" | "record";
 type OrkProposalDraft = { file: File; comparison: OrkModelComparison };
 
 const defaultPaneWidths = { tree: 260, record: 400 };
+const defaultSummaryHeight = 72;
+const summaryHeightLimits = { minimum: 58, maximum: 148 };
 const accentPresets = [
   { name: "Signal red", value: "#c92335" },
   { name: "Safety orange", value: "#c2410c" },
@@ -460,6 +462,8 @@ export function MissionControl({
   const canvasAccent = useMemo(() => displayAccent(accent, resolvedTheme === "dark"), [accent, resolvedTheme]);
   const [rollDegrees, setRollDegrees] = useState(0);
   const [paneWidths, setPaneWidths] = useState(defaultPaneWidths);
+  const [summaryHeight, setSummaryHeight] = useState(defaultSummaryHeight);
+  const [summaryHeightReady, setSummaryHeightReady] = useState(false);
   const changeRoll = useCallback((deltaDegrees: number) => {
     setRollDegrees((value) => (value + deltaDegrees + 360) % 360);
   }, []);
@@ -526,6 +530,20 @@ export function MissionControl({
     try { window.localStorage.setItem("co-roc:configuration-pane-widths", JSON.stringify(paneWidths)); }
     catch { /* Resizing still works for the current session. */ }
   }, [paneWidths]);
+
+  useEffect(() => {
+    try {
+      const stored = Number(window.localStorage.getItem("co-roc:configuration-summary-height"));
+      if (Number.isFinite(stored) && stored >= summaryHeightLimits.minimum && stored <= summaryHeightLimits.maximum) setSummaryHeight(stored);
+    } catch { /* Keep the compact engineering summary when browser storage is unavailable. */ }
+    setSummaryHeightReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!summaryHeightReady) return;
+    try { window.localStorage.setItem("co-roc:configuration-summary-height", String(summaryHeight)); }
+    catch { /* Resizing still works for the current session. */ }
+  }, [summaryHeight, summaryHeightReady]);
 
   useEffect(() => {
     if (mode !== "demo") return;
@@ -632,6 +650,33 @@ export function MissionControl({
     const direction = event.key === "ArrowRight" ? 1 : -1;
     const requested = side === "tree" ? paneWidths.tree + direction * 16 : paneWidths.record - direction * 16;
     setPaneWidths(constrainedPaneWidths(side, requested, paneWidths, grid.getBoundingClientRect().width));
+  }
+
+  function beginSummaryResize(event: ReactPointerEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const startY = event.clientY;
+    const startHeight = summaryHeight;
+    const move = (pointer: PointerEvent) => {
+      const requested = startHeight + pointer.clientY - startY;
+      setSummaryHeight(Math.max(summaryHeightLimits.minimum, Math.min(summaryHeightLimits.maximum, Math.round(requested))));
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+      document.body.classList.remove("resizing-rows");
+    };
+    document.body.classList.add("resizing-rows");
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop, { once: true });
+    window.addEventListener("pointercancel", stop, { once: true });
+  }
+
+  function resizeSummaryWithKeyboard(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    event.preventDefault();
+    const direction = event.key === "ArrowDown" ? 1 : -1;
+    setSummaryHeight((height) => Math.max(summaryHeightLimits.minimum, Math.min(summaryHeightLimits.maximum, height + direction * 8)));
   }
   const moduleLabel: Record<WorkspaceModule, string> = {
     configuration: "CONFIGURATION",
@@ -1520,7 +1565,7 @@ export function MissionControl({
   }
 
   return (
-    <main className={`app-shell ${workspaceModule !== "configuration" && workspaceModule !== "simulation" ? "app-shell-no-overview" : ""}`}>
+    <main className={`app-shell ${workspaceModule !== "configuration" && workspaceModule !== "simulation" ? "app-shell-no-overview" : ""}`} style={{ "--summary-row-height": `${summaryHeight}px` } as CSSProperties}>
       <header className="topbar">
         <div className="brand-lockup">
           <CoRocLogo className="workspace-brand-logo" />
@@ -1660,6 +1705,19 @@ export function MissionControl({
           <div className="metric"><span>SAVED SIMULATIONS</span><strong>{orkModel?.simulations.length ?? 0} <small>cases</small></strong></div>
           <div className="metric"><span>RELEASE BASELINE</span><strong>{latestRelease ? `V${latestRelease.releaseNumber}` : "—"} <small>{pendingRelease ? `W${pendingRelease.workingVersion} awaiting approval` : latestRelease ? `working copy W${workspaceVersion ?? "—"}` : "not released"}</small></strong></div>
         </>}
+        <div
+          className="summary-resizer"
+          role="separator"
+          aria-label="Resize vehicle summary"
+          aria-orientation="horizontal"
+          aria-valuemin={summaryHeightLimits.minimum}
+          aria-valuemax={summaryHeightLimits.maximum}
+          aria-valuenow={summaryHeight}
+          tabIndex={0}
+          onPointerDown={beginSummaryResize}
+          onKeyDown={resizeSummaryWithKeyboard}
+          onDoubleClick={() => setSummaryHeight(defaultSummaryHeight)}
+        />
       </section>}
 
       {workspaceModule === "configuration" && <nav className="mobile-pane-switcher" aria-label="Configuration view">

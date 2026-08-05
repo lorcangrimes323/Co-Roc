@@ -102,7 +102,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   min-height: 100dvh;
   display: grid;
   grid-template-columns: 58px 1fr;
-  grid-template-rows: 66px 74px 72px 1fr 30px;
+  grid-template-rows: 66px 74px var(--summary-row-height, 72px) 1fr 30px;
   background: var(--ink);
 }
 
@@ -526,6 +526,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   grid-template-columns: repeat(5, 1fr);
   border-bottom: 1px solid var(--line-strong);
   background: var(--ink-2);
+  position: relative;
 }
 .metric { padding: 9px 18px 11px; border-right: 1px solid var(--line); position: relative; min-width: 0; }
 .metric > span { display: block; margin-bottom: 4px; color: var(--muted); font: 10px/1 var(--font-geist-mono); letter-spacing: .09em; }
@@ -549,6 +550,12 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
 .pane-resizer::after { content: ""; position: absolute; top: 0; bottom: 0; left: 4px; width: 1px; background: transparent; transition: background .12s ease, box-shadow .12s ease; }
 .pane-resizer:hover::after, .pane-resizer:focus-visible::after, .resizing-panes .pane-resizer::after { background: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent); }
 .resizing-panes { cursor: col-resize; user-select: none; }
+.summary-resizer { position: absolute; z-index: 14; right: 0; bottom: -5px; left: 0; height: 10px; cursor: row-resize; touch-action: none; outline: 0; }
+.summary-resizer::before { content: ""; position: absolute; top: 4px; right: 0; left: 0; height: 1px; background: transparent; transition: background .12s ease, box-shadow .12s ease; }
+.summary-resizer::after { content: ""; position: absolute; top: 3px; left: 50%; width: 44px; height: 3px; border-radius: 999px; background: var(--line-strong); transform: translateX(-50%); transition: background .12s ease, box-shadow .12s ease; }
+.summary-resizer:hover::before, .summary-resizer:focus-visible::before, .resizing-rows .summary-resizer::before { background: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 14%, transparent); }
+.summary-resizer:hover::after, .summary-resizer:focus-visible::after, .resizing-rows .summary-resizer::after { background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent); }
+.resizing-rows { cursor: row-resize; user-select: none; }
 .workspace-module {
   grid-column: 2;
   grid-row: 4;
@@ -1807,6 +1814,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   .mobile-pane-switcher span { margin-left: 3px; color: var(--faint); font: 9px var(--font-geist-mono); }
   .workspace-module { display: block; }
   .pane-resizer { display: none; }
+  .summary-resizer { display: none; }
   .panel, .module-tree, .simulation-content, .run-history, .records-content, .revision-content { min-width: 0; width: 100%; }
 
   .component-panel {
