@@ -97,6 +97,10 @@ test("presents the complete Co-Roc workflow on a restrained landing page", async
   assert.match(portal, /setThemeMode\("dark"\)/);
   assert.match(portal, /RECOMMENDED START/);
   assert.match(portal, /Start guided demo/);
+  assert.match(portal, /https:\/\/www\.linkedin\.com\/company\/co-roc/);
+  assert.match(portal, /https:\/\/lnkd\.in\/p\/eCFZj_yu/);
+  assert.match(portal, /aria-label="Co-Roc on LinkedIn"/);
+  assert.match(styles, /\.account-social-links/);
   assert.doesNotMatch(portal, /account-control-list/);
   assert.doesNotMatch(styles, /\.account-control-list/);
   assert.match(styles, /grid-template-areas: "hero access";/);
