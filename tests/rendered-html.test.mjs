@@ -169,6 +169,7 @@ test("keeps OpenRocket geometry and live edits traceable", async () => {
   assert.match(styles, /minmax\(520px, 1fr\)/);
   assert.match(styles, /var\(--summary-row-height, 72px\)/);
   assert.match(styles, /\.summary-resizer[\s\S]*cursor: row-resize/);
+  assert.match(styles, /\.metric \{[\s\S]*min-height: 0;[\s\S]*justify-content: center;[\s\S]*overflow: hidden;/);
   assert.match(styles, /@media \(max-width: 1140px\)/);
   assert.match(missionControl, /RELEASE BASELINE/);
   assert.doesNotMatch(missionControl, /WORKING VERSION<\/span>/);

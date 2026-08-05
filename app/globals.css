@@ -528,10 +528,10 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { opacity: .
   background: var(--ink-2);
   position: relative;
 }
-.metric { padding: 9px 18px 11px; border-right: 1px solid var(--line); position: relative; min-width: 0; }
+.metric { min-width: 0; min-height: 0; padding: 4px 18px; border-right: 1px solid var(--line); position: relative; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
 .metric > span { display: block; margin-bottom: 4px; color: var(--muted); font: 10px/1 var(--font-geist-mono); letter-spacing: .09em; }
-.metric strong { font: 22px/1 var(--font-geist-mono); font-weight: 520; }
-.metric strong small { display: block; margin-top: 3px; padding-bottom: 2px; color: var(--muted); font: 10px/1 var(--font-geist-sans); font-weight: 450; }
+.metric strong { min-width: 0; font: 22px/1 var(--font-geist-mono); font-weight: 520; }
+.metric strong small { display: block; min-width: 0; margin-top: 3px; color: var(--muted); font: 10px/1 var(--font-geist-sans); font-weight: 450; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .metric i { position: absolute; height: 2px; background: var(--cyan-dark); left: 18px; right: 18px; bottom: 11px; }
 .metric i b { display: block; height: 100%; background: var(--cyan); }
 .metric-alert strong { color: var(--amber); }
